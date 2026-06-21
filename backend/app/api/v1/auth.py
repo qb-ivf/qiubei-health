@@ -4,9 +4,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...core.crypto import decrypt
 from ...core.database import get_db
-from ...core.security import mask_phone
+from ...core.security import create_token, mask_phone
 from ...models.user import User
-from ...schemas.auth import Me, TokenOut, WxLogin
+from ...schemas.auth import AdminLogin, Me, TokenOut, WxLogin
 from ...services import auth_service
 from ..deps import get_current_user
 
@@ -36,6 +36,14 @@ async def doctor_login(body: WxLogin, db: AsyncSession = Depends(get_db)):
         await db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
     return TokenOut(token=token, role=user.role, user_id=user.id)
+
+
+@router.post("/admin/login", response_model=TokenOut)
+async def admin_login(body: AdminLogin):
+    """PC 运营后台登录（开发期：任意账号，角色由 role 指定；生产走真实 RBAC + 密码校验）。"""
+    role = body.role if body.role in ("pharmacist", "admin", "finance") else "pharmacist"
+    token = create_token(sub=body.username or role, role=role)
+    return TokenOut(token=token, role=role, user_id=0)
 
 
 @router.get("/me", response_model=Me)

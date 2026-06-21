@@ -1,5 +1,6 @@
 // 患者端小程序入口（逑贝健康）
 const { ORDER_STATUS } = require('./utils/constants');
+const signaling = require('./utils/signaling.js');
 
 App({
   globalData: {
@@ -32,7 +33,13 @@ App({
     const patient = wx.getStorageSync('currentPatient');
     if (patient) this.globalData.currentPatient = patient;
     if (wx.getStorageSync('consentSigned')) this.globalData.consentSigned = true;
+
+    // 已登录则建立全局信令长连接（接收 CALL_INVITE 呼叫）
+    if (this.globalData.token) signaling.connect();
   },
+
+  // 登录成功后调用，建立信令连接
+  connectSignaling() { signaling.connect(); },
 
   /**
    * 全局登录路由守卫（FRD §1.2）。受保护页 onLoad 调用：

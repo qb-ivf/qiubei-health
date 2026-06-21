@@ -33,3 +33,6 @@
   background: var(--surface); box-shadow: 0 -4rpx 16rpx rgba(0,0,0,.05);
 }
 .rx-bar .btn-primary { border-radius: 24rpx; width: 100%; }
+.rx-pay--off { background: var(--outline) !important; opacity: .6; }
+.rx-pdf { display: flex; align-items: center; justify-content: center; gap: 8rpx; margin-top: 32rpx; font-size: 28rpx; color: var(--primary); }
+.rx-refund { text-align: center; margin-top: 24rpx; font-size: 26rpx; color: var(--on-surface-variant); text-decoration: underline; }

@@ -1,0 +1,18 @@
+"""站内消息接口（M7，消息诊室）。"""
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from ...core.database import get_db
+from ...services import notification_service
+from ..deps import get_current_user_id
+
+router = APIRouter(prefix="/notifications", tags=["notifications"])
+
+
+@router.get("")
+async def list_notifications(uid: int = Depends(get_current_user_id), db: AsyncSession = Depends(get_db)):
+    items = await notification_service.list_for(db, uid)
+    return [
+        {"id": n.id, "type": n.ntype, "title": n.title, "body": n.body, "read": n.read, "order_id": n.order_id}
+        for n in items
+    ]

@@ -1,0 +1,16 @@
+# PC 运营后台开发服务器（零本地安装）。在 admin-web/ 目录执行 docker compose up
+services:
+  web:
+    build: .
+    command: npm run dev -- --host 0.0.0.0
+    environment:
+      # 容器内通过 host.docker.internal 访问宿主机上的后端(127.0.0.1:8000)
+      VITE_PROXY_TARGET: http://host.docker.internal:8000
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/app
+      - /app/node_modules   # 用容器内安装的依赖，不被宿主空目录覆盖
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

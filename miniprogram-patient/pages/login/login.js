@@ -24,6 +24,7 @@ Page({
         }).then((res) => {
           app.globalData.token = res.token;
           wx.setStorageSync('token', res.token);
+          app.connectSignaling(); // 登录后建立信令长连接
           wx.showToast({ title: '登录成功', icon: 'success' });
           setTimeout(() => wx.navigateBack({ fail: () => wx.switchTab({ url: '/pages/index/index' }) }), 600);
         }).catch((err) => {

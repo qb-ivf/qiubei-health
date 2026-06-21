@@ -14,7 +14,7 @@ from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal, engine
 from app.models import Base  # noqa: F401  导入以填充 metadata
-from app.services import doctor_service, order_service
+from app.services import compliance_service, doctor_service, order_service
 
 logger = logging.getLogger("startup")
 
@@ -32,6 +32,17 @@ async def _expiry_sweep():
             logger.warning("超时扫描失败: %s", e)
 
 
+async def _gov_report_sweep():
+    """后台任务：每 15s 处理卫健委上报队列（模拟上报+重试，M9）。"""
+    while True:
+        await asyncio.sleep(15)
+        try:
+            async with AsyncSessionLocal() as db:
+                await compliance_service.process_pending(db)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("监管上报扫描失败: %s", e)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if settings.DEBUG:
@@ -45,9 +56,11 @@ async def lifespan(app: FastAPI):
         except Exception as e:  # noqa: BLE001
             logger.warning("初始化失败（请确认 MySQL 已启动）: %s", e)
 
-    task = asyncio.create_task(_expiry_sweep())
+    t1 = asyncio.create_task(_expiry_sweep())
+    t2 = asyncio.create_task(_gov_report_sweep())
     yield
-    task.cancel()
+    t1.cancel()
+    t2.cancel()
 
 
 app = FastAPI(title=settings.APP_NAME, debug=settings.DEBUG, lifespan=lifespan)
@@ -61,6 +74,10 @@ app.add_middleware(
 )
 
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+
+# WebSocket 信令（挂在根路径 /ws）
+from app.ws import router as ws_router  # noqa: E402
+app.include_router(ws_router)
 
 
 @app.get("/health", tags=["system"])

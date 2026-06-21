@@ -8,6 +8,12 @@ class WxLogin(BaseModel):
     dev_phone: str | None = None   # 开发期直接传手机号（无微信密钥时用）
 
 
+class AdminLogin(BaseModel):
+    username: str
+    password: str = ""
+    role: str = "pharmacist"  # pharmacist / admin / finance
+
+
 class TokenOut(BaseModel):
     token: str
     role: str

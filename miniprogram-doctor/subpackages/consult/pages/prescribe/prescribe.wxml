@@ -47,18 +47,15 @@
       <view wx:if="{{tab==='record'}}" class="pr-view">
         <view class="pr-field">
           <text class="text-label-md text-on-surface-variant">现病史</text>
-          <textarea class="pr-textarea" placeholder="详细记录症状演变过程、伴随症状等..." adjust-position="{{false}}" cursor-spacing="20" bindfocus="onFocus" bindblur="onBlur"></textarea>
+          <textarea class="pr-textarea" placeholder="详细记录症状演变过程、伴随症状等..." value="{{form.present_illness}}" data-f="present_illness" bindinput="onField" adjust-position="{{false}}" cursor-spacing="20" bindfocus="onFocus" bindblur="onBlur"></textarea>
         </view>
         <view class="pr-field">
           <text class="text-label-md text-on-surface-variant">初步诊断</text>
-          <textarea class="pr-textarea" placeholder="请输入诊断结果..." adjust-position="{{false}}" cursor-spacing="20" bindfocus="onFocus" bindblur="onBlur"></textarea>
-          <view class="flex flex-wrap gap-2" style="margin-top:16rpx;">
-            <view class="pr-dtag">急性上呼吸道感染 <text class="material-symbols-outlined" style="font-size:24rpx;">close</text></view>
-          </view>
+          <textarea class="pr-textarea" placeholder="请输入诊断结果..." value="{{form.diagnosis}}" data-f="diagnosis" bindinput="onField" adjust-position="{{false}}" cursor-spacing="20" bindfocus="onFocus" bindblur="onBlur"></textarea>
         </view>
         <view class="pr-field">
           <text class="text-label-md text-on-surface-variant">医嘱</text>
-          <textarea class="pr-textarea" placeholder="嘱咐患者注意事项..." adjust-position="{{false}}" cursor-spacing="20" bindfocus="onFocus" bindblur="onBlur"></textarea>
+          <textarea class="pr-textarea" placeholder="嘱咐患者注意事项..." value="{{form.advice}}" data-f="advice" bindinput="onField" adjust-position="{{false}}" cursor-spacing="20" bindfocus="onFocus" bindblur="onBlur"></textarea>
         </view>
       </view>
 

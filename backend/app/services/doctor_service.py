@@ -5,6 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.redis import redis_client
+from ..models.drug import Drug
 from ..models.schedule import Slot
 from ..models.user import Doctor
 from ..schemas.doctor import DoctorOut, SlotOut
@@ -46,6 +47,18 @@ async def get_schedule(db: AsyncSession, doctor_id: int, day: str | None) -> lis
 
 async def seed_demo(db: AsyncSession) -> None:
     """开发期插入示例医生 + 未来 3 天号源（幂等）。"""
+    # 药品字典 seed（幂等）
+    drug_count = await db.scalar(select(func.count(Drug.id)))
+    if not drug_count:
+        for d in [
+            dict(name="阿莫西林胶囊", spec="0.25g*24粒", price_fen=1850, category="处方药"),
+            dict(name="布洛芬缓释胶囊", spec="0.3g*22粒", price_fen=2100, category="非处方药"),
+            dict(name="连花清瘟胶囊", spec="0.35g*24粒", price_fen=1680, category="非处方药"),
+            dict(name="盐酸哌替啶注射液", spec="50mg", price_fen=0, category="特殊限售药", restricted=True),
+        ]:
+            db.add(Drug(**d))
+        await db.commit()
+
     count = await db.scalar(select(func.count(Doctor.id)).where(Doctor.name.is_not(None)))
     if count and count > 0:
         return

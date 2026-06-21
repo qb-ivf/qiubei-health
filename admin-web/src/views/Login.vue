@@ -2,18 +2,24 @@
 import { reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import request from '@/api/request'
 
 const router = useRouter()
 const form = reactive({ username: '', password: '' })
 
-function login() {
-  if (!form.username || !form.password) {
-    ElMessage.warning('请输入账号和密码')
+async function login() {
+  if (!form.username) {
+    ElMessage.warning('请输入账号')
     return
   }
-  // 阶段二：POST /api/v1/auth/login 校验角色(RBAC) 后下发 JWT
-  localStorage.setItem('token', 'mock-admin-token')
-  router.replace('/dashboard')
+  try {
+    // 开发期：后端按 role 下发 JWT（M8 接真实 RBAC + 密码校验）。admin 拥有全部权限
+    const res = await request.post('/auth/admin/login', {
+      username: form.username, password: form.password, role: 'admin'
+    })
+    localStorage.setItem('token', res.token)
+    router.replace('/dashboard')
+  } catch (e) { /* 拦截器已提示 */ }
 }
 </script>
 

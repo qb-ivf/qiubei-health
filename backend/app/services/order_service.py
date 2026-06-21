@@ -86,7 +86,13 @@ async def handle_pay_callback(db: AsyncSession, order_no: str) -> Order:
     order.status = int(OrderStatus.WAITING)
     await db.flush()
     await redis_client.rpush(f"room:queue:{order.doctor_id}", order.id)  # 进排队队列
+    await _notify(db, order.user_id, "order", "挂号成功", "请保持手机亮屏，等待医生接诊", order.id)
     return order
+
+
+async def _notify(db, uid, ntype, title, body, order_id):
+    from . import notification_service  # 局部导入避免循环
+    await notification_service.notify(db, uid, ntype, title, body, order_id)
 
 
 async def mark_paid(db: AsyncSession, order_id: int) -> Order:
@@ -100,6 +106,43 @@ async def mark_paid(db: AsyncSession, order_id: int) -> Order:
     order.status = int(OrderStatus.WAITING)
     await db.flush()
     await redis_client.rpush(f"room:queue:{order.doctor_id}", order.id)
+    await _notify(db, order.user_id, "order", "挂号成功", "请保持手机亮屏，等待医生接诊", order.id)
+    return order
+
+
+async def refund(db: AsyncSession, order_id: int, operator_uid: int | None = None) -> Order:
+    """退款（M7）：WAITING/CONSULTING/PRESCRIBED → REFUNDED；候诊未接诊则回补号源。"""
+    res = await db.execute(select(Order).where(Order.id == order_id).with_for_update())
+    order = res.scalar_one_or_none()
+    if order is None:
+        raise StateError("订单不存在")
+    cur = OrderStatus(order.status)
+    if not can_transition(cur, OrderStatus.REFUNDED):
+        raise StateError(f"当前状态 {cur.name} 不可退款")
+    order.status = int(OrderStatus.REFUNDED)
+    if cur == OrderStatus.WAITING and order.slot_id:
+        await redis_client.incr(_slot_key(order.slot_id))  # 回补号源
+    await db.flush()
+    await _notify(db, order.user_id, "refund", "订单已退款", "退款将原路返回，请留意账户", order.id)
+    return order
+
+
+async def mark_drug_paid(db: AsyncSession, order_id: int) -> Order:
+    """药费支付成功：锁行 + 幂等 PRESCRIBED→FINISHED + 写分账（M6）。"""
+    from . import finance_service  # 局部导入避免循环
+
+    res = await db.execute(select(Order).where(Order.id == order_id).with_for_update())
+    order = res.scalar_one_or_none()
+    if order is None:
+        raise StateError("订单不存在")
+    if order.status == int(OrderStatus.FINISHED):
+        return order  # 幂等
+    if order.status != int(OrderStatus.PRESCRIBED):
+        raise StateError(f"当前状态 {OrderStatus(order.status).name} 不可支付药费")
+    order.status = int(OrderStatus.FINISHED)
+    await db.flush()
+    await finance_service.record_ledger(db, order)
+    await _notify(db, order.user_id, "logistics", "药品已发货", "您的药品正在配送途中，请留意签收", order.id)
     return order
 
 

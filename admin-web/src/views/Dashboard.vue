@@ -1,24 +1,33 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import request from '@/api/request'
 
-// 监管数据上报监控面板（PRD §4.4）
-const stats = ref([
-  { label: '今日上报总数', value: 1284, color: '#0056c4' },
-  { label: '上报成功', value: 1271, color: '#00b578' },
-  { label: '上报失败', value: 13, color: '#fa5151' },
-  { label: '平均延迟', value: '420ms', color: '#894d00' }
-])
+// 监管数据上报监控面板（PRD §4.4 / M9）
+const stats = ref([])
+const failed = ref([])
 
-const failed = ref([
-  { id: 'RPT20260621001', type: '开药明细', time: '2026-06-21 14:02', err: '卫健委网关 502' },
-  { id: 'RPT20260621002', type: '问诊记录', time: '2026-06-21 13:48', err: '响应超时' }
-])
+const TYPE_TEXT = { consultation: '问诊记录', prescription: '开药明细' }
 
-function retry(row) {
-  // 调 /api/v1/compliance/retry，重新投递死信队列任务
-  ElMessage.success(`已重新上报 ${row.id}`)
-  failed.value = failed.value.filter((r) => r.id !== row.id)
+async function load() {
+  const s = await request.get('/admin/gov-reports/stats')
+  stats.value = [
+    { label: '上报总数', value: s.total, color: '#0056c4' },
+    { label: '上报成功', value: s.success, color: '#00b578' },
+    { label: '上报失败', value: s.failed, color: '#fa5151' },
+    { label: '平均延迟', value: s.avg_ms + 'ms', color: '#894d00' }
+  ]
+  const f = await request.get('/admin/gov-reports/failed')
+  failed.value = f.map((r) => ({
+    id: r.id, type: TYPE_TEXT[r.type] || r.type, time: `重试 ${r.retries} 次`, err: r.err || r.status
+  }))
+}
+onMounted(load)
+
+async function retry(row) {
+  await request.post(`/admin/gov-reports/${row.id}/retry`)
+  ElMessage.success(`已重新投递上报 #${row.id}`)
+  load()
 }
 </script>
 

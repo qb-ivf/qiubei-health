@@ -1,34 +1,40 @@
-<!-- 页面6：诊后电子处方与药费支付（对照 html/electronic_prescription.html）含步战术5 -->
+<!-- 页面6：诊后电子处方与药费支付（对照 html/electronic_prescription.html） -->
 <view class="rx px-margin-x">
   <!-- 状态 -->
   <view class="rx-status">
-    <view class="rx-status__ic"><text class="material-symbols-outlined ms-fill" style="font-size:64rpx;color:var(--on-secondary-container);">check_circle</text></view>
-    <text class="text-headline-lg text-on-surface">问诊已完成</text>
-    <text class="text-body-md text-on-surface-variant">感谢您的信任，请遵医嘱按时服药</text>
+    <view class="rx-status__ic" style="background:{{status==='approved' ? 'var(--secondary-container)' : 'var(--sc-high)'}};">
+      <text class="material-symbols-outlined ms-fill" style="font-size:64rpx;color:{{status==='approved' ? 'var(--on-secondary-container)' : 'var(--on-surface-variant)'}};">{{status==='approved' ? 'check_circle' : (status==='rejected' ? 'history' : 'hourglass_top')}}</text>
+    </view>
+    <text class="text-headline-lg text-on-surface">{{statusTitle}}</text>
+    <text class="text-body-md text-on-surface-variant">{{statusDesc}}</text>
   </view>
 
   <!-- 诊断 -->
-  <view class="card" style="padding:32rpx;margin-top:24rpx;display:flex;align-items:center;justify-content:space-between;">
+  <view wx:if="{{diagnosis}}" class="card" style="padding:32rpx;margin-top:24rpx;display:flex;align-items:center;justify-content:space-between;">
     <view>
       <text class="chip" style="background:var(--primary-fixed);color:var(--primary);">临床诊断</text>
-      <text class="text-headline-md text-on-surface" style="display:block;margin-top:16rpx;">急性上呼吸道感染</text>
+      <text class="text-headline-md text-on-surface" style="display:block;margin-top:16rpx;">{{diagnosis}}</text>
     </view>
     <text class="material-symbols-outlined text-outline">clinical_notes</text>
   </view>
 
-  <!-- 处方笺 -->
-  <view class="rx-paper">
+  <!-- 审核中 / 驳回 提示 -->
+  <view wx:if="{{status!=='approved'}}" class="rx-tip" style="margin-top:24rpx;">
+    <text class="material-symbols-outlined text-tertiary">info</text>
+    <text class="text-body-sm text-on-surface-variant">{{status==='rejected' ? ('退回原因：' + rejectReason + '，医生将重新开具，请稍候。') : '药师正在审核处方，通过后即可查看并支付药费。下拉或返回重进可刷新。'}}</text>
+  </view>
+
+  <!-- 处方笺（仅审核通过后展示带章处方） -->
+  <view wx:if="{{status==='approved'}}" class="rx-paper">
     <view class="rx-paper__head">
       <view class="flex flex-col items-center">
         <text class="text-headline-lg" style="letter-spacing:4rpx;">Internet Hospital</text>
         <text class="text-headline-md text-on-surface-variant">电子处方笺</text>
-        <text class="text-caption text-outline" style="margin-top:6rpx;">Prescription ID: 2023102700482291</text>
+        <text class="text-caption text-outline" style="margin-top:6rpx;">Order: {{orderId}}</text>
       </view>
       <view class="rx-paper__meta">
         <text class="text-label-md"><text class="text-body-sm text-on-surface-variant">姓名：</text>{{patient.name}}</text>
-        <text class="text-label-md"><text class="text-body-sm text-on-surface-variant">性别：</text>男</text>
-        <text class="text-label-md"><text class="text-body-sm text-on-surface-variant">年龄：</text>32岁</text>
-        <text class="text-label-md"><text class="text-body-sm text-on-surface-variant">科室：</text>全科医学科</text>
+        <text class="text-label-md"><text class="text-body-sm text-on-surface-variant">科室：</text>呼吸内科</text>
       </view>
     </view>
 
@@ -42,35 +48,32 @@
           <text class="text-label-lg text-on-surface">{{item.name}}</text>
           <text class="text-body-md">x{{item.qty}}</text>
         </view>
-        <text class="text-body-sm text-on-surface-variant">规格：{{item.spec}}</text>
-        <text class="rx-usage">用法：{{item.usage}}</text>
+        <text wx:if="{{item.spec}}" class="text-body-sm text-on-surface-variant">规格：{{item.spec}}</text>
+        <text wx:if="{{item.usage}}" class="rx-usage">用法：{{item.usage}}</text>
       </view>
 
       <view class="rx-sign">
         <view>
-          <view class="rx-sign__row"><text class="text-body-sm text-on-surface-variant">开方医师：</text><text class="rx-sign__name">张建设</text></view>
-          <view class="rx-sign__row"><text class="text-body-sm text-on-surface-variant">审核药师：</text><text class="rx-sign__name">李药名</text></view>
-          <text class="text-caption text-outline">日期：2023-10-27 14:30</text>
+          <view class="rx-sign__row"><text class="text-body-sm text-on-surface-variant">开方医师：</text><text class="rx-sign__name">{{doctorName}}</text></view>
+          <view class="rx-sign__row"><text class="text-body-sm text-on-surface-variant">数字签名：</text><text class="rx-sign__name">已 CA 加签</text></view>
         </view>
-        <!-- CA 红色电子章 -->
         <view class="rx-seal">互联网医院<text style="display:block;">处方专用章</text></view>
       </view>
     </view>
   </view>
 
-  <!-- 提示 -->
-  <view class="rx-tip">
-    <text class="material-symbols-outlined text-tertiary">info</text>
-    <text class="text-body-sm text-on-surface-variant">温馨提示：电子处方仅限本平台药房使用，药师审核通过后发货。请遵医嘱使用。</text>
+  <view wx:if="{{status==='approved'}}" class="rx-pdf" bindtap="viewPdf">
+    <text class="material-symbols-outlined" style="font-size:30rpx;">picture_as_pdf</text> 查看处方原件（PDF）
   </view>
+  <view wx:if="{{status==='approved'}}" class="rx-refund" bindtap="onRefund">不需要购药？申请退款</view>
 
   <view style="height: 200rpx;"></view>
 </view>
 
 <!-- 底部支付 -->
 <view class="rx-bar">
-  <view class="btn-primary" bindtap="payDrug">
+  <view class="btn-primary {{status==='approved' ? '' : 'rx-pay--off'}}" bindtap="payDrug">
     <text class="material-symbols-outlined" style="font-size:36rpx;">shopping_cart</text>
-    去支付药费（送药上门）
+    {{status==='approved' ? ('去支付药费 ¥' + drugFeeYuan) : '处方审核中，暂不可支付'}}
   </view>
 </view>

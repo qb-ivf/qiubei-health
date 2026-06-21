@@ -55,12 +55,37 @@ async function payRegister({ doctorId, slotId, patientId }) {
   });
 }
 
-// 通用药费支付占位（M6 再接真实下单）
-function requestPay() {
+// 药费支付闭环（M6）：drug-prepay → 支付 → 5→6 + 分账。测试号自动降级 mock。
+async function payDrug(orderId) {
+  let pre;
+  try {
+    pre = await request(`/orders/${orderId}/drug-prepay`, { method: 'POST' });
+  } catch (e) {
+    return { ok: false, detail: (e && e.detail) || '预支付失败' };
+  }
+
+  if (pre.package && pre.package.indexOf('mock_') > -1) {
+    try {
+      await request(`/orders/${orderId}/drug-pay/mock`, { method: 'POST' });
+      return { ok: true, mock: true };
+    } catch (e) {
+      return { ok: false, detail: '支付失败' };
+    }
+  }
+
   return new Promise((resolve) => {
-    wx.showLoading({ title: '正在支付...', mask: true });
-    setTimeout(() => { wx.hideLoading(); resolve({ ok: true }); }, 800);
+    wx.requestPayment({
+      timeStamp: pre.timeStamp, nonceStr: pre.nonceStr, package: pre.package,
+      signType: pre.signType, paySign: pre.paySign,
+      success: () => resolve({ ok: true, orderId }),
+      fail: (err) => {
+        if (err && err.errMsg && err.errMsg.indexOf('cancel') > -1) { resolve({ ok: false, cancelled: true }); return; }
+        request(`/orders/${orderId}/drug-pay/mock`, { method: 'POST' })
+          .then(() => resolve({ ok: true, orderId, mock: true }))
+          .catch(() => resolve({ ok: false, detail: '支付失败' }));
+      }
+    });
   });
 }
 
-module.exports = { payRegister, requestPay };
+module.exports = { payRegister, payDrug };

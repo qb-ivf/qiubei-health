@@ -1,5 +1,6 @@
 // 医生端小程序入口（逑贝医生端）
 const { ORDER_STATUS } = require('./utils/constants');
+const signaling = require('./utils/signaling.js');
 
 App({
   globalData: {
@@ -24,7 +25,10 @@ App({
 
     const token = wx.getStorageSync('token');
     if (token) this.globalData.token = token;
+    if (this.globalData.token) signaling.connect();
   },
+
+  connectSignaling() { signaling.connect(); },
 
   // 登录守卫 + 白名单（FRD §2.1：非认证执业医师一律拦截）
   ensureLogin() {

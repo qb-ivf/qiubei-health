@@ -1,29 +1,40 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import request from '@/api/request'
 
 // 药师处方双盲审核（PRD §3.4）
-const list = ref([
-  { id: 'RX20260621A', patient: '王*明', doctor: '张建设', diagnosis: '急性上呼吸道感染',
-    drugs: '阿莫西林胶囊 x1；布洛芬缓释胶囊 x1' },
-  { id: 'RX20260621B', patient: '李*', doctor: '王美丽', diagnosis: '急性支气管炎',
-    drugs: '头孢克肟 x1' }
-])
+const list = ref([])
+
+async function load() {
+  const data = await request.get('/prescriptions/pending')
+  list.value = (data || []).map((rx) => ({
+    id: rx.id,
+    order: rx.order_id,
+    patient: rx.patient_name,
+    doctor: rx.doctor_name,
+    diagnosis: rx.diagnosis,
+    drugs: (rx.items || []).map((it) => `${it.name} x${it.qty}`).join('；')
+  }))
+}
+onMounted(load)
 
 // 通过 → 触发 CA 加签生效（AUDITING -> PRESCRIBED）
-function approve(row) {
+async function approve(row) {
+  await request.post(`/prescriptions/${row.id}/approve`)
   ElMessage.success(`处方 ${row.id} 审核通过，已触发 CA 数字签名`)
-  list.value = list.value.filter((r) => r.id !== row.id)
+  load()
 }
 
-// 驳回 → 必填驳回原因（AUDITING -> REJECTED），微信模板消息通知医生
+// 驳回 → 必填驳回原因（AUDITING -> REJECTED）
 function reject(row) {
   ElMessageBox.prompt('请填写驳回原因（如：抗生素用量超标、诊断与用药不符）', '驳回处方', {
     confirmButtonText: '确认驳回', cancelButtonText: '取消',
     inputValidator: (v) => (v && v.trim() ? true : '驳回原因不能为空')
-  }).then(({ value }) => {
+  }).then(async ({ value }) => {
+    await request.post(`/prescriptions/${row.id}/reject`, { reason: value })
     ElMessage.warning(`处方 ${row.id} 已驳回：${value}`)
-    list.value = list.value.filter((r) => r.id !== row.id)
+    load()
   }).catch(() => {})
 }
 </script>

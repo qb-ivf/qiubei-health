@@ -1,21 +1,15 @@
-"""RTC 音视频 UserSig 计算（PRD §2.3：密钥仅存服务端，动态下发）。"""
-import base64
-import hashlib
-import hmac
-import time
-
-from fastapi import APIRouter, Depends
+"""RTC 音视频接口（PRD §2.3 / M4）：服务端动态下发入房参数（UserSig）。"""
+from fastapi import APIRouter, Depends, Header, HTTPException
 
 from ...core.config import settings
 from ...core.security import decode_token
-from fastapi import Header, HTTPException
+from ...services import trtc
 
 router = APIRouter(prefix="/rtc", tags=["rtc"])
 
 
 def _current_user(authorization: str = Header(default="")) -> dict:
-    token = authorization.replace("Bearer ", "")
-    payload = decode_token(token)
+    payload = decode_token(authorization.replace("Bearer ", "").strip())
     if not payload:
         raise HTTPException(status_code=401, detail="未登录或登录态失效")
     return payload
@@ -23,20 +17,21 @@ def _current_user(authorization: str = Header(default="")) -> dict:
 
 @router.get("/user-sig")
 async def user_sig(room_id: str, user=Depends(_current_user)):
-    """返回 TRTC UserSig（有效期 120 分钟）。
+    """返回前端 TRTC SDK 入房所需参数。
 
-    注：此处给出 HMAC-SHA256 骨架，正式接入需替换为腾讯云官方 UserSig
-    生成算法（含 zlib 压缩 + base64），SDKAppID / SecretKey 来自 settings。
+    UserSig 用官方算法生成（见 services/trtc.py）；配置 TRTC_SDKAPPID/SECRETKEY
+    且小程序通过"实时音视频"类目审核后即可真实入房。
     """
+    if not settings.TRTC_SDKAPPID or not settings.TRTC_SECRETKEY:
+        # 未配置（开发期）：返回占位，前端走视频占位画面
+        return {"configured": False, "roomId": room_id, "userId": str(user["sub"])}
+
     user_id = str(user["sub"])
-    expire = settings.TRTC_SIG_EXPIRE
-    ts = int(time.time())
-    raw = f"{settings.TRTC_SDKAPPID}{user_id}{room_id}{ts}{expire}"
-    sig = hmac.new(settings.TRTC_SECRETKEY.encode(), raw.encode(), hashlib.sha256).digest()
     return {
+        "configured": True,
         "sdkAppId": settings.TRTC_SDKAPPID,
         "userId": user_id,
+        "userSig": trtc.gen_user_sig(user_id),
         "roomId": room_id,
-        "userSig": base64.b64encode(sig).decode(),
-        "expire": expire,
+        "expire": settings.TRTC_SIG_EXPIRE,
     }

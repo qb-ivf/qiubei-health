@@ -1,25 +1,36 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import request from '@/api/request'
 
 // 财务对账、渠道分账与提现审批（PRD §4.3）
-const withdrawals = ref([
-  { id: 'WD001', doctor: '张建设', amount: 4350.0, time: '2026-06-21 10:12', status: '待审核' },
-  { id: 'WD002', doctor: '王美丽', amount: 2180.0, time: '2026-06-21 09:30', status: '待审核' }
-])
+const withdrawals = ref([])
+const ledger = ref([])
 
-const ledger = ref([
-  { order: 'REG2026A', total: 50, hospital: 15, doctor: 30, platform: 5 },
-  { order: 'RX2026B', total: 39.5, hospital: 11.85, doctor: 23.7, platform: 3.95 }
-])
+function wText(s) { return s === 'paid' ? '已打款' : s === 'rejected' ? '已驳回' : '待审核' }
+
+async function load() {
+  withdrawals.value = (await request.get('/admin/withdrawals')).map((w) => ({
+    id: w.id, doctor: w.doctor, amount: w.amount, time: '', status: wText(w.status)
+  }))
+  ledger.value = (await request.get('/finance/ledger')).map((l) => ({
+    order: l.order_id, total: l.total, hospital: l.hospital, doctor: l.doctor, platform: l.platform
+  }))
+}
+onMounted(load)
 
 // 审核通过 → 调微信「商家转账到零钱」打款
 function approve(row) {
   ElMessageBox.confirm(`确认向 ${row.doctor} 打款 ¥${row.amount}？`, '提现审批', { type: 'warning' })
-    .then(() => { row.status = '已打款'; ElMessage.success('已调用微信商家转账，待回调解冻余额') })
-    .catch(() => {})
+    .then(async () => {
+      await request.post(`/admin/withdrawals/${row.id}/audit`, { approve: true })
+      ElMessage.success('已调用微信商家转账'); load()
+    }).catch(() => {})
 }
-function reject(row) { row.status = '已驳回'; ElMessage.warning('已驳回提现，解冻余额') }
+async function reject(row) {
+  await request.post(`/admin/withdrawals/${row.id}/audit`, { approve: false })
+  ElMessage.warning('已驳回提现，解冻余额'); load()
+}
 </script>
 
 <template>

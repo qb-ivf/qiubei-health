@@ -1,45 +1,65 @@
 const app = getApp();
+const { request } = require('../../utils/request.js');
+const signaling = require('../../utils/signaling.js');
 
 Page({
   data: {
     onDuty: false,
     doctor: { name: '张建设', title: '主任医师', dept: '呼吸内科' },
-    stats: { waiting: 3, done: 14, income: '700.00' },
-    rejected: [
-      { id: 99, name: '陈某', reason: '配伍禁忌' }
-    ],
-    queue: [
-      { id: 8, no: '008', name: '李四', gender: '男', age: 45, type: '视频问诊', wait: 8, chief: '咳嗽三天，伴有低烧，感冒后自服药物效果不佳，希望详细问诊。' },
-      { id: 9, no: '009', name: '王五', gender: '男', age: 32, type: '图文问诊', wait: 15 },
-      { id: 10, no: '010', name: '赵六', gender: '女', age: 28, type: '视频问诊', wait: 22 }
-    ]
+    stats: { waiting: 0, done: 14, income: '700.00' },
+    rejected: [],
+    queue: []
   },
 
   onLoad() {
     if (!app.ensureLogin()) return; // 医生端登录守卫（FRD §2.1 白名单）
     this.setData({ onDuty: app.globalData.onDuty });
+    signaling.connect();
+    // 患者接听后医生收到 START_STREAM
+    signaling.on(signaling.SIGNAL.START_STREAM, () => {
+      wx.showToast({ title: '患者已接听', icon: 'success' });
+    });
   },
 
-  // 接诊状态开关（OFF 置灰队列 / ON 激活）
+  onShow() { this.loadQueue(); },
+
+  onUnload() { signaling.off(signaling.SIGNAL.START_STREAM); },
+
+  loadQueue() {
+    if (!app.globalData.token) return;
+    request('/orders/queue').then((list) => {
+      if (!Array.isArray(list)) return;
+      const queue = list.map((q) => ({
+        id: q.order_id, no: q.no, name: q.patient_name,
+        gender: q.gender || '—', age: '—', type: '视频问诊',
+        wait: q.wait_minutes,
+        chief: '（候诊中，点击接诊查看主诉）'
+      }));
+      this.setData({ queue, 'stats.waiting': queue.length });
+    }).catch(() => {});
+  },
+
   toggleDuty(e) {
     const onDuty = e.detail.value;
     app.globalData.onDuty = onDuty;
     this.setData({ onDuty });
-    // 阶段三：调后端更新 Redis 接诊状态
   },
 
-  // 立即接诊 → 发起 INIT_CALL → 进入 D2 开方
+  // 立即接诊 → 后端 accept（1→2 + 向患者推 CALL_INVITE）→ 进开方诊室
   accept(e) {
-    if (!this.data.onDuty) {
-      wx.showToast({ title: '请先开启接诊', icon: 'none' });
-      return;
-    }
+    if (!this.data.onDuty) { wx.showToast({ title: '请先开启接诊', icon: 'none' }); return; }
     const id = e.currentTarget.dataset.id;
-    const patient = this.data.queue.find(q => q.id === id);
-    wx.navigateTo({ url: `/subpackages/consult/pages/prescribe/prescribe?room=${id}&name=${patient.name}` });
+    const patient = this.data.queue.find((q) => q.id === id);
+    request(`/orders/${id}/accept`, { method: 'POST' }).then((res) => {
+      wx.showToast({ title: res.invited ? '已呼叫患者' : '患者不在线，已接诊', icon: 'none' });
+      wx.navigateTo({
+        url: `/subpackages/consult/pages/prescribe/prescribe?room=${res.room_id}&name=${patient ? patient.name : ''}`
+      });
+    }).catch((err) => {
+      wx.showToast({ title: (err && err.detail) || '接诊失败', icon: 'none' });
+    });
   },
 
-  // 驳回处方重开 → 进 D2 开处方 Tab
   reopen(e) {
     const id = e.currentTarget.dataset.id;
     wx.navigateTo({ url: `/subpackages/consult/pages/prescribe/prescribe?reopen=1&order=${id}&tab=prescription` });

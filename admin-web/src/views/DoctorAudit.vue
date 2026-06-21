@@ -1,17 +1,32 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import request from '@/api/request'
 
 // 医生入驻 / 多点执业资质终审（PRD §4.1）
-const list = ref([
-  { id: 1, name: '张建设', idcard: '120***********1234', dept: '呼吸内科', title: '主任医师',
-    license: '医师资格证 1101xxxx', practice: '执业证 2201xxxx（多点执业）', status: '待审核' },
-  { id: 2, name: '王美丽', idcard: '120***********5678', dept: '呼吸内科', title: '副主任医师',
-    license: '医师资格证 1102xxxx', practice: '执业证 2202xxxx', status: '待审核' }
-])
+const list = ref([])
 
-function pass(row) { row.status = '已通过'; ElMessage.success(`${row.name} 资质审核通过`) }
-function deny(row) { row.status = '已驳回'; ElMessage.warning(`${row.name} 资质被驳回`) }
+function statusText(s) {
+  return s === 'approved' ? '已通过' : s === 'rejected' ? '已驳回' : '待审核'
+}
+
+async function load() {
+  const data = await request.get('/admin/doctors')
+  list.value = (data || []).map((d) => ({
+    id: d.id, name: d.name || '(未填)', idcard: '—', dept: d.dept, title: d.title,
+    license: d.license_no || '—', practice: d.practice_no || '—', status: statusText(d.audit_status)
+  }))
+}
+onMounted(load)
+
+async function pass(row) {
+  await request.post(`/admin/doctors/${row.id}/audit`, { approve: true })
+  ElMessage.success(`${row.name} 资质审核通过`); load()
+}
+async function deny(row) {
+  await request.post(`/admin/doctors/${row.id}/audit`, { approve: false })
+  ElMessage.warning(`${row.name} 资质被驳回`); load()
+}
 function preview() { ElMessage.info('查看高清资质照片（OSS 防盗链访问）') }
 </script>
 

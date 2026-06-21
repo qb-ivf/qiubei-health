@@ -28,6 +28,7 @@ Page({
 
   onShow() {
     if (!app.globalData.token) { this.setData({ queueBar: '' }); return; }
+    app.connectSignaling(); // 兜底：确保信令长连接已建立（接收 CALL_INVITE）
     request('/orders/active').then((r) => {
       this.setData({ queueBar: r && r.has ? `您有正在排队的视频问诊（${r.doctor_name || ''}），请保持手机亮屏` : '' });
     }).catch(() => {});

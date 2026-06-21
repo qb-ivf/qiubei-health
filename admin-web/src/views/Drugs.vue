@@ -1,13 +1,18 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import request from '@/api/request'
 
 // 院内药房与药品字典（PRD §4.2：特殊限售药强制拦截）
-const list = ref([
-  { id: 1, name: '阿莫西林胶囊', spec: '0.25g*24粒', type: '处方药', price: 18.5, restricted: false },
-  { id: 2, name: '布洛芬缓释胶囊', spec: '0.3g*22粒', type: '非处方药', price: 21.0, restricted: false },
-  { id: 3, name: '盐酸哌替啶注射液', spec: '50mg', type: '特殊限售药', price: 0, restricted: true }
-])
+const list = ref([])
+
+async function load() {
+  const data = await request.get('/admin/drugs')
+  list.value = (data || []).map((d) => ({
+    id: d.id, name: d.name, spec: d.spec, type: d.category, price: d.price, restricted: d.restricted
+  }))
+}
+onMounted(load)
 
 function tagType(t) {
   return t === '特殊限售药' ? 'danger' : t === '处方药' ? 'warning' : 'success'

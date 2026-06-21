@@ -21,7 +21,7 @@ ALLOWED_TRANSITIONS: dict[OrderStatus, set[OrderStatus]] = {
     OrderStatus.CONSULTING: {OrderStatus.AUDITING, OrderStatus.FINISHED, OrderStatus.REFUNDED},
     OrderStatus.AUDITING: {OrderStatus.PRESCRIBED, OrderStatus.REJECTED},
     OrderStatus.REJECTED: {OrderStatus.AUDITING},
-    OrderStatus.PRESCRIBED: {OrderStatus.FINISHED},
+    OrderStatus.PRESCRIBED: {OrderStatus.FINISHED, OrderStatus.REFUNDED},
     OrderStatus.FINISHED: set(),
     OrderStatus.REFUNDED: set(),
     OrderStatus.CANCELLED: set(),
