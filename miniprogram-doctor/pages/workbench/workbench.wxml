@@ -1,0 +1,68 @@
+<!-- 页面D3：我的工作台（对照 html/personal_center_doctor.html） -->
+<view class="wb">
+  <!-- Hero -->
+  <view class="wb-hero">
+    <view class="flex items-center gap-md">
+      <view class="wb-hero__avatar"><text class="material-symbols-outlined" style="font-size:64rpx;color:var(--primary);">account_circle</text></view>
+      <view class="flex-1">
+        <view class="flex items-center gap-2">
+          <text class="text-headline-md text-white font-bold">{{doctor.name}}</text>
+          <text class="wb-hero__tag">{{doctor.title}}</text>
+        </view>
+        <view class="flex items-center gap-1" style="margin-top:6rpx;">
+          <text class="material-symbols-outlined ms-fill" style="font-size:24rpx;color:var(--secondary-fixed-dim);">verified_user</text>
+          <text class="text-caption" style="color:rgba(255,255,255,.9);">执业资格已认证</text>
+        </view>
+      </view>
+    </view>
+    <view class="wb-hero__org">
+      <text class="material-symbols-outlined" style="font-size:24rpx;color:#fff;">corporate_fare</text>
+      <text class="text-label-md text-white">逑贝互联网医院</text>
+    </view>
+  </view>
+
+  <!-- 指标 -->
+  <view class="px-margin-x wb-metrics-wrap">
+    <view class="card wb-metrics">
+      <view class="wb-metric"><text class="text-caption text-on-surface-variant">总接诊量</text><text class="text-label-lg text-primary font-bold">1,248 单</text></view>
+      <view class="wb-metric wb-metric--mid"><text class="text-caption text-on-surface-variant">综合评分</text><text class="text-label-lg text-primary font-bold">4.9 ★</text></view>
+      <view class="wb-metric"><text class="text-caption text-on-surface-variant">线上赞赏</text><text class="text-label-lg text-primary font-bold">320 个</text></view>
+    </view>
+  </view>
+
+  <!-- 收入 -->
+  <view class="px-margin-x" style="margin-top:48rpx;">
+    <view class="card" style="padding:32rpx;">
+      <view class="flex justify-between items-center mb-md">
+        <view class="flex items-center gap-2"><text class="material-symbols-outlined text-primary">account_balance_wallet</text><text class="text-label-lg text-on-surface font-bold">我的收入</text></view>
+        <view class="wb-withdraw" bindtap="withdraw">去提现</view>
+      </view>
+      <text class="text-headline-lg text-on-surface font-bold">¥4,350.00</text>
+      <view class="flex items-center gap-2" style="margin-top:24rpx;padding-top:24rpx;border-top:1rpx solid var(--outline-variant);">
+        <text class="material-symbols-outlined text-on-surface-variant" style="font-size:32rpx;">info</text>
+        <text class="text-caption text-on-surface-variant">每周五可提现至银行卡/微信钱包</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 工作管理 -->
+  <view class="px-margin-x" style="margin-top:48rpx;">
+    <text class="text-label-md text-on-surface-variant" style="margin-left:16rpx;letter-spacing:2rpx;">工作管理</text>
+    <view class="card wb-list" style="margin-top:16rpx;">
+      <view class="wb-row" wx:for="{{manage}}" wx:key="t" bindtap="tapManage" data-t="{{item.t}}">
+        <view class="wb-row__ic" style="color:{{item.color}};background:{{item.bg}};"><text class="material-symbols-outlined">{{item.icon}}</text></view>
+        <text class="text-body-md text-on-surface font-semibold flex-1">{{item.t}}</text>
+        <text class="material-symbols-outlined text-outline-variant">chevron_right</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 支持 -->
+  <view class="px-margin-x" style="margin-top:48rpx;padding-bottom:64rpx;">
+    <view class="card wb-list">
+      <view class="wb-row"><text class="material-symbols-outlined text-on-surface-variant" style="margin-right:24rpx;">qr_code_2</text><text class="text-body-md flex-1">专属医患码</text><text class="material-symbols-outlined text-outline-variant">chevron_right</text></view>
+      <view class="wb-row"><text class="material-symbols-outlined text-on-surface-variant" style="margin-right:24rpx;">support_agent</text><text class="text-body-md flex-1">在线客服/技术支持</text><text class="material-symbols-outlined text-outline-variant">chevron_right</text></view>
+      <view class="wb-row" bindtap="logout"><text class="material-symbols-outlined text-error" style="margin-right:24rpx;">logout</text><text class="text-body-md text-error flex-1">退出登录</text></view>
+    </view>
+  </view>
+</view>

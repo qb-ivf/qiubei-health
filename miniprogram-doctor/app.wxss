@@ -1,0 +1,9 @@
+/* 全局样式：引入共享设计系统（令牌 + 工具类 + Material Symbols） */
+@import "./styles/theme.wxss";
+
+.stub {
+  padding: 96rpx 48rpx;
+  text-align: center;
+  color: var(--on-surface-variant);
+  font-size: 32rpx;
+}

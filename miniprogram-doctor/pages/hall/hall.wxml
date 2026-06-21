@@ -1,0 +1,99 @@
+<!-- 页面D1：接诊大厅（对照 html/reception_hall_doctor.html） -->
+<view class="hall">
+  <!-- 医生身份 + 接诊开关 -->
+  <view class="hall-id bg-surface">
+    <view class="flex items-center gap-4">
+      <view class="hall-id__avatar">
+        <text class="material-symbols-outlined" style="font-size:56rpx;color:var(--primary);">account_circle</text>
+        <view class="hall-id__dot"></view>
+      </view>
+      <view>
+        <view class="flex items-center gap-2">
+          <text class="text-headline-md text-on-surface">{{doctor.name}}</text>
+          <text class="hall-id__online">{{onDuty ? '在线' : '休治'}}</text>
+        </view>
+        <text class="text-body-sm text-on-surface-variant">{{doctor.title}} · {{doctor.dept}}</text>
+      </view>
+    </view>
+    <view class="flex flex-col items-end gap-1">
+      <text class="text-label-md text-on-surface-variant">{{onDuty ? '开启接诊' : '接诊关闭'}}</text>
+      <switch checked="{{onDuty}}" bindchange="toggleDuty" color="#0056c4" />
+    </view>
+  </view>
+
+  <!-- 业绩看板 -->
+  <view class="px-margin-x grid grid-cols-3 gap-3" style="margin-top:24rpx;">
+    <view class="card hall-stat"><text class="text-caption text-on-surface-variant">待接诊</text><text class="text-headline-md text-primary">{{stats.waiting}}人</text></view>
+    <view class="card hall-stat"><text class="text-caption text-on-surface-variant">已接诊</text><text class="text-headline-md text-on-surface">{{stats.done}}人</text></view>
+    <view class="card hall-stat"><text class="text-caption text-on-surface-variant">总收益</text><text class="text-headline-md text-on-surface">¥{{stats.income}}</text></view>
+  </view>
+
+  <!-- 待重开处方（REJECTED，FRD §4） -->
+  <view wx:if="{{rejected.length}}" class="px-margin-x" style="margin-top:32rpx;">
+    <view class="hall-reject" wx:for="{{rejected}}" wx:key="id" bindtap="reopen" data-id="{{item.id}}">
+      <view class="flex items-center gap-2">
+        <text class="material-symbols-outlined text-error">error</text>
+        <text class="text-label-md text-on-surface">{{item.name}} 的处方被药师驳回</text>
+      </view>
+      <text class="text-caption text-error">驳回理由：{{item.reason}} · 点击重开</text>
+    </view>
+  </view>
+
+  <!-- 候诊队列 -->
+  <view class="px-margin-x" style="margin-top:32rpx;">
+    <view class="flex items-center justify-between" style="margin-bottom:24rpx;">
+      <view class="flex items-center gap-2">
+        <text class="material-symbols-outlined text-primary" style="font-size:36rpx;">groups</text>
+        <text class="text-label-lg text-on-surface">候诊室队列 (排队 {{queue.length}}人)</text>
+      </view>
+      <text class="text-caption text-primary">查看全部</text>
+    </view>
+
+    <view class="queue {{onDuty ? '' : 'queue--off'}}">
+      <!-- 首位高亮卡 -->
+      <view class="q-active" wx:if="{{queue.length}}">
+        <view class="q-active__no">就诊号 {{queue[0].no}}</view>
+        <view class="flex gap-4" style="margin-bottom:24rpx;">
+          <view class="q-active__ic"><text class="material-symbols-outlined" style="font-size:48rpx;color:var(--primary);">person</text></view>
+          <view>
+            <view class="flex items-center gap-2">
+              <text class="text-headline-md text-on-surface">{{queue[0].name}}</text>
+              <text class="text-body-sm text-on-surface-variant">{{queue[0].gender}} · {{queue[0].age}}岁</text>
+            </view>
+            <view class="flex items-center gap-1" style="margin-top:6rpx;">
+              <text class="material-symbols-outlined text-primary" style="font-size:28rpx;">videocam</text>
+              <text class="text-label-md text-primary">视频问诊</text>
+            </view>
+          </view>
+        </view>
+        <view class="q-active__chief">
+          <text class="text-caption text-on-surface-variant">主诉症状</text>
+          <text class="text-body-md text-on-surface">{{queue[0].chief}}</text>
+        </view>
+        <view class="flex items-center justify-between" style="margin-top:24rpx;">
+          <view class="flex items-center gap-1 text-tertiary">
+            <text class="material-symbols-outlined" style="font-size:32rpx;">schedule</text>
+            <text class="text-caption">已等待 {{queue[0].wait}}分钟</text>
+          </view>
+          <view class="q-active__btn {{onDuty ? '' : 'q-active__btn--off'}}" bindtap="accept" data-id="{{queue[0].id}}">立即接诊</view>
+        </view>
+      </view>
+
+      <!-- 其余队列 -->
+      <view class="q-row" wx:for="{{queue}}" wx:key="id" wx:if="{{index > 0}}">
+        <view class="flex items-center gap-4">
+          <view class="q-row__ic"><text class="material-symbols-outlined text-on-surface-variant">person</text></view>
+          <view>
+            <view class="flex items-center gap-2"><text class="text-label-lg text-on-surface">{{item.name}}</text><text class="text-caption text-on-surface-variant">{{item.gender}} · {{item.age}}岁</text></view>
+            <text class="text-caption text-on-surface-variant">{{item.type}} · 就诊号 {{item.no}}</text>
+          </view>
+        </view>
+        <view class="text-right">
+          <text class="text-label-md text-on-surface-variant">等待 {{item.wait}}分钟</text>
+          <text class="text-caption text-outline" style="display:block;">待处理</text>
+        </view>
+      </view>
+    </view>
+  </view>
+  <view style="height: 48rpx;"></view>
+</view>

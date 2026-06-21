@@ -1,0 +1,38 @@
+<!-- 页面4：远程视频呼叫接听（对照 html/call.html）含步战术3信令 -->
+<view class="call">
+  <view class="call__glass"></view>
+
+  <view class="call__top">
+    <view class="call__secure">
+      <text class="material-symbols-outlined text-primary" style="font-size:28rpx;">verified_user</text>
+      <text class="text-label-md text-on-surface">加密安全连接</text>
+    </view>
+  </view>
+
+  <view class="call__center">
+    <view class="call__avatar-wrap">
+      <view class="call__avatar">
+        <text class="material-symbols-outlined" style="font-size:140rpx;color:var(--primary);">account_circle</text>
+      </view>
+      <view class="call__badge"><text class="material-symbols-outlined ms-fill" style="font-size:32rpx;color:var(--on-secondary-fixed);">videocam</text></view>
+    </view>
+    <text class="text-headline-lg text-on-surface" style="margin-top:40rpx;">{{doctorName}} 医生</text>
+    <view class="call__dept">主任医师 · 心内科</view>
+    <text class="text-body-md text-on-surface-variant" style="margin-top:16rpx;">{{doctorName}}医生正在向您发起视频问诊邀请...</text>
+  </view>
+
+  <view class="call__actions">
+    <view class="call__btn-col">
+      <view class="call__btn call__btn--decline" bindtap="onDecline">
+        <text class="material-symbols-outlined ms-fill" style="font-size:64rpx;color:#fff;">call_end</text>
+      </view>
+      <text class="text-label-md text-on-surface" style="margin-top:24rpx;">拒绝</text>
+    </view>
+    <view class="call__btn-col">
+      <view class="call__btn call__btn--answer call__ripple" bindtap="onAnswer">
+        <text class="material-symbols-outlined ms-fill" style="font-size:64rpx;color:#fff;">call</text>
+      </view>
+      <text class="text-label-md text-on-surface" style="margin-top:24rpx;">接听</text>
+    </view>
+  </view>
+</view>

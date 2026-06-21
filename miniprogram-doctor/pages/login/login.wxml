@@ -1,0 +1,15 @@
+<!-- 医师登录（FRD §2.1：手机号一键授权 + 后端白名单校验） -->
+<view class="login">
+  <view class="login__logo"><text class="material-symbols-outlined" style="font-size:96rpx;color:var(--primary);">clinical_notes</text></view>
+  <text class="text-headline-lg text-on-surface">逑贝医生端</text>
+  <text class="text-body-sm text-on-surface-variant" style="margin-top:12rpx;">仅限本院认证执业医师登录</text>
+
+  <button class="btn-primary login__btn" open-type="getPhoneNumber" bindgetphonenumber="onGetPhone">
+    <text class="material-symbols-outlined" style="font-size:36rpx;">phone_iphone</text>
+    微信手机号一键登录
+  </button>
+  <view class="login__note">
+    <text class="material-symbols-outlined text-on-surface-variant" style="font-size:32rpx;">info</text>
+    <text class="text-caption text-on-surface-variant">登录后将校验执业医师白名单，非认证账号无法进入。</text>
+  </view>
+</view>

@@ -1,0 +1,36 @@
+<!-- 页面9：搜索 -->
+<view class="search-pg">
+  <view class="px-margin-x" style="padding-top:24rpx;">
+    <view class="search-box">
+      <text class="material-symbols-outlined text-outline">search</text>
+      <input class="search-box__input text-body-md" placeholder="搜索医生、科室、疾病" value="{{kw}}" bindinput="onInput" focus confirm-type="search" bindconfirm="onSearch" />
+      <text wx:if="{{kw}}" class="material-symbols-outlined text-outline" bindtap="clear">cancel</text>
+    </view>
+  </view>
+
+  <view wx:if="{{!kw}}" class="px-margin-x" style="margin-top:48rpx;">
+    <text class="text-label-md text-on-surface-variant">历史搜索</text>
+    <view class="flex flex-wrap gap-2" style="margin-top:24rpx;">
+      <view class="search-tag" wx:for="{{history}}" wx:key="*this" bindtap="useTag" data-k="{{item}}">{{item}}</view>
+    </view>
+    <text class="text-label-md text-on-surface-variant" style="display:block;margin-top:48rpx;">热门科室</text>
+    <view class="flex flex-wrap gap-2" style="margin-top:24rpx;">
+      <view class="search-tag" wx:for="{{hot}}" wx:key="*this" bindtap="useTag" data-k="{{item}}">{{item}}</view>
+    </view>
+  </view>
+
+  <view wx:else class="px-margin-x search-results">
+    <view class="card search-result" wx:for="{{results}}" wx:key="id" bindtap="goDoctor" data-id="{{item.id}}">
+      <text class="material-symbols-outlined text-primary" style="font-size:48rpx;">account_circle</text>
+      <view class="flex-1">
+        <text class="text-label-lg text-on-surface">{{item.name}}</text>
+        <text class="text-caption text-on-surface-variant" style="display:block;">{{item.dept}} · {{item.title}}</text>
+      </view>
+      <text class="material-symbols-outlined text-outline-variant">chevron_right</text>
+    </view>
+    <view wx:if="{{results.length === 0}}" class="search-empty">
+      <text class="material-symbols-outlined text-outline-variant" style="font-size:120rpx;">person_search</text>
+      <text class="text-body-md text-on-surface-variant" style="margin-top:24rpx;">未找到匹配的医生</text>
+    </view>
+  </view>
+</view>

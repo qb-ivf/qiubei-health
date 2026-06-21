@@ -1,0 +1,16 @@
+<!-- 页面8：消息诊室 -->
+<view class="msg px-margin-x">
+  <view class="card msg-item" wx:for="{{sessions}}" wx:key="id">
+    <view class="msg-item__ic" style="background:{{item.bg}};">
+      <text class="material-symbols-outlined" style="font-size:44rpx;color:{{item.color}};">{{item.icon}}</text>
+      <view wx:if="{{item.unread}}" class="msg-item__dot">{{item.unread}}</view>
+    </view>
+    <view class="msg-item__body">
+      <view class="flex justify-between items-center">
+        <text class="text-label-lg text-on-surface">{{item.title}}</text>
+        <text class="text-caption text-on-surface-variant">{{item.time}}</text>
+      </view>
+      <text class="text-body-sm text-on-surface-variant msg-item__desc">{{item.desc}}</text>
+    </view>
+  </view>
+</view>

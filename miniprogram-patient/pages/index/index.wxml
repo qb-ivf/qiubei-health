@@ -1,0 +1,95 @@
+<!-- 页面1：小程序首页（对照 html/home.html） -->
+<view class="home">
+  <!-- 自定义 NavigationBar -->
+  <view class="appbar" style="padding-top: {{statusBar}}px; height: calc(112rpx + {{statusBar}}px);">
+    <view class="flex items-center gap-1">
+      <text class="material-symbols-outlined text-primary" style="font-size:48rpx;">festival</text>
+      <text class="text-headline-md text-primary font-semibold">逑贝互联网医院</text>
+    </view>
+    <view class="patient-pill flex items-center" bindtap="onSwitchPatient">
+      <text class="material-symbols-outlined text-primary" style="font-size:28rpx;margin-right:6rpx;">person</text>
+      <text class="text-label-md">{{currentPatient.name || '王小明'}}</text>
+    </view>
+  </view>
+
+  <scroll-view scroll-y class="home__body" style="padding-top: calc(112rpx + {{statusBar}}px);">
+    <!-- 搜索框 -->
+    <view class="px-margin-x mt-4">
+      <view class="search" bindtap="goSearch">
+        <text class="material-symbols-outlined text-on-surface-variant">search</text>
+        <text class="search__ph text-body-md text-on-surface-variant">搜索医生、科室、疾病...</text>
+      </view>
+    </view>
+
+    <!-- Banner -->
+    <view class="px-margin-x mt-4">
+      <view class="banner bg-primary-container">
+        <view class="banner__txt">
+          <text class="text-headline-md text-white font-semibold">智慧医疗 守护健康</text>
+          <text class="text-body-sm" style="color:rgba(255,255,255,.9);margin-top:8rpx;">提供全天候在线问诊及健康管理服务</text>
+        </view>
+        <text class="material-symbols-outlined banner__icon">health_and_safety</text>
+      </view>
+    </view>
+
+    <!-- 金刚区 -->
+    <view class="px-margin-x mt-6 kingkong">
+      <view class="kk-video bg-primary" bindtap="goRegister">
+        <view>
+          <text class="text-label-lg text-white">视频问诊</text>
+          <text class="text-caption text-primary-fixed-dim" style="display:block;margin-top:8rpx;">足不出户 远程看病</text>
+        </view>
+        <text class="material-symbols-outlined kk-video__icon">videocam</text>
+      </view>
+      <view class="kk-right">
+        <view class="kk-cell bg-secondary-container" bindtap="goRegister">
+          <text class="text-label-lg text-on-secondary-container">图文咨询</text>
+          <text class="text-caption" style="color:var(--on-secondary-fixed-variant);">在线聊天 快速回复</text>
+        </view>
+        <view class="kk-cell bg-tertiary-fixed" bindtap="goRegister">
+          <text class="text-label-lg text-tertiary">预约挂号</text>
+          <text class="text-caption" style="color:var(--on-tertiary-fixed-variant);">提前预约 线下就诊</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 快捷九宫格 -->
+    <view class="px-margin-x mt-6">
+      <view class="quick card">
+        <view class="quick__item" wx:for="{{quickServices}}" wx:key="t">
+          <text class="material-symbols-outlined text-primary" style="font-size:48rpx;">{{item.icon}}</text>
+          <text class="text-caption text-on-surface" style="margin-top:8rpx;">{{item.t}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 通知跑马灯 -->
+    <view class="marquee mt-6">
+      <text class="material-symbols-outlined text-tertiary" style="font-size:36rpx;margin-right:12rpx;">notifications</text>
+      <text class="text-body-sm text-on-surface-variant marquee__txt">[通知] 本院已开通全天候线上儿科视频急诊，如遇突发情况请点击视频问诊进入绿色通道。</text>
+    </view>
+
+    <!-- 今日出诊名医 -->
+    <view class="mt-6">
+      <view class="px-margin-x flex justify-between items-center mb-md">
+        <text class="text-headline-md text-on-surface font-semibold">今日出诊名医</text>
+        <view class="flex items-center text-primary" bindtap="goRegister">
+          <text class="text-label-md">更多</text>
+          <text class="material-symbols-outlined" style="font-size:36rpx;">chevron_right</text>
+        </view>
+      </view>
+      <scroll-view scroll-x class="doc-rail">
+        <view class="doc-card card" wx:for="{{doctors}}" wx:key="id" bindtap="goDoctor" data-id="{{item.id}}">
+          <view class="doc-card__avatar">
+            <text class="material-symbols-outlined" style="font-size:56rpx;color:var(--primary);">account_circle</text>
+          </view>
+          <text class="text-label-lg text-on-surface">{{item.name}}</text>
+          <text class="text-caption text-on-surface-variant">{{item.dept}} · {{item.title}}</text>
+          <view class="doc-card__btn">立即咨询</view>
+        </view>
+      </scroll-view>
+    </view>
+
+    <view style="height: 160rpx;"></view>
+  </scroll-view>
+</view>

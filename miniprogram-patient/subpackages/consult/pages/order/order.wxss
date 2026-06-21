@@ -1,0 +1,12 @@
+.od { padding-top: 24rpx; display: flex; flex-direction: column; gap: 24rpx; }
+.od-addr { display: flex; align-items: center; gap: 20rpx; padding: 32rpx; }
+.od-timeline { padding: 32rpx; }
+.od-node { display: flex; gap: 24rpx; padding-bottom: 40rpx; position: relative; }
+.od-node:last-child { padding-bottom: 0; }
+.od-node::before { content: ''; position: absolute; left: 11rpx; top: 28rpx; bottom: 0; width: 2rpx; background: var(--outline-variant); }
+.od-node:last-child::before { display: none; }
+.od-node__dot { width: 24rpx; height: 24rpx; border-radius: 9999rpx; background: var(--outline-variant); flex-shrink: 0; margin-top: 4rpx; z-index: 1; }
+.od-node--done .od-node__dot { background: var(--secondary); }
+.od-node__body { display: flex; flex-direction: column; gap: 4rpx; }
+.od-drugs { padding: 32rpx; }
+.od-drug { display: flex; justify-content: space-between; padding: 16rpx 0; }

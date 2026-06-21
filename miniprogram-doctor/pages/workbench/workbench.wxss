@@ -1,0 +1,16 @@
+.wb-hero { background: linear-gradient(135deg, #0056c4 0%, #1d6fec 100%); padding: 48rpx 32rpx 128rpx; }
+.wb-hero__avatar { width: 120rpx; height: 120rpx; border-radius: 9999rpx; background: #fff; border: 4rpx solid rgba(255,255,255,.3); display: flex; align-items: center; justify-content: center; }
+.wb-hero__tag { font-size: 24rpx; color: #fff; background: rgba(255,255,255,.2); padding: 4rpx 16rpx; border-radius: 12rpx; }
+.wb-hero__org { display: inline-flex; align-items: center; gap: 12rpx; margin-top: 32rpx; padding: 8rpx 28rpx; background: rgba(0,0,0,.1); border: 1rpx solid rgba(255,255,255,.1); border-radius: 9999rpx; }
+
+.wb-metrics-wrap { margin-top: -64rpx; position: relative; z-index: 2; }
+.wb-metrics { display: flex; padding: 24rpx 0; }
+.wb-metric { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8rpx; }
+.wb-metric--mid { border-left: 1rpx solid rgba(194,198,215,.3); border-right: 1rpx solid rgba(194,198,215,.3); }
+
+.wb-withdraw { background: var(--primary); color: #fff; font-size: 28rpx; font-weight: 700; padding: 12rpx 40rpx; border-radius: 9999rpx; }
+
+.wb-list { padding: 0; overflow: hidden; }
+.wb-row { display: flex; align-items: center; padding: 32rpx; border-bottom: 1rpx solid rgba(194,198,215,.2); }
+.wb-row:last-child { border-bottom: none; }
+.wb-row__ic { width: 80rpx; height: 80rpx; border-radius: 16rpx; display: flex; align-items: center; justify-content: center; margin-right: 24rpx; }

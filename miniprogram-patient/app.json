@@ -1,0 +1,52 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/register/register",
+    "pages/message/message",
+    "pages/profile/profile",
+    "pages/login/login",
+    "pages/search/search",
+    "pages/patients/patients"
+  ],
+  "subPackages": [
+    {
+      "root": "subpackages/consult",
+      "name": "consult",
+      "pages": [
+        "pages/doctor-detail/doctor-detail",
+        "pages/call/call",
+        "pages/video-room/video-room",
+        "pages/prescription/prescription",
+        "pages/order/order"
+      ]
+    }
+  ],
+  "preloadRule": {
+    "pages/index/index": {
+      "network": "all",
+      "packages": ["consult"]
+    }
+  },
+  "window": {
+    "navigationBarBackgroundColor": "#0056c4",
+    "navigationBarTitleText": "逑贝健康",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#f7f8fa",
+    "backgroundTextStyle": "dark"
+  },
+  "tabBar": {
+    "color": "#727786",
+    "selectedColor": "#0056c4",
+    "backgroundColor": "#faf8ff",
+    "borderStyle": "white",
+    "list": [
+      { "pagePath": "pages/index/index", "text": "首页" },
+      { "pagePath": "pages/register/register", "text": "预约挂号" },
+      { "pagePath": "pages/message/message", "text": "消息诊室" },
+      { "pagePath": "pages/profile/profile", "text": "我的" }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}

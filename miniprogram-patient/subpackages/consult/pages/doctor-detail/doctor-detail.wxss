@@ -1,0 +1,46 @@
+.dd-head {
+  display: flex; gap: 32rpx; padding: 48rpx 32rpx 96rpx;
+  background: linear-gradient(180deg, var(--primary-fixed) 0%, var(--surface) 100%);
+}
+.dd-head__avatar {
+  width: 192rpx; height: 240rpx; border-radius: 24rpx; background: #fff;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  box-shadow: 0 2rpx 8rpx rgba(0,0,0,.04);
+}
+.dd-head__info { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+.dd-tag { font-size: 28rpx; font-weight: 600; color: var(--primary); background: var(--primary-fixed); padding: 2rpx 16rpx; border-radius: 9999rpx; }
+.dd-chip { font-size: 24rpx; color: var(--on-surface-variant); background: var(--sc-high); padding: 6rpx 16rpx; border-radius: 8rpx; }
+
+.dd-serv { display: flex; padding: 8rpx; }
+.dd-serv__item {
+  flex: 1; padding: 28rpx 0; display: flex; flex-direction: column; align-items: center;
+  border-radius: 16rpx; color: var(--on-surface-variant); gap: 4rpx;
+}
+.dd-serv__item--on { background: var(--primary); color: #fff; box-shadow: 0 8rpx 20rpx rgba(0,86,196,.2); }
+
+.dd-patient { display: flex; align-items: center; justify-content: space-between; padding: 32rpx; }
+.dd-patient__ic { width: 96rpx; height: 96rpx; border-radius: 9999rpx; background: var(--secondary-container); display: flex; align-items: center; justify-content: center; }
+.dd-patient__self { font-size: 24rpx; color: var(--secondary); border: 1rpx solid var(--secondary); padding: 0 8rpx; border-radius: 6rpx; }
+
+.dd-row { display: flex; justify-content: space-between; align-items: center; margin-top: 20rpx; }
+.dd-notice { display: flex; gap: 12rpx; background: var(--sc-low); padding: 20rpx; border-radius: 16rpx; margin-top: 24rpx; }
+
+.dd-policy { display: flex; align-items: flex-start; gap: 12rpx; padding: 24rpx 32rpx; }
+.dd-check {
+  width: 36rpx; height: 36rpx; border-radius: 8rpx; border: 2rpx solid var(--outline);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 4rpx;
+}
+.dd-check--on { background: var(--primary); border-color: var(--primary); }
+
+.dd-bar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+  height: 160rpx; padding: 0 32rpx; padding-bottom: env(safe-area-inset-bottom);
+  background: var(--sc-lowest); border-top: 1rpx solid var(--outline-variant);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.dd-pay {
+  flex: 1; max-width: 480rpx; height: 104rpx; margin-left: 32rpx;
+  background: var(--primary); color: #fff; border-radius: 9999rpx;
+  font-size: 32rpx; font-weight: 600; display: flex; align-items: center; justify-content: center;
+}
+.dd-pay--disabled { opacity: .5; }

@@ -1,0 +1,108 @@
+<!-- 页面D2：视频问诊+开处方一体化（对照 html/video_consultation_doctor.html）含步战术4 -->
+<view class="pr">
+  <!-- 顶部 AppBar -->
+  <view class="pr-bar" style="padding-top: {{statusBar}}px;">
+    <view class="flex items-center gap-2" bindtap="back">
+      <text class="material-symbols-outlined text-primary">arrow_back</text>
+      <text class="text-headline-md text-primary font-bold">视频问诊</text>
+    </view>
+    <view class="pr-bar__status"><view class="pr-bar__dot"></view><text class="text-caption text-on-secondary-container">连接稳定</text></view>
+  </view>
+
+  <!-- 顶部视频区（40vh，软键盘弹起时雷打不动） -->
+  <view class="pr-video">
+    <live-player class="pr-video__media" src="{{playerSrc}}" mode="RTC" autoplay object-fit="fillCrop"></live-player>
+    <view wx:if="{{!ready}}" class="pr-video__ph"><text class="material-symbols-outlined" style="font-size:80rpx;color:rgba(255,255,255,.4);">person</text></view>
+    <view class="pr-video__pip">
+      <live-pusher class="pr-video__media" url="{{pusherSrc}}" mode="RTC" autopush enable-camera="{{cameraOn}}" enable-mic="{{micOn}}"></live-pusher>
+    </view>
+    <view class="pr-video__time"><view class="pr-video__dot"></view><text class="text-label-md text-white">{{timeText}}</text></view>
+    <view class="pr-video__ctrls">
+      <view class="pr-ctrl" bindtap="toggleMic"><text class="material-symbols-outlined" style="font-size:44rpx;color:#fff;">{{micOn ? 'mic' : 'mic_off'}}</text></view>
+      <view class="pr-ctrl pr-ctrl--end" bindtap="hangup"><text class="material-symbols-outlined ms-fill" style="font-size:52rpx;color:#fff;">call_end</text></view>
+      <view class="pr-ctrl" bindtap="toggleCamera"><text class="material-symbols-outlined" style="font-size:44rpx;color:#fff;">videocam</text></view>
+    </view>
+  </view>
+
+  <!-- 底部作业区（60vh） -->
+  <view class="pr-work">
+    <view class="pr-tabs">
+      <view class="pr-tab {{tab==='complaint' ? 'pr-tab--on' : ''}}" bindtap="switchTab" data-t="complaint">患者主诉</view>
+      <view class="pr-tab {{tab==='record' ? 'pr-tab--on' : ''}}" bindtap="switchTab" data-t="record">书写病历</view>
+      <view class="pr-tab {{tab==='prescription' ? 'pr-tab--on' : ''}}" bindtap="switchTab" data-t="prescription">开具处方</view>
+    </view>
+
+    <scroll-view scroll-y class="pr-content" style="padding-bottom: {{kbHeight ? kbHeight + 40 : 160}}px;">
+      <!-- 患者主诉 -->
+      <view wx:if="{{tab==='complaint'}}" class="pr-view">
+        <view class="card" style="padding:32rpx;">
+          <text class="text-body-md text-on-surface">“医生您好，我从昨晚开始嗓子疼，今早有点发烧，测了是38.2度，还有点咳嗽，没有痰。”</text>
+          <view class="pr-imgs">
+            <view class="pr-img"><text class="material-symbols-outlined text-outline" style="font-size:48rpx;">image</text></view>
+          </view>
+        </view>
+      </view>
+
+      <!-- 书写病历 -->
+      <view wx:if="{{tab==='record'}}" class="pr-view">
+        <view class="pr-field">
+          <text class="text-label-md text-on-surface-variant">现病史</text>
+          <textarea class="pr-textarea" placeholder="详细记录症状演变过程、伴随症状等..." adjust-position="{{false}}" cursor-spacing="20" bindfocus="onFocus" bindblur="onBlur"></textarea>
+        </view>
+        <view class="pr-field">
+          <text class="text-label-md text-on-surface-variant">初步诊断</text>
+          <textarea class="pr-textarea" placeholder="请输入诊断结果..." adjust-position="{{false}}" cursor-spacing="20" bindfocus="onFocus" bindblur="onBlur"></textarea>
+          <view class="flex flex-wrap gap-2" style="margin-top:16rpx;">
+            <view class="pr-dtag">急性上呼吸道感染 <text class="material-symbols-outlined" style="font-size:24rpx;">close</text></view>
+          </view>
+        </view>
+        <view class="pr-field">
+          <text class="text-label-md text-on-surface-variant">医嘱</text>
+          <textarea class="pr-textarea" placeholder="嘱咐患者注意事项..." adjust-position="{{false}}" cursor-spacing="20" bindfocus="onFocus" bindblur="onBlur"></textarea>
+        </view>
+      </view>
+
+      <!-- 开具处方 -->
+      <view wx:if="{{tab==='prescription'}}" class="pr-view">
+        <view class="pr-search">
+          <text class="material-symbols-outlined text-outline">search</text>
+          <input class="flex-1 text-body-md" placeholder="搜索院内药品（拼音首字母）" value="{{drugKw}}" bindinput="onDrugInput" adjust-position="{{false}}" cursor-spacing="20" bindfocus="onFocus" bindblur="onBlur" />
+        </view>
+        <view wx:if="{{suggestions.length}}" class="pr-sugg">
+          <view class="pr-sugg__item" wx:for="{{suggestions}}" wx:key="name" bindtap="addDrug" data-i="{{index}}">
+            <text class="text-body-md text-on-surface">{{item.name}}</text>
+            <text class="material-symbols-outlined text-primary">add_circle</text>
+          </view>
+        </view>
+
+        <text class="text-label-lg text-on-surface" style="margin:24rpx 0 16rpx;display:block;">已添加药品</text>
+        <view class="card pr-drug" wx:for="{{drugs}}" wx:key="name">
+          <view class="flex justify-between items-start">
+            <view><text class="text-label-lg text-on-surface">{{item.name}}</text><text class="text-caption text-on-surface-variant" style="display:block;">规格：{{item.spec}}</text></view>
+            <text class="text-primary font-bold">¥{{item.price}}</text>
+          </view>
+          <view class="flex items-center justify-between" style="margin-top:16rpx;gap:16rpx;">
+            <view class="pr-stepper">
+              <view class="pr-stepper__btn" bindtap="dec" data-i="{{index}}"><text class="material-symbols-outlined" style="font-size:32rpx;">remove</text></view>
+              <text class="pr-stepper__num">{{item.qty}}</text>
+              <view class="pr-stepper__btn" bindtap="inc" data-i="{{index}}"><text class="material-symbols-outlined" style="font-size:32rpx;">add</text></view>
+            </view>
+            <picker class="flex-1" range="{{usageOptions}}" value="{{item.usageIdx}}" bindchange="onUsage" data-i="{{index}}">
+              <view class="pr-usage">{{usageOptions[item.usageIdx]}}</view>
+            </picker>
+            <view class="text-error" bindtap="delDrug" data-i="{{index}}"><text class="material-symbols-outlined">delete</text></view>
+          </view>
+        </view>
+        <view wx:if="{{!drugs.length}}" class="stub">尚未添加药品，请搜索院内药品</view>
+      </view>
+    </scroll-view>
+
+    <!-- 提交 -->
+    <view wx:if="{{!kbHeight}}" class="pr-submit">
+      <view class="btn-primary btn-primary--rect" style="background:var(--secondary);width:100%;" bindtap="submit">
+        <text class="material-symbols-outlined" style="font-size:36rpx;">edit_document</text>
+        数字签名并发送处方
+      </view>
+    </view>
+  </view>
+</view>

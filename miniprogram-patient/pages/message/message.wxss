@@ -1,0 +1,6 @@
+.msg { padding-top: 24rpx; display: flex; flex-direction: column; gap: 24rpx; }
+.msg-item { display: flex; gap: 24rpx; padding: 28rpx; align-items: center; }
+.msg-item__ic { position: relative; width: 88rpx; height: 88rpx; border-radius: 24rpx; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.msg-item__dot { position: absolute; top: -6rpx; right: -6rpx; min-width: 32rpx; height: 32rpx; padding: 0 6rpx; background: var(--error); color: #fff; font-size: 20rpx; border-radius: 9999rpx; display: flex; align-items: center; justify-content: center; border: 2rpx solid #fff; }
+.msg-item__body { flex: 1; min-width: 0; }
+.msg-item__desc { display: block; margin-top: 8rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

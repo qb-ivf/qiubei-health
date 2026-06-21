@@ -1,0 +1,64 @@
+<!-- 页面2：医生列表 / 预约挂号（对照 html/reserve.html） -->
+<view class="reg">
+  <!-- 搜索 -->
+  <view class="bg-surface px-margin-x" style="padding-top:24rpx;padding-bottom:16rpx;">
+    <view class="search" bindtap="goSearch">
+      <text class="material-symbols-outlined text-outline">search</text>
+      <text class="text-body-md text-on-surface-variant">搜索医生、科室、疾病</text>
+    </view>
+  </view>
+
+  <!-- 日期横向选择 -->
+  <scroll-view scroll-x class="dates">
+    <view
+      wx:for="{{dates}}" wx:key="d"
+      class="date-chip {{index === activeDate ? 'date-chip--active' : ''}}"
+      bindtap="selectDate" data-i="{{index}}">
+      <text class="text-label-md">{{item.label}}</text>
+      <text class="text-headline-md">{{item.d}}</text>
+    </view>
+  </scroll-view>
+
+  <!-- 科室标题 -->
+  <view class="px-margin-x flex items-center gap-2" style="margin-top:32rpx;">
+    <text class="material-symbols-outlined text-on-surface-variant" style="font-size:28rpx;">clinical_notes</text>
+    <text class="text-label-lg text-on-surface-variant">呼吸内科 专家列表</text>
+  </view>
+
+  <!-- 医生卡片 -->
+  <view class="px-margin-x doc-list">
+    <view
+      wx:for="{{doctors}}" wx:key="id"
+      class="doc card {{item.full ? 'doc--full' : ''}}"
+      bindtap="goDoctor" data-id="{{item.id}}" data-full="{{item.full}}">
+      <view class="doc__avatar">
+        <text class="material-symbols-outlined" style="font-size:64rpx;color:{{item.full ? 'var(--outline)' : 'var(--primary)'}};">account_circle</text>
+        <view wx:if="{{!item.full}}" class="doc__dot"></view>
+      </view>
+      <view class="doc__main">
+        <view class="flex justify-between items-start">
+          <view>
+            <view class="flex items-center gap-2">
+              <text class="text-headline-md text-on-surface">{{item.name}} 医生</text>
+              <text wx:if="{{item.pro}}" class="doc__pro">PRO</text>
+            </view>
+            <text class="text-label-md text-on-surface-variant">{{item.dept}} | {{item.title}}</text>
+          </view>
+          <text class="text-headline-md {{item.full ? 'text-outline' : 'text-primary'}}">¥{{item.fee}}</text>
+        </view>
+        <view class="flex flex-wrap gap-2" style="margin-top:24rpx;">
+          <view wx:if="{{!item.full}}" class="chip bg-secondary-container text-on-secondary-container">
+            <text class="material-symbols-outlined ms-fill" style="font-size:24rpx;">check_circle</text>今日有号
+          </view>
+          <view wx:for="{{item.tags}}" wx:for-item="tag" wx:key="*this" class="chip bg-surface-variant text-on-surface-variant">{{tag}}</view>
+        </view>
+        <view class="flex justify-end" style="margin-top:32rpx;">
+          <view wx:if="{{item.full}}" class="doc__btn doc__btn--off">已约满</view>
+          <view wx:else class="doc__btn">预约</view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view style="height: 48rpx;"></view>
+</view>

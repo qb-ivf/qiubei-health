@@ -1,0 +1,28 @@
+<!-- 页面10：订单与物流追踪 -->
+<view class="od px-margin-x">
+  <view class="card od-addr">
+    <text class="material-symbols-outlined text-primary" style="font-size:44rpx;">location_on</text>
+    <view class="flex-1">
+      <text class="text-label-lg text-on-surface">王小明 138****1234</text>
+      <text class="text-body-sm text-on-surface-variant" style="display:block;">天津市河西区xx路xx号</text>
+    </view>
+  </view>
+
+  <view class="card od-timeline">
+    <view class="od-node {{item.done ? 'od-node--done' : ''}}" wx:for="{{steps}}" wx:key="t">
+      <view class="od-node__dot"></view>
+      <view class="od-node__body">
+        <text class="text-label-md {{item.done ? 'text-on-surface' : 'text-on-surface-variant'}}">{{item.t}}</text>
+        <text wx:if="{{item.time}}" class="text-caption text-on-surface-variant">{{item.time}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="card od-drugs">
+    <text class="text-label-lg text-on-surface" style="margin-bottom:16rpx;display:block;">药品清单</text>
+    <view class="od-drug" wx:for="{{drugs}}" wx:key="name">
+      <text class="text-body-md text-on-surface">{{item.name}}</text>
+      <text class="text-body-sm text-on-surface-variant">x{{item.qty}}</text>
+    </view>
+  </view>
+</view>

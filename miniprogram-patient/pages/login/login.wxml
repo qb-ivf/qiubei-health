@@ -1,0 +1,12 @@
+<!-- 登录授权（FRD §2.1 手机号一键授权） -->
+<view class="login">
+  <view class="login__logo"><text class="material-symbols-outlined" style="font-size:96rpx;color:var(--primary);">festival</text></view>
+  <text class="text-headline-lg text-on-surface">逑贝互联网医院</text>
+  <text class="text-body-sm text-on-surface-variant" style="margin-top:12rpx;">登录后即可预约问诊与查看处方</text>
+
+  <button class="btn-primary login__btn" open-type="getPhoneNumber" bindgetphonenumber="onGetPhone">
+    <text class="material-symbols-outlined" style="font-size:36rpx;">phone_iphone</text>
+    微信手机号一键登录
+  </button>
+  <text class="text-caption text-on-surface-variant login__policy">登录即代表同意《用户协议》与《隐私政策》</text>
+</view>

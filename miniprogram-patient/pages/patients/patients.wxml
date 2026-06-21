@@ -1,0 +1,20 @@
+<!-- 就诊人管理（FRD §2.2 实名制） -->
+<view class="pt px-margin-x">
+  <view class="card pt-item {{item.active ? 'pt-item--active' : ''}}" wx:for="{{patients}}" wx:key="id" bindtap="setDefault" data-id="{{item.id}}">
+    <view class="pt-item__ic"><text class="material-symbols-outlined text-primary" style="font-size:48rpx;">person</text></view>
+    <view class="flex-1">
+      <view class="flex items-center gap-2">
+        <text class="text-label-lg text-on-surface">{{item.name}}</text>
+        <text wx:if="{{item.relation}}" class="pt-item__rel">{{item.relation}}</text>
+        <text wx:if="{{item.verified}}" class="pt-item__verified">已实名</text>
+      </view>
+      <text class="text-caption text-on-surface-variant">{{item.idMask}}</text>
+    </view>
+    <text wx:if="{{item.active}}" class="material-symbols-outlined ms-fill text-primary">check_circle</text>
+  </view>
+
+  <view class="pt-add" bindtap="addPatient">
+    <text class="material-symbols-outlined" style="font-size:40rpx;">add</text>
+    添加就诊人（需实名认证）
+  </view>
+</view>

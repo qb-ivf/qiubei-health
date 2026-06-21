@@ -1,0 +1,21 @@
+.hall-id { display: flex; align-items: center; justify-content: space-between; padding: 32rpx; }
+.hall-id__avatar { position: relative; width: 96rpx; height: 96rpx; border-radius: 9999rpx; background: var(--primary-fixed); display: flex; align-items: center; justify-content: center; border: 2rpx solid var(--primary-fixed); }
+.hall-id__dot { position: absolute; bottom: 0; right: 0; width: 24rpx; height: 24rpx; background: var(--secondary); border: 4rpx solid var(--sc-lowest); border-radius: 9999rpx; }
+.hall-id__online { font-size: 24rpx; color: var(--on-secondary-container); background: var(--secondary-container); padding: 2rpx 16rpx; border-radius: 9999rpx; }
+
+.hall-stat { display: flex; flex-direction: column; align-items: center; gap: 8rpx; padding: 24rpx 0; }
+
+.hall-reject { background: var(--error-container); border-radius: 16rpx; padding: 24rpx 32rpx; display: flex; flex-direction: column; gap: 8rpx; }
+
+.queue { display: flex; flex-direction: column; gap: 32rpx; }
+.queue--off { opacity: .5; }
+
+.q-active { position: relative; background: var(--sc-lowest); border: 2rpx solid var(--primary-container); border-radius: 24rpx; padding: 32rpx; overflow: hidden; box-shadow: 0 0 20rpx rgba(0,86,196,.12); }
+.q-active__no { position: absolute; top: 0; right: 0; background: var(--primary-container); color: var(--on-primary-container); padding: 8rpx 24rpx; border-bottom-left-radius: 24rpx; font-size: 28rpx; font-weight: 600; }
+.q-active__ic { width: 96rpx; height: 96rpx; border-radius: 16rpx; background: var(--sc-high); display: flex; align-items: center; justify-content: center; }
+.q-active__chief { background: var(--sc-low); border-radius: 16rpx; padding: 24rpx; display: flex; flex-direction: column; gap: 8rpx; }
+.q-active__btn { background: var(--primary); color: #fff; padding: 16rpx 48rpx; border-radius: 9999rpx; font-size: 32rpx; font-weight: 600; box-shadow: 0 6rpx 16rpx rgba(0,0,0,.12); }
+.q-active__btn--off { opacity: .5; }
+
+.q-row { background: var(--sc-lowest); border: 1rpx solid var(--outline-variant); border-radius: 24rpx; padding: 32rpx; display: flex; align-items: center; justify-content: space-between; opacity: .85; }
+.q-row__ic { width: 80rpx; height: 80rpx; border-radius: 9999rpx; background: var(--sc); display: flex; align-items: center; justify-content: center; }

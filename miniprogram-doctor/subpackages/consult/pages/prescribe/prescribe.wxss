@@ -1,0 +1,44 @@
+.pr { display: flex; flex-direction: column; height: 100vh; background: #191b23; overflow: hidden; }
+
+.pr-bar { height: 96rpx; background: var(--sc-lowest); border-bottom: 1rpx solid var(--outline-variant); display: flex; align-items: center; justify-content: space-between; padding-left: 32rpx; padding-right: 32rpx; box-sizing: content-box; }
+.pr-bar__status { display: flex; align-items: center; gap: 8rpx; background: rgba(111,252,184,.3); padding: 6rpx 16rpx; border-radius: 9999rpx; }
+.pr-bar__dot { width: 14rpx; height: 14rpx; border-radius: 9999rpx; background: var(--secondary); }
+
+/* 顶部视频 40vh —— 软键盘弹起不被推动 */
+.pr-video { position: relative; height: 40vh; background: var(--inverse-surface); flex-shrink: 0; overflow: hidden; }
+.pr-video__media { width: 100%; height: 100%; }
+.pr-video__ph { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: #2e3038; }
+.pr-video__pip { position: absolute; top: 24rpx; right: 24rpx; width: 160rpx; height: 220rpx; border-radius: 16rpx; overflow: hidden; border: 3rpx solid var(--sc-lowest); background: var(--surface-dim); z-index: 2; }
+.pr-video__time { position: absolute; top: 24rpx; left: 24rpx; display: flex; align-items: center; gap: 12rpx; background: rgba(0,0,0,.4); padding: 6rpx 16rpx; border-radius: 12rpx; }
+.pr-video__dot { width: 14rpx; height: 14rpx; border-radius: 9999rpx; background: var(--error); }
+.pr-video__ctrls { position: absolute; bottom: 24rpx; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 40rpx; z-index: 2; }
+.pr-ctrl { width: 88rpx; height: 88rpx; border-radius: 9999rpx; background: rgba(255,255,255,.2); display: flex; align-items: center; justify-content: center; border: 1rpx solid rgba(255,255,255,.3); }
+.pr-ctrl--end { width: 112rpx; height: 112rpx; background: var(--error); border: none; }
+
+/* 底部作业区 60vh */
+.pr-work { flex: 1; display: flex; flex-direction: column; background: var(--sc-low); border-top-left-radius: 32rpx; border-top-right-radius: 32rpx; margin-top: -16rpx; position: relative; z-index: 3; overflow: hidden; }
+.pr-tabs { display: flex; border-bottom: 1rpx solid var(--outline-variant); padding: 12rpx 16rpx 0; flex-shrink: 0; }
+.pr-tab { padding: 24rpx 28rpx; font-size: 28rpx; font-weight: 600; color: var(--on-surface-variant); position: relative; }
+.pr-tab--on { color: var(--primary); }
+.pr-tab--on::after { content: ''; position: absolute; bottom: 0; left: 24rpx; right: 24rpx; height: 6rpx; background: var(--primary); border-radius: 6rpx 6rpx 0 0; }
+
+.pr-content { flex: 1; padding: 32rpx; box-sizing: border-box; }
+.pr-view { display: flex; flex-direction: column; gap: 32rpx; }
+.pr-field { display: flex; flex-direction: column; gap: 16rpx; }
+.pr-textarea { width: 100%; box-sizing: border-box; min-height: 120rpx; background: var(--sc-lowest); border: 1rpx solid var(--outline-variant); border-radius: 16rpx; padding: 24rpx; font-size: 32rpx; }
+.pr-dtag { display: inline-flex; align-items: center; gap: 8rpx; padding: 8rpx 20rpx; background: rgba(0,86,196,.1); color: var(--primary); border-radius: 9999rpx; font-size: 24rpx; }
+.pr-imgs { margin-top: 24rpx; display: flex; gap: 16rpx; }
+.pr-img { width: 120rpx; height: 120rpx; border-radius: 16rpx; background: var(--surface-variant); display: flex; align-items: center; justify-content: center; }
+
+.pr-search { display: flex; align-items: center; gap: 16rpx; height: 96rpx; padding: 0 28rpx; background: var(--sc-lowest); border: 1rpx solid var(--outline-variant); border-radius: 16rpx; }
+.pr-sugg { margin-top: 16rpx; background: var(--sc-lowest); border: 1rpx solid var(--outline-variant); border-radius: 16rpx; overflow: hidden; }
+.pr-sugg__item { display: flex; align-items: center; justify-content: space-between; padding: 24rpx 28rpx; border-bottom: 1rpx solid var(--outline-variant); }
+.pr-sugg__item:last-child { border-bottom: none; }
+
+.pr-drug { padding: 28rpx; margin-bottom: 24rpx; }
+.pr-stepper { display: flex; align-items: center; border: 1rpx solid var(--outline-variant); border-radius: 12rpx; overflow: hidden; }
+.pr-stepper__btn { width: 60rpx; height: 60rpx; display: flex; align-items: center; justify-content: center; }
+.pr-stepper__num { width: 72rpx; text-align: center; font-weight: 600; }
+.pr-usage { height: 60rpx; line-height: 60rpx; padding: 0 16rpx; background: rgba(225,226,237,.3); border-radius: 12rpx; font-size: 26rpx; color: var(--on-surface); }
+
+.pr-submit { position: absolute; bottom: 0; left: 0; right: 0; padding: 24rpx 32rpx; padding-bottom: calc(24rpx + env(safe-area-inset-bottom)); background: rgba(242,243,254,.9); border-top: 1rpx solid var(--outline-variant); }

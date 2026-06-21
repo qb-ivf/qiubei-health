@@ -1,0 +1,93 @@
+<!-- 页面3：医生详情与挂号确认（对照 html/doctor_details.html）含步战术5支付 -->
+<view class="dd">
+  <!-- 医生头部 -->
+  <view class="dd-head">
+    <view class="dd-head__avatar">
+      <text class="material-symbols-outlined" style="font-size:96rpx;color:var(--primary);">account_circle</text>
+    </view>
+    <view class="dd-head__info">
+      <view class="flex items-center gap-2" style="margin-bottom:8rpx;">
+        <text class="text-headline-lg text-on-surface">{{doctor.name}}</text>
+        <text class="dd-tag">{{doctor.title}}</text>
+      </view>
+      <text class="text-body-sm text-on-surface-variant">擅长：{{doctor.good}}</text>
+      <view class="flex gap-2" style="margin-top:16rpx;">
+        <text class="dd-chip">从医{{doctor.years}}年</text>
+        <text class="dd-chip">三甲名医</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 服务选择 -->
+  <view class="px-margin-x" style="margin-top:-48rpx;position:relative;z-index:2;">
+    <view class="dd-serv card">
+      <view class="dd-serv__item {{service==='text' ? 'dd-serv__item--on' : ''}}" bindtap="selectService" data-s="text">
+        <text class="text-label-lg">图文咨询</text>
+        <text class="text-body-sm" style="opacity:.7;">¥30 / 次</text>
+      </view>
+      <view class="dd-serv__item {{service==='video' ? 'dd-serv__item--on' : ''}}" bindtap="selectService" data-s="video">
+        <view class="flex items-center gap-1">
+          <text class="material-symbols-outlined" style="font-size:32rpx;">videocam</text>
+          <text class="text-label-lg">视频问诊</text>
+        </view>
+        <text class="text-body-sm" style="opacity:.9;">¥50 / 次</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 就诊人选择 -->
+  <view class="px-margin-x" style="margin-top:48rpx;">
+    <view class="card dd-patient" bindtap="switchPatient">
+      <view class="flex items-center gap-md">
+        <view class="dd-patient__ic"><text class="material-symbols-outlined text-on-secondary-container">person</text></view>
+        <view>
+          <view class="flex items-center gap-2">
+            <text class="text-label-lg">{{patient.name}}</text>
+            <text class="dd-patient__self">本人</text>
+          </view>
+          <text class="text-body-sm text-on-surface-variant">{{patient.idMask}}</text>
+        </view>
+      </view>
+      <view class="flex items-center text-on-surface-variant">
+        <text class="text-label-md">切换</text>
+        <text class="material-symbols-outlined">chevron_right</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 问诊确认 -->
+  <view class="px-margin-x" style="margin-top:32rpx;">
+    <view class="card" style="padding:32rpx;">
+      <text class="text-label-lg" style="display:block;padding-bottom:16rpx;border-bottom:1rpx solid var(--outline-variant);">问诊确认</text>
+      <view class="dd-row"><text class="text-body-md text-on-surface-variant">预约时间</text><text class="text-label-md">6月17日 09:00-09:30</text></view>
+      <view class="dd-row"><text class="text-body-md text-on-surface-variant">问诊科室</text><text class="text-label-md">呼吸内科</text></view>
+      <view class="dd-row"><text class="text-body-md text-on-surface-variant">问诊形式</text><text class="text-label-md text-primary">{{service==='video' ? '视频远程问诊' : '图文咨询'}}</text></view>
+      <view class="dd-notice">
+        <text class="material-symbols-outlined text-primary" style="font-size:32rpx;">info</text>
+        <text class="text-caption text-on-surface-variant">请在预约时间前10分钟进入候诊室。如无法按时参加，请提前2小时取消订单。</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 协议勾选 -->
+  <view class="px-margin-x dd-policy" bindtap="togglePolicy">
+    <view class="dd-check {{agreed ? 'dd-check--on' : ''}}">
+      <text wx:if="{{agreed}}" class="material-symbols-outlined" style="font-size:28rpx;color:#fff;">check</text>
+    </view>
+    <text class="text-caption text-on-surface-variant">我已阅读并同意 <text class="text-primary">《互联网医疗服务协议》</text> 及 <text class="text-primary">《患者个人信息保护政策》</text></text>
+  </view>
+
+  <view style="height: 200rpx;"></view>
+</view>
+
+<!-- 底部支付栏 -->
+<view class="dd-bar">
+  <view class="flex flex-col">
+    <text class="text-caption text-on-surface-variant">实付款</text>
+    <view class="flex items-baseline text-primary">
+      <text class="text-label-md">¥</text>
+      <text class="text-headline-lg" style="margin-left:4rpx;">{{service==='video' ? '50.00' : '30.00'}}</text>
+    </view>
+  </view>
+  <view class="dd-pay {{agreed ? '' : 'dd-pay--disabled'}}" bindtap="handlePay">立即支付</view>
+</view>

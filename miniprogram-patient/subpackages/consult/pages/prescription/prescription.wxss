@@ -1,0 +1,35 @@
+.rx { padding-top: 24rpx; }
+.rx-status { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 16rpx; padding: 32rpx 0; }
+.rx-status__ic { width: 128rpx; height: 128rpx; border-radius: 9999rpx; background: var(--secondary-container); display: flex; align-items: center; justify-content: center; }
+
+.rx-paper {
+  position: relative; margin-top: 24rpx; background: #fff;
+  border: 1rpx solid var(--outline-variant); border-radius: 16rpx; overflow: hidden;
+  box-shadow: 0 12rpx 32rpx rgba(0,0,0,.08);
+}
+.rx-paper__head { padding: 32rpx; border-bottom: 2rpx dashed var(--outline-variant); }
+.rx-paper__meta { display: grid; grid-template-columns: 1fr 1fr; gap: 16rpx; margin-top: 32rpx; }
+.rx-paper__body { padding: 32rpx; }
+.rx-drug { display: flex; flex-direction: column; gap: 8rpx; padding: 24rpx 0; }
+.rx-usage {
+  font-size: 28rpx; font-weight: 600; color: var(--primary-container);
+  background: rgba(0,86,196,.05); padding: 8rpx 16rpx; border-radius: 8rpx; align-self: flex-start;
+}
+.rx-sign { display: flex; justify-content: space-between; align-items: flex-end; padding-top: 40rpx; margin-top: 24rpx; border-top: 2rpx dashed var(--outline-variant); }
+.rx-sign__row { display: flex; align-items: center; gap: 16rpx; margin-bottom: 12rpx; }
+.rx-sign__name { font-size: 32rpx; font-weight: 600; border-bottom: 1rpx solid var(--on-surface); padding-bottom: 2rpx; }
+.rx-seal {
+  width: 180rpx; height: 180rpx; border-radius: 9999rpx;
+  border: 4rpx solid rgba(186,26,26,.4); color: rgba(186,26,26,.5);
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  font-size: 24rpx; font-weight: 700; transform: rotate(-15deg);
+}
+
+.rx-tip { display: flex; gap: 16rpx; background: var(--sc-low); border-radius: 16rpx; padding: 32rpx; margin-top: 24rpx; }
+
+.rx-bar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; padding: 24rpx 32rpx;
+  padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
+  background: var(--surface); box-shadow: 0 -4rpx 16rpx rgba(0,0,0,.05);
+}
+.rx-bar .btn-primary { border-radius: 24rpx; width: 100%; }
