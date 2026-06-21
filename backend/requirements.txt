@@ -1,0 +1,29 @@
+# —— Web 框架 ——
+fastapi==0.115.*
+uvicorn[standard]==0.32.*
+python-multipart==0.0.*
+
+# —— 数据库 / ORM ——
+sqlalchemy[asyncio]==2.0.*
+aiomysql==0.2.*
+alembic==1.14.*
+
+# —— 缓存 / 队列 ——
+redis==5.2.*
+celery==5.4.*
+
+# —— 校验 / 配置 ——
+pydantic==2.*
+pydantic-settings==2.*
+
+# —— 安全 / 鉴权 ——
+python-jose[cryptography]==3.3.*
+passlib[bcrypt]==1.7.*
+
+# —— 处方 PDF / 合规 ——
+reportlab==4.2.*
+
+# —— 测试 ——
+pytest==8.*
+pytest-asyncio==0.24.*
+httpx==0.27.*
