@@ -28,10 +28,20 @@ class Settings(BaseSettings):
     TRTC_SECRETKEY: str = ""
     TRTC_SIG_EXPIRE: int = 7200  # 120 分钟
 
-    # —— 微信支付 ——
+    # —— 敏感字段加密（身份证/手机号，PRD §2.4） ——
+    ENCRYPTION_KEY: str = ""  # Fernet key（base64 32B）；空则开发回退（勿用于生产）
+
+    # —— 微信登录 / 支付 ——
+    WX_PATIENT_APPID: str = ""
+    WX_PATIENT_SECRET: str = ""
+    WX_DOCTOR_APPID: str = ""
+    WX_DOCTOR_SECRET: str = ""
     WX_APPID: str = ""
     WX_MCHID: str = ""
     WX_API_V3_KEY: str = ""
+
+    # —— 医生白名单（开发期自动通过；生产置 False，走 admin 终审） ——
+    DOCTOR_AUTO_APPROVE: bool = True
 
     # —— 合规网关（卫健委 / CA） ——
     GOV_REPORT_URL: str = ""

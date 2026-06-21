@@ -1,39 +1,66 @@
-// 微信支付封装（步战术5）。页面3 挂号费 / 页面6 药费共用。
-const app = getApp();
+// 微信支付封装（步战术5）。M2 挂号支付 + 通用药费支付。
+const { request } = require('./request.js');
 
 /**
- * 发起支付：① 后端下单拿五元组 → ② wx.requestPayment。
- * 阶段二先 mock 流程，阶段三把 wx.request 指向后端 /api/pay/unifiedorder。
- * @returns {Promise<{ok:boolean, cancelled?:boolean}>}
+ * 挂号支付闭环：下单 → 预支付 → wx.requestPayment；
+ * 测试号无商户号时 requestPayment 会 fail，自动降级开发 mock 支付。
+ * @returns {Promise<{ok:boolean, orderId?:number, mock?:boolean, cancelled?:boolean}>}
  */
-function requestPay(orderId) {
+async function payRegister({ doctorId, slotId, patientId }) {
+  let order;
+  try {
+    order = await request('/orders/register', {
+      method: 'POST',
+      data: { doctor_id: doctorId, slot_id: slotId, patient_id: patientId }
+    });
+  } catch (e) {
+    return { ok: false, detail: (e && e.detail) || '下单失败' };
+  }
+
+  let pre;
+  try {
+    pre = await request(`/orders/${order.id}/prepay`, { method: 'POST' });
+  } catch (e) {
+    return { ok: false, detail: '预支付失败' };
+  }
+
+  // 开发环境（mock 预支付，无真实商户号）：直接走 mock 支付，不调 wx.requestPayment
+  if (pre.package && pre.package.indexOf('mock_') > -1) {
+    try {
+      await request(`/orders/${order.id}/pay/mock`, { method: 'POST' });
+      return { ok: true, orderId: order.id, mock: true };
+    } catch (e) {
+      return { ok: false, detail: '支付失败' };
+    }
+  }
+
+  // 生产环境：真实五元组 → 拉起微信支付
   return new Promise((resolve) => {
-    wx.showLoading({ title: '正在下单...', mask: true });
-
-    // —— 阶段三联调：取消下面的 mock，启用真实下单 ——
-    // wx.request({
-    //   url: app.globalData.baseUrl + '/api/pay/unifiedorder',
-    //   method: 'POST',
-    //   data: { orderId },
-    //   header: { Authorization: 'Bearer ' + app.globalData.token },
-    //   success: ({ data }) => {
-    //     wx.hideLoading();
-    //     wx.requestPayment({
-    //       timeStamp: data.timeStamp, nonceStr: data.nonceStr,
-    //       package: data.package, signType: data.signType, paySign: data.paySign,
-    //       success: () => resolve({ ok: true }),
-    //       fail: (err) => resolve({ ok: false, cancelled: err.errMsg.includes('cancel') })
-    //     });
-    //   },
-    //   fail: () => { wx.hideLoading(); resolve({ ok: false }); }
-    // });
-
-    // —— mock：模拟下单 + 支付成功 ——
-    setTimeout(() => {
-      wx.hideLoading();
-      resolve({ ok: true });
-    }, 900);
+    wx.requestPayment({
+      timeStamp: pre.timeStamp, nonceStr: pre.nonceStr, package: pre.package,
+      signType: pre.signType, paySign: pre.paySign,
+      success: () => resolve({ ok: true, orderId: order.id }),
+      fail: (err) => {
+        // 用户主动取消
+        if (err && err.errMsg && err.errMsg.indexOf('cancel') > -1) {
+          resolve({ ok: false, cancelled: true });
+          return;
+        }
+        // 测试号/无商户号 → 走开发 mock 支付，便于联调验收
+        request(`/orders/${order.id}/pay/mock`, { method: 'POST' })
+          .then(() => resolve({ ok: true, orderId: order.id, mock: true }))
+          .catch(() => resolve({ ok: false, detail: '支付失败' }));
+      }
+    });
   });
 }
 
-module.exports = { requestPay };
+// 通用药费支付占位（M6 再接真实下单）
+function requestPay() {
+  return new Promise((resolve) => {
+    wx.showLoading({ title: '正在支付...', mask: true });
+    setTimeout(() => { wx.hideLoading(); resolve({ ok: true }); }, 800);
+  });
+}
+
+module.exports = { payRegister, requestPay };

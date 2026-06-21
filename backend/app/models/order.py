@@ -11,8 +11,10 @@ class Order(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     order_no: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, index=True, default=0)  # 下单账号
     patient_id: Mapped[int] = mapped_column(BigInteger, index=True)
     doctor_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    slot_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     room_id: Mapped[str | None] = mapped_column(String(64), index=True, nullable=True)
 
     status: Mapped[int] = mapped_column(Integer, default=int(OrderStatus.PENDING))

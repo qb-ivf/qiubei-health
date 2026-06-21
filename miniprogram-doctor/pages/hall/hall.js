@@ -15,7 +15,10 @@ Page({
     ]
   },
 
-  onLoad() { this.setData({ onDuty: app.globalData.onDuty }); },
+  onLoad() {
+    if (!app.ensureLogin()) return; // 医生端登录守卫（FRD §2.1 白名单）
+    this.setData({ onDuty: app.globalData.onDuty });
+  },
 
   // 接诊状态开关（OFF 置灰队列 / ON 激活）
   toggleDuty(e) {

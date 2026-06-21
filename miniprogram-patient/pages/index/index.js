@@ -1,8 +1,10 @@
 const app = getApp();
+const { request } = require('../../utils/request.js');
 
 Page({
   data: {
     statusBar: 20,
+    queueBar: '',
     currentPatient: { name: '王小明' },
     quickServices: [
       { icon: 'payments', t: '门诊缴费' },
@@ -22,6 +24,13 @@ Page({
     this.setData({ statusBar: info.statusBarHeight || 20 });
     const p = app.globalData.currentPatient;
     if (p) this.setData({ currentPatient: p });
+  },
+
+  onShow() {
+    if (!app.globalData.token) { this.setData({ queueBar: '' }); return; }
+    request('/orders/active').then((r) => {
+      this.setData({ queueBar: r && r.has ? `您有正在排队的视频问诊（${r.doctor_name || ''}），请保持手机亮屏` : '' });
+    }).catch(() => {});
   },
 
   goSearch() { wx.navigateTo({ url: '/pages/search/search' }); },

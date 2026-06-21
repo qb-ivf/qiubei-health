@@ -58,9 +58,15 @@
   <!-- 问诊确认 -->
   <view class="px-margin-x" style="margin-top:32rpx;">
     <view class="card" style="padding:32rpx;">
-      <text class="text-label-lg" style="display:block;padding-bottom:16rpx;border-bottom:1rpx solid var(--outline-variant);">问诊确认</text>
-      <view class="dd-row"><text class="text-body-md text-on-surface-variant">预约时间</text><text class="text-label-md">6月17日 09:00-09:30</text></view>
-      <view class="dd-row"><text class="text-body-md text-on-surface-variant">问诊科室</text><text class="text-label-md">呼吸内科</text></view>
+      <text class="text-label-lg" style="display:block;padding-bottom:16rpx;border-bottom:1rpx solid var(--outline-variant);">选择就诊时段</text>
+      <view class="dd-slots">
+        <text
+          wx:for="{{slots}}" wx:key="id"
+          class="dd-slot {{selectedSlot===item.id ? 'dd-slot--on' : ''}} {{item.remaining<=0 ? 'dd-slot--off' : ''}}"
+          bindtap="pickSlot" data-id="{{item.id}}">{{item.start_time}}{{item.remaining<=0 ? ' 满' : ''}}</text>
+      </view>
+      <view class="dd-row"><text class="text-body-md text-on-surface-variant">预约时间</text><text class="text-label-md">{{selectedSlotText || '请选择时段'}}</text></view>
+      <view class="dd-row"><text class="text-body-md text-on-surface-variant">问诊科室</text><text class="text-label-md">{{doctor.dept}}</text></view>
       <view class="dd-row"><text class="text-body-md text-on-surface-variant">问诊形式</text><text class="text-label-md text-primary">{{service==='video' ? '视频远程问诊' : '图文咨询'}}</text></view>
       <view class="dd-notice">
         <text class="material-symbols-outlined text-primary" style="font-size:32rpx;">info</text>
@@ -86,7 +92,7 @@
     <text class="text-caption text-on-surface-variant">实付款</text>
     <view class="flex items-baseline text-primary">
       <text class="text-label-md">¥</text>
-      <text class="text-headline-lg" style="margin-left:4rpx;">{{service==='video' ? '50.00' : '30.00'}}</text>
+      <text class="text-headline-lg" style="margin-left:4rpx;">{{feeYuan}}</text>
     </view>
   </view>
   <view class="dd-pay {{agreed ? '' : 'dd-pay--disabled'}}" bindtap="handlePay">立即支付</view>

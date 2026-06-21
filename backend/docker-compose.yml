@@ -10,6 +10,11 @@ services:
     ports:
       - "3306:3306"
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
     volumes:
       - mysql_data:/var/lib/mysql
 
@@ -19,6 +24,25 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+
+  api:
+    build: .
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      DEBUG: "true"
+      DATABASE_URL: mysql+aiomysql://qiubei:qiubei@mysql:3306/qiubei?charset=utf8mb4
+      REDIS_URL: redis://redis:6379/0
+      # Windows 卷挂载下让 uvicorn --reload 生效（用轮询代替 inotify）
+      WATCHFILES_FORCE_POLLING: "true"
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
 volumes:
   mysql_data:

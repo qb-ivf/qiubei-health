@@ -9,8 +9,8 @@ App({
     patients: [],           // 就诊人列表
     socketTask: null,       // 全局 WebSocket 实例
     consentSigned: false,   // 是否已签署知情同意（FRD §2.3）
-    baseUrl: 'http://localhost:8000',          // 后端基址，阶段三联调改为局域网 IP
-    wsUrl: 'ws://localhost:8000/ws',           // 信令长连接
+    baseUrl: 'http://127.0.0.1:8000',          // 后端基址，阶段三联调改为局域网 IP
+    wsUrl: 'ws://127.0.0.1:8000/ws',           // 信令长连接
     ORDER_STATUS
   },
 
@@ -31,6 +31,7 @@ App({
     if (token) this.globalData.token = token;
     const patient = wx.getStorageSync('currentPatient');
     if (patient) this.globalData.currentPatient = patient;
+    if (wx.getStorageSync('consentSigned')) this.globalData.consentSigned = true;
   },
 
   /**
@@ -51,11 +52,21 @@ App({
     wx.showModal({
       title: '互联网诊疗知情同意',
       content: '问诊前需阅读并同意《互联网诊疗知情同意书》《隐私政策》《医疗风险告知》。',
-      confirmText: '同意并签署',
+      confirmText: '同意签署',
+      cancelText: '取消',
       success: (res) => {
         if (res.confirm) {
           this.globalData.consentSigned = true;
           wx.setStorageSync('consentSigned', true);
+          // 存证到后端（best-effort）
+          if (this.globalData.token) {
+            wx.request({
+              url: this.globalData.baseUrl.replace(/\/$/, '') + '/api/v1/consents',
+              method: 'POST',
+              header: { 'content-type': 'application/json', Authorization: 'Bearer ' + this.globalData.token },
+              data: { consent_type: 'diagnosis', version: 'v1' }
+            });
+          }
         }
       }
     });

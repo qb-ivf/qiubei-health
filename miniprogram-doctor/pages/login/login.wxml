@@ -12,4 +12,5 @@
     <text class="material-symbols-outlined text-on-surface-variant" style="font-size:32rpx;">info</text>
     <text class="text-caption text-on-surface-variant">登录后将校验执业医师白名单，非认证账号无法进入。</text>
   </view>
+  <text class="login__dev" bindtap="devLogin">开发者快捷登录（测试号联调用）</text>
 </view>

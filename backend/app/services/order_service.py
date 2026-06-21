@@ -3,15 +3,47 @@
 核心：封闭式状态机 + 悲观锁 + 幂等回调。所有状态变更必须经 transition()，
 严禁前端或其它 service 直接写 status 字段。
 """
+import uuid
+from datetime import datetime, timedelta, timezone
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..constants import ALLOWED_TRANSITIONS, OrderStatus
+from ..core.redis import redis_client
 from ..models.order import Order
+from ..models.schedule import Slot
+from ..models.user import Doctor
 
 
 class StateError(Exception):
     """非法状态迁移。"""
+
+
+def _slot_key(slot_id: int) -> str:
+    return f"slot:remaining:{slot_id}"
+
+
+async def create_register_order(db: AsyncSession, user_id: int, doctor_id: int, slot_id: int, patient_id: int) -> Order:
+    """创建挂号订单：Redis 号源锁（DECR 防超卖）+ PENDING。"""
+    doctor = await db.get(Doctor, doctor_id)
+    if doctor is None:
+        raise StateError("医生不存在")
+
+    # 号源锁：DECR < 0 则回补并报无号
+    left = await redis_client.decr(_slot_key(slot_id))
+    if left < 0:
+        await redis_client.incr(_slot_key(slot_id))
+        raise StateError("该时段号源已约满")
+
+    order = Order(
+        order_no="REG" + uuid.uuid4().hex[:16].upper(),
+        user_id=user_id, patient_id=patient_id, doctor_id=doctor_id, slot_id=slot_id,
+        register_fee_fen=doctor.register_fee_fen, status=int(OrderStatus.PENDING),
+    )
+    db.add(order)
+    await db.flush()
+    return order
 
 
 def can_transition(cur: OrderStatus, to: OrderStatus) -> bool:
@@ -53,5 +85,35 @@ async def handle_pay_callback(db: AsyncSession, order_no: str) -> Order:
 
     order.status = int(OrderStatus.WAITING)
     await db.flush()
-    # TODO: 写入 Redis 排队队列 room:queue:[doctor_id]
+    await redis_client.rpush(f"room:queue:{order.doctor_id}", order.id)  # 进排队队列
     return order
+
+
+async def mark_paid(db: AsyncSession, order_id: int) -> Order:
+    """按订单 ID 标记支付成功（mock 支付/真实回调通用）：锁行 + 幂等 0→1。"""
+    res = await db.execute(select(Order).where(Order.id == order_id).with_for_update())
+    order = res.scalar_one_or_none()
+    if order is None:
+        raise StateError("订单不存在")
+    if order.status != int(OrderStatus.PENDING):
+        return order  # 幂等
+    order.status = int(OrderStatus.WAITING)
+    await db.flush()
+    await redis_client.rpush(f"room:queue:{order.doctor_id}", order.id)
+    return order
+
+
+async def cancel_expired(db: AsyncSession) -> int:
+    """扫描超 15 分钟未支付的订单 → CANCELLED，并回补号源。"""
+    deadline = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=15)
+    res = await db.execute(
+        select(Order).where(Order.status == int(OrderStatus.PENDING), Order.created_at < deadline)
+    )
+    orders = res.scalars().all()
+    for o in orders:
+        o.status = int(OrderStatus.CANCELLED)
+        if o.slot_id:
+            await redis_client.incr(_slot_key(o.slot_id))  # 回补号源
+    if orders:
+        await db.commit()
+    return len(orders)

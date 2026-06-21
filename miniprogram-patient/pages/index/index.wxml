@@ -13,6 +13,12 @@
   </view>
 
   <scroll-view scroll-y class="home__body" style="padding-top: calc(112rpx + {{statusBar}}px);">
+    <!-- 排队提示条（支付成功后挂载，FRD 页面3） -->
+    <view wx:if="{{queueBar}}" class="queue-bar">
+      <text class="material-symbols-outlined" style="font-size:34rpx;color:#8a6d00;">notifications_active</text>
+      <text class="queue-bar__txt">{{queueBar}}</text>
+    </view>
+
     <!-- 搜索框 -->
     <view class="px-margin-x mt-4">
       <view class="search" bindtap="goSearch">

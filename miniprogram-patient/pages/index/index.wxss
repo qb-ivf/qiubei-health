@@ -9,6 +9,13 @@
   padding: 10rpx 22rpx;
 }
 
+.queue-bar {
+  display: flex; align-items: center; gap: 12rpx;
+  margin: 16rpx 32rpx 0; padding: 20rpx 28rpx;
+  background: #fff8e1; border: 1rpx solid #ffe08a; border-radius: 16rpx;
+}
+.queue-bar__txt { font-size: 26rpx; color: #8a6d00; flex: 1; }
+
 .search {
   display: flex;
   align-items: center;

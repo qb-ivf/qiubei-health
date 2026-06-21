@@ -20,15 +20,26 @@ backend/
 
 ## 本地启动
 
-```bash
-cp .env.example .env
-docker compose up -d            # 起 MySQL + Redis
-python -m venv .venv && source .venv/Scripts/activate   # Windows Git Bash
-pip install -r requirements.txt
-uvicorn main:app --reload       # http://127.0.0.1:8000/docs
-celery -A app.workers.celery_app.celery_app worker -l info   # 另开一个终端跑 Worker
-pytest                          # 跑状态机测试
+### 方式 A：全 Docker 一键起（推荐，Windows + Docker Desktop）
+无需本地装 Python。在 `backend/` 目录执行：
+```powershell
+docker compose up -d --build      # 起 MySQL + Redis + api（自动建表）
+# 访问 http://127.0.0.1:8000/docs  与  /health
+docker compose logs -f api        # 看后端日志
+docker compose down               # 停止（加 -v 连数据卷一起删）
 ```
+改了代码会自动热重载（源码已挂载进容器）。改了 `requirements.txt` 才需 `--build` 重建。
+
+### 方式 B：本地 Python（依赖只起 DB）
+```powershell
+copy .env.example .env
+docker compose up -d mysql redis  # 只起数据库
+python -m venv .venv ; .\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+uvicorn main:app --reload         # http://127.0.0.1:8000/docs
+pytest -q                         # 纯逻辑测试（状态机/鉴权）免 DB 即可跑
+```
+> 建议用 Python 3.11/3.12（部分依赖在 3.14 上可能缺预编译包）。
 
 ## 已落地（脚手架）
 

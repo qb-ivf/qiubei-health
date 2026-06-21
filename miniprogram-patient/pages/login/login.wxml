@@ -9,4 +9,5 @@
     微信手机号一键登录
   </button>
   <text class="text-caption text-on-surface-variant login__policy">登录即代表同意《用户协议》与《隐私政策》</text>
+  <text class="login__dev" bindtap="devLogin">开发者快捷登录（测试号联调用）</text>
 </view>
