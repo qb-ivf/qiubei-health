@@ -1,5 +1,9 @@
 """订单接口（M2：挂号下单 + 支付 + 排队条）。"""
-from fastapi import APIRouter, Depends, HTTPException
+import json
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,13 +13,14 @@ from ...constants import OrderStatus, Signal
 from ...core.database import get_db
 from ...core.security import mask_name
 from ...models.order import Order
-from ...models.user import Doctor, Patient
-from ...schemas.order import ActiveOrderOut, OrderOut, PayCallback, PrepayOut, RegisterOrderCreate
+from ...models.user import Doctor, Patient, User
+from ...schemas.order import ActiveOrderOut, OrderOut, PrepayOut, RegisterOrderCreate
 from ...services import compliance_service, order_service, pay_service, prescription_service
 from ...ws import manager, rooms
 from ..deps import get_current_user, get_current_user_id
 
 router = APIRouter(prefix="/orders", tags=["orders"])
+logger = logging.getLogger("orders")
 
 
 @router.post("/register", response_model=OrderOut)
@@ -37,11 +42,18 @@ async def create_register_order(
 
 @router.post("/{order_id}/prepay", response_model=PrepayOut)
 async def prepay(order_id: int, uid: int = Depends(get_current_user_id), db: AsyncSession = Depends(get_db)):
-    """微信支付下单，返回五元组（mock）。"""
+    """挂号费微信支付下单，返回 wx.requestPayment 五元组（未配凭据则 mock）。"""
     order = await db.get(Order, order_id)
     if not order or order.user_id != uid:
         raise HTTPException(status_code=404, detail="订单不存在")
-    return pay_service.prepay(order.id, order.register_fee_fen)
+    user = await db.get(User, uid)
+    try:
+        return await pay_service.prepay(
+            order.order_no, order.register_fee_fen,
+            openid=user.openid if user else "", description="互联网医院挂号费", order_id=order.id,
+        )
+    except pay_service.PayError as e:
+        raise HTTPException(status_code=502, detail=str(e))
 
 
 @router.post("/{order_id}/pay/mock", response_model=OrderOut)
@@ -58,15 +70,38 @@ async def pay_mock(order_id: int, uid: int = Depends(get_current_user_id), db: A
 
 
 @router.post("/pay/callback")
-async def pay_callback(body: PayCallback, db: AsyncSession = Depends(get_db)):
-    """微信支付正式回调：幂等 PENDING→WAITING（验签解密后调用）。"""
+async def pay_callback(request: Request, db: AsyncSession = Depends(get_db)):
+    """微信支付 V3 结果通知：验签 + 解密 → 幂等推进订单。
+
+    返回体须为 {"code":"SUCCESS"} 且 HTTP 200，否则微信会重试。
+    未启用真实支付时（开发），兼容旧的 {order_no} 直推（仅供本地联调）。
+    """
+    body = (await request.body()).decode()
     try:
-        order = await order_service.handle_pay_callback(db, body.order_no)
+        if pay_service.is_enabled():
+            resource = await pay_service.verify_and_decrypt(request.headers, body)
+            if resource.get("trade_state") != "SUCCESS":
+                return {"code": "SUCCESS", "message": "OK"}  # 非成功态：已接收，不处理
+            out_trade_no = resource["out_trade_no"]
+        else:
+            out_trade_no = (json.loads(body) if body else {}).get("order_no")
+            if not out_trade_no:
+                raise HTTPException(status_code=400, detail="缺少 order_no")
+
+        if out_trade_no.endswith(pay_service.DRUG_SUFFIX):
+            await order_service.mark_drug_paid_by_no(db, out_trade_no[: -len(pay_service.DRUG_SUFFIX)])
+        else:
+            await order_service.handle_pay_callback(db, out_trade_no)
         await db.commit()
+    except pay_service.PayError as e:
+        await db.rollback()
+        logger.warning("支付回调验签/解密失败: %s", e)
+        return JSONResponse(status_code=401, content={"code": "FAIL", "message": str(e)})
     except order_service.StateError as e:
         await db.rollback()
-        raise HTTPException(status_code=409, detail=str(e))
-    return {"code": 0, "status": order.status}
+        logger.error("支付回调处理失败: %s", e)
+        return JSONResponse(status_code=500, content={"code": "FAIL", "message": str(e)})
+    return {"code": "SUCCESS", "message": "OK"}
 
 
 @router.post("/{order_id}/drug-prepay", response_model=PrepayOut)
@@ -77,7 +112,14 @@ async def drug_prepay(order_id: int, uid: int = Depends(get_current_user_id), db
         raise HTTPException(status_code=404, detail="订单不存在")
     if order.status != int(OrderStatus.PRESCRIBED):
         raise HTTPException(status_code=409, detail="处方未通过审核，暂不可支付药费")
-    return pay_service.prepay(order.id, order.drug_fee_fen)
+    user = await db.get(User, uid)
+    try:
+        return await pay_service.prepay(
+            order.order_no + pay_service.DRUG_SUFFIX, order.drug_fee_fen,
+            openid=user.openid if user else "", description="互联网医院药费", order_id=order.id,
+        )
+    except pay_service.PayError as e:
+        raise HTTPException(status_code=502, detail=str(e))
 
 
 @router.post("/{order_id}/drug-pay/mock", response_model=OrderOut)

@@ -146,6 +146,15 @@ async def mark_drug_paid(db: AsyncSession, order_id: int) -> Order:
     return order
 
 
+async def mark_drug_paid_by_no(db: AsyncSession, order_no: str) -> Order:
+    """按 order_no 标记药费支付成功（真实回调用，out_trade_no 去掉后缀后传入）。"""
+    res = await db.execute(select(Order.id).where(Order.order_no == order_no))
+    oid = res.scalar_one_or_none()
+    if oid is None:
+        raise StateError("订单不存在")
+    return await mark_drug_paid(db, oid)
+
+
 async def cancel_expired(db: AsyncSession) -> int:
     """扫描超 15 分钟未支付的订单 → CANCELLED，并回补号源。"""
     deadline = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=15)

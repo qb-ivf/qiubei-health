@@ -29,6 +29,13 @@ dist/
 !.env.example
 *.local
 
+# —— 密钥 / 证书（含商户 API 私钥、证书，严禁入库） ——
+*.pem
+*.key
+*.p12
+*.pfx
+**/secrets/
+
 # 系统 / 编辑器
 .DS_Store
 Thumbs.db

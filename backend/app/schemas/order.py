@@ -34,8 +34,3 @@ class PrepayOut(BaseModel):
     signType: str
     paySign: str
     order_id: int
-
-
-class PayCallback(BaseModel):
-    order_no: str
-    # 真实环境：含微信支付 V3 回调密文，需验签后解密

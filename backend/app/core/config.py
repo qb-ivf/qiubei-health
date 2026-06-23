@@ -36,9 +36,12 @@ class Settings(BaseSettings):
     WX_PATIENT_SECRET: str = ""
     WX_DOCTOR_APPID: str = ""
     WX_DOCTOR_SECRET: str = ""
-    WX_APPID: str = ""
-    WX_MCHID: str = ""
-    WX_API_V3_KEY: str = ""
+    WX_APPID: str = ""           # 发起支付的小程序 AppID（患者端，须在商户平台关联 WX_MCHID）
+    WX_MCHID: str = ""           # 微信支付商户号
+    WX_API_V3_KEY: str = ""      # APIv3 密钥（32 位，回调/敏感信息解密）
+    WX_MCH_CERT_SERIAL: str = ""        # 商户 API 证书序列号
+    WX_MCH_PRIVATE_KEY_PATH: str = ""   # 商户 API 私钥 apiclient_key.pem 路径（相对 backend/ 或绝对路径）
+    WX_PAY_NOTIFY_URL: str = ""         # 支付结果回调地址（公网 HTTPS）；空则支付走 mock 回退
 
     # —— 医生白名单（开发期自动通过；生产置 False，走 admin 终审） ——
     DOCTOR_AUTO_APPROVE: bool = True
