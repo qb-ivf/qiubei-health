@@ -16,24 +16,33 @@
 
 ---
 
-## 第 1 步：构建静态文件（用临时 Node 容器，免装 Node）
+## 第 1 步：在【本地】构建静态文件（**不要在生产服务器构建**）
 
+> ⚠️ 生产服务器还跑着 MySQL/Redis/支付后端，Vite 构建吃内存（峰值近 1G），在小机器上构建可能 OOM 卡死、连累线上服务。**务必在本地构建，只把产物传上去。**
+
+本地 Windows（PowerShell），用临时 Node 容器构建（免装 Node）：
+```powershell
+cd c:\github\qiubei-health\admin-web
+docker run --rm -v "${PWD}:/app" -v /app/node_modules -w /app node:20-alpine sh -c "npm install --registry=https://registry.npmmirror.com && npm run build"
+# 完成后本地生成 dist\
+```
+> ⚠️ 必须带 `-v /app/node_modules`（匿名卷，让依赖装在容器内）。否则 Windows 下 Docker 绑定挂载会对 node_modules 报 `ENOTDIR: mkdir '/app/node_modules'`。
+
+## 第 2 步：把 dist 传到服务器并就位
+
+```powershell
+# 本地：传到 /tmp（避免 PowerShell 通配符问题）
+scp -r dist root@<ECS公网IP>:/tmp/admin-dist
+```
 ```bash
-cd /opt/qiubei-health
-git pull                       # 确保拿到最新代码
-cd admin-web
-docker run --rm -v "$PWD":/app -w /app node:20-alpine sh -c \
-  "npm install --registry=https://registry.npmmirror.com && npm run build"
-ls dist                        # 应看到 index.html 和 assets/
+# 服务器：移到 Nginx 站点目录
+rm -rf /var/www/admin-web && mkdir -p /var/www && mv /tmp/admin-dist /var/www/admin-web
+ls /var/www/admin-web          # 应看到 index.html 和 assets/
 ```
 
-## 第 2 步：发布到 Nginx 站点目录
-
-```bash
-mkdir -p /var/www/admin-web
-rm -rf /var/www/admin-web/*
-cp -r dist/* /var/www/admin-web/
-```
+> 备选（不推荐）：若一定要在服务器构建，先加 swap 并用 `tmux`/`screen` 防 SSH 断线杀进程：
+> `fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile`，
+> 然后在 `tmux` 里执行构建。
 
 ## 第 3 步：申请并上传 SSL 证书（阿里云免费证书）
 
@@ -73,12 +82,16 @@ nginx -t && systemctl reload nginx
 
 ## 更新流程（以后改了 admin-web 代码）
 
+同样【本地构建、scp 上传】，不在服务器构建：
+```powershell
+# 本地
+cd c:\github\qiubei-health\admin-web
+docker run --rm -v "${PWD}:/app" -v /app/node_modules -w /app node:20-alpine sh -c "npm install --registry=https://registry.npmmirror.com && npm run build"
+scp -r dist root@<ECS公网IP>:/tmp/admin-dist
+```
 ```bash
-cd /opt/qiubei-health && git pull
-cd admin-web
-docker run --rm -v "$PWD":/app -w /app node:20-alpine sh -c \
-  "npm install --registry=https://registry.npmmirror.com && npm run build"
-rm -rf /var/www/admin-web/* && cp -r dist/* /var/www/admin-web/
+# 服务器
+rm -rf /var/www/admin-web && mkdir -p /var/www && mv /tmp/admin-dist /var/www/admin-web
 # 静态文件无需重载 Nginx；强刷浏览器即可
 ```
 
