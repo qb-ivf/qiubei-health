@@ -24,8 +24,8 @@
 
 | #  | 现状                                                                    | 位置                                                 | 何时替换                              |
 | :- | :---------------------------------------------------------------------- | :--------------------------------------------------- | :------------------------------------ |
-| 10 | **TRTC 真实音视频**未接（`live-player/live-pusher` 为占位）             | 患者`video-room`、医生 `prescribe`                   | **M4**（类目审核通过 + 选定 TRTC 后） |
-| 11 | **TRTC UserSig** M4 骨架已写真实算法，但 `TRTC_SDKAPPID/SECRETKEY` 未配 | `backend/app/services/trtc.py`、`api/v1/rtc.py`      | M4，填 .env 即可                      |
+| 10 | ✅ **TRTC 前端已接**（驱动 `live-pusher/live-player`，保留自定义 UI）；用占位桩 `utils/trtc-wx.js` | 患者`video-room`、医生 `prescribe`、两端 `utils/trtc-wx.js` | 真机前两步：①小程序「实时音视频」类目审核 ②官方 trtc-wx SDK 覆盖占位桩。详见 `docs/trtc-integration.md` |
+| 11 | ✅ **TRTC UserSig 已就绪**：算法实现 + 密钥已配（SDKAppID 1600148306），签发验证通过 | `backend/app/services/trtc.py`、`api/v1/rtc.py`、`backend/.env` | 完成（待服务器 .env 同样配置 TRTC_*） |
 | 12 | **候诊队列**返回全部候诊订单（未按医生过滤）                            | `backend/app/api/v1/orders.py` `doctor_queue`        | M3+/上线                              |
 | 13 | **WebSocket** 用单进程内存连接管理                                      | `backend/app/ws.py`                                  | 多实例部署前                          |
 | 14 | **超时取消**用 asyncio 轮询（每 30s）                                   | `backend/main.py` `_expiry_sweep`                    | 可选优化                              |

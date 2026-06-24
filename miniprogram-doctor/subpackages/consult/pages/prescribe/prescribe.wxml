@@ -9,12 +9,20 @@
     <view class="pr-bar__status"><view class="pr-bar__dot"></view><text class="text-caption text-on-secondary-container">连接稳定</text></view>
   </view>
 
-  <!-- 顶部视频区（40vh，软键盘弹起时雷打不动） -->
+  <!-- 顶部视频区（40vh，软键盘弹起时雷打不动）。TRTC：主画面=患者(远端)，PiP=医生(本地) -->
+  <!-- ⚠️ 装官方 trtc-wx SDK 后，按官方 demo 补全 <live-pusher>/<live-player> 的属性与事件 -->
   <view class="pr-video">
-    <live-player class="pr-video__media" src="{{playerSrc}}" mode="RTC" autoplay object-fit="fillCrop"></live-player>
+    <!-- 远端（患者） -->
+    <live-player wx:if="{{configured && playerList[0]}}" id="{{playerList[0].streamID}}"
+      class="pr-video__media" src="{{playerList[0].src}}" mode="{{playerList[0].mode || 'RTC'}}" autoplay object-fit="fillCrop"
+      bindstatechange="_playerStateChange" bindnetstatus="_playerNetStatus"></live-player>
     <view wx:if="{{!ready}}" class="pr-video__ph"><text class="material-symbols-outlined" style="font-size:80rpx;color:rgba(255,255,255,.4);">person</text></view>
+    <!-- 本地（医生，画中画） -->
     <view class="pr-video__pip">
-      <live-pusher class="pr-video__media" url="{{pusherSrc}}" mode="RTC" autopush enable-camera="{{cameraOn}}" enable-mic="{{micOn}}"></live-pusher>
+      <live-pusher wx:if="{{configured}}" class="pr-video__media" url="{{pusher.url}}" mode="{{pusher.mode}}"
+        autopush="{{pusher.autopush}}" enable-camera="{{pusher.enableCamera}}" enable-mic="{{pusher.enableMic}}"
+        device-position="{{pusher.frontCamera}}" beauty="{{pusher.beautyLevel}}" object-fit="fillCrop"
+        bindstatechange="_pusherStateChange" bindnetstatus="_pusherNetStatus" binderror="_pusherError"></live-pusher>
     </view>
     <view class="pr-video__time"><view class="pr-video__dot"></view><text class="text-label-md text-white">{{timeText}}</text></view>
     <view class="pr-video__ctrls">

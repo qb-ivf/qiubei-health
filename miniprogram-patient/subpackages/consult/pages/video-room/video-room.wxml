@@ -1,12 +1,21 @@
-<!-- 页面5：全屏双向视频诊室（对照 html/video_consultation.html）含步战术3 -->
+<!-- 页面5：全屏双向视频诊室。TRTC：本地=live-pusher，远端=live-player(playerList[0]) -->
+<!-- ⚠️ 装官方 trtc-wx SDK 后，按官方 demo 补全 <live-pusher>/<live-player> 的属性与事件 -->
 <view class="vr">
-  <!-- 大窗（默认医生 live-player） -->
+  <!-- 大窗（默认远端医生；swap 后为本地） -->
   <view class="vr__big" bindtap="noop">
-    <live-player wx:if="{{!isSwapped}}" class="vr__media" src="{{playerSrc}}" mode="RTC" autoplay sound-mode="speaker" object-fit="fillCrop" bindstatechange="onState"></live-player>
-    <live-pusher wx:else class="vr__media" url="{{pusherSrc}}" mode="RTC" autopush enable-camera="{{cameraOn}}" enable-mic="{{micOn}}"></live-pusher>
+    <!-- 远端（医生） -->
+    <live-player wx:if="{{configured && !isSwapped && playerList[0]}}" id="{{playerList[0].streamID}}"
+      class="vr__media" src="{{playerList[0].src}}" mode="{{playerList[0].mode || 'RTC'}}" autoplay
+      sound-mode="{{speakerOn ? 'speaker' : 'ear'}}" object-fit="fillCrop"
+      bindstatechange="_playerStateChange" bindnetstatus="_playerNetStatus"></live-player>
+    <!-- 本地（自己），swap 时占大窗 -->
+    <live-pusher wx:if="{{configured && isSwapped}}" class="vr__media" url="{{pusher.url}}" mode="{{pusher.mode}}"
+      autopush="{{pusher.autopush}}" enable-camera="{{pusher.enableCamera}}" enable-mic="{{pusher.enableMic}}"
+      device-position="{{pusher.frontCamera}}" beauty="{{pusher.beautyLevel}}" object-fit="fillCrop"
+      bindstatechange="_pusherStateChange" bindnetstatus="_pusherNetStatus" binderror="_pusherError"></live-pusher>
     <view wx:if="{{!ready}}" class="vr__placeholder">
       <text class="material-symbols-outlined" style="font-size:96rpx;color:rgba(255,255,255,.5);">videocam</text>
-      <text class="text-body-sm" style="color:rgba(255,255,255,.6);margin-top:16rpx;">等待视频流接入（联调阶段填入拉流地址）</text>
+      <text class="text-body-sm" style="color:rgba(255,255,255,.6);margin-top:16rpx;">{{configured ? '等待医生接入视频…' : '等待视频流接入（TRTC 未配置/未装 SDK）'}}</text>
     </view>
   </view>
 
@@ -18,8 +27,15 @@
     </view>
     <!-- 小窗（点击对调） -->
     <view class="vr__small" bindtap="swap">
-      <live-pusher wx:if="{{!isSwapped}}" class="vr__media" url="{{pusherSrc}}" mode="RTC" autopush enable-camera="{{cameraOn}}" enable-mic="{{micOn}}"></live-pusher>
-      <live-player wx:else class="vr__media" src="{{playerSrc}}" mode="RTC" autoplay object-fit="fillCrop"></live-player>
+      <!-- 本地（自己），默认在小窗 -->
+      <live-pusher wx:if="{{configured && !isSwapped}}" class="vr__media" url="{{pusher.url}}" mode="{{pusher.mode}}"
+        autopush="{{pusher.autopush}}" enable-camera="{{pusher.enableCamera}}" enable-mic="{{pusher.enableMic}}"
+        device-position="{{pusher.frontCamera}}" beauty="{{pusher.beautyLevel}}" object-fit="fillCrop"
+        bindstatechange="_pusherStateChange" bindnetstatus="_pusherNetStatus" binderror="_pusherError"></live-pusher>
+      <!-- 远端（医生），swap 时回到小窗 -->
+      <live-player wx:if="{{configured && isSwapped && playerList[0]}}" id="{{playerList[0].streamID}}"
+        class="vr__media" src="{{playerList[0].src}}" mode="{{playerList[0].mode || 'RTC'}}" autoplay object-fit="fillCrop"
+        bindstatechange="_playerStateChange" bindnetstatus="_playerNetStatus"></live-player>
       <view class="vr__small-ph"><text class="material-symbols-outlined" style="font-size:28rpx;color:#fff;">videocam</text></view>
     </view>
   </view>
