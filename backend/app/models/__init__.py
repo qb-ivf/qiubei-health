@@ -7,10 +7,11 @@ from .notification import Notification
 from .order import Order
 from .prescription import Prescription
 from .schedule import Slot
+from .staff import Staff
 from .user import Consent, Doctor, Patient, User
 from .withdrawal import Withdrawal
 
 __all__ = [
     "Base", "Order", "Slot", "Prescription", "Ledger", "Notification", "Drug", "Withdrawal",
-    "GovReport", "User", "Patient", "Doctor", "Consent",
+    "GovReport", "User", "Patient", "Doctor", "Consent", "Staff",
 ]

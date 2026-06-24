@@ -17,7 +17,7 @@
 | 8 | **敏感字段加密**用开发回退密钥（未设 `ENCRYPTION_KEY`）           | `backend/app/core/crypto.py`                                                                       | 正式对外前                                      | 待执行 `deploy/DEPLOY-ubuntu.md` 第 9 步生成 Fernet key。⚠️ 回退密钥派生自 `JWT_SECRET`，已有真实加密数据时换密钥需先做迁移 |
 | 9 | **JWT 密钥**为默认值                                              | `backend/.env` `JWT_SECRET`                                                                        | 正式对外前                                      | 同上，deploy 第 9 步换强密钥（换后旧 token 失效，需重登录）  |
 | 25 | **生产密钥明文落盘**：APIv3 密钥 / 商户私钥 / AppSecret 以明文存于服务器 `backend/.env`、`backend/secrets/` | `backend/.env`、`backend/secrets/apiclient_key.pem` | 上线前 | 改用 KMS / 密钥管理服务或部署平台的环境变量注入；私钥文件限权 600、最小化可读账号；定期轮换 |
-| 26 | **运营后台 admin 登录为 mock**：`admin_login` 不校验密码，任意账号即得 admin 令牌；前端写死 `role:'admin'` | `backend/app/api/v1/auth.py` `admin_login`、`admin-web` Login.vue | admin-web 公网暴露前 | 现状：部署用 Nginx Basic Auth + IP 白名单临时门禁（见 `deploy/DEPLOY-admin-web.md`）。**待补真实 RBAC**：管理员/药师/财务账号表 + 密码哈希校验 + 角色权限，再撤门禁 |
+| 26 | ✅ **运营后台真实 RBAC 已实现**：staff 账号表 + bcrypt 密码校验，登录返回真实角色（端点守卫早已按 admin/pharmacist/finance 区分） | `backend/app/api/v1/auth.py`、`models/staff.py`、`services/staff_service.py`、`scripts/create_admin.py`、`admin-web` Login.vue | 完成（账号用脚本建） | 生产建账号：`docker compose ... exec api python -m scripts.create_admin <user> <pwd> [role]`。账号建好、验证可登后，Nginx Basic Auth 门禁可保留(纵深防御)或撤除。**可改进**：按角色隐藏 admin-web 菜单（现靠端点 403 兜底） |
 
 ## 🟠 P1：功能未做实 / 简化，影响体验或多端
 

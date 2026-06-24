@@ -1,9 +1,23 @@
-"""JWT 鉴权 + 隐私脱敏（PRD §2.4）。"""
+"""JWT 鉴权 + 密码哈希 + 隐私脱敏（PRD §2.4）。"""
 from datetime import datetime, timedelta, timezone
 
+import bcrypt
 from jose import JWTError, jwt
 
 from .config import settings
+
+
+# —— 运营后台账号密码哈希（直接用 bcrypt，避开 passlib 与 bcrypt4.x 的兼容问题）——
+def hash_password(password: str) -> str:
+    pw = password.encode("utf-8")[:72]  # bcrypt 上限 72 字节
+    return bcrypt.hashpw(pw, bcrypt.gensalt()).decode("utf-8")
+
+
+def verify_password(password: str, password_hash: str) -> bool:
+    try:
+        return bcrypt.checkpw(password.encode("utf-8")[:72], password_hash.encode("utf-8"))
+    except Exception:  # noqa: BLE001 哈希格式异常等
+        return False
 
 
 def create_token(sub: str, role: str, **extra) -> str:

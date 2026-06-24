@@ -18,7 +18,7 @@ pydantic-settings==2.*
 
 # —— 安全 / 鉴权 ——
 python-jose[cryptography]==3.3.*
-passlib[bcrypt]==1.7.*
+bcrypt==4.*
 
 # —— 处方 PDF / 合规 ——
 reportlab==4.2.*

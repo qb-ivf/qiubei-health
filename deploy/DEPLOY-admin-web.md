@@ -5,7 +5,8 @@
 - admin-web 用相对路径 `baseURL: '/api/v1'` → 由本站 Nginx 把 `/api` 反代到后端 `127.0.0.1:8000`，**浏览器同源，无需 CORS**。
 - 前端是 Vite 构建的纯静态文件，系统 Nginx 直接托管，不另起容器。
 
-> 🔴 **安全前提**：后端 admin 登录当前为 mock（任意账号可登入，见 pending P0 #26）。**公网暴露前必须加 Basic Auth 门禁**（第 4 步），并建议加 IP 白名单。真实 RBAC 上线后再撤门禁。
+> 🔒 **登录鉴权**：后端已实现真实 RBAC（staff 账号 + bcrypt 密码 + 角色），账号用脚本创建（见第 7 步）。
+> Nginx Basic Auth 门禁（第 4 步）可作为纵深防御保留，或在确认账号登录正常后撤除。
 
 ---
 
@@ -72,11 +73,29 @@ htpasswd -c /etc/nginx/.htpasswd_admin yunying
 nginx -t && systemctl reload nginx
 ```
 
+## 第 7 步：创建运营后台账号（真实 RBAC）
+
+在服务器后端目录，用脚本创建账号（密码在服务器输入，不经聊天/不入库）：
+```bash
+cd /opt/qiubei-health/backend
+# role：admin（全权）/ pharmacist（药师审方）/ finance（财务）
+docker compose -f docker-compose.yml -f docker-compose.prod.yml exec api \
+  python -m scripts.create_admin yunying '设一个强密码' admin
+# 按需再建药师/财务账号
+docker compose -f docker-compose.yml -f docker-compose.prod.yml exec api \
+  python -m scripts.create_admin yaoshi '强密码2' pharmacist
+```
+> 首次运行会自动建 `staff` 表。重复运行同一用户名 = 重置该账号密码。
+> ⚠️ 后端代码/依赖更新过（新增 bcrypt），重新部署时重建镜像：
+> `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build`
+
 ## 第 6 步：验证
 
 1. 浏览器开 `https://admin.qb-medical.cn` → 先弹 **Basic Auth 门禁**（输第 4 步账号）→ 进入运营后台登录页。
-2. 登录页输入任意账号密码（当前 mock）→ 进入后台。
+2. 登录页输入**第 7 步创建的账号密码** → 进入后台（错误密码会被拒绝）。
 3. 打开「资质终审 / 药品字典 / 财务提现 / 监管面板」，确认能拉到后端数据（说明 `/api` 反代通）。
+
+> 账号登录验证正常后，若不需要双重门禁，可去掉第 4/5 步 Nginx 配置里的 `auth_basic` 两行再 `reload`。
 
 ---
 

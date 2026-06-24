@@ -7,7 +7,7 @@ from ...core.database import get_db
 from ...core.security import create_token, mask_phone
 from ...models.user import User
 from ...schemas.auth import AdminLogin, Me, TokenOut, WxLogin
-from ...services import auth_service
+from ...services import auth_service, staff_service
 from ..deps import get_current_user
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -39,11 +39,13 @@ async def doctor_login(body: WxLogin, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/admin/login", response_model=TokenOut)
-async def admin_login(body: AdminLogin):
-    """PC 运营后台登录（开发期：任意账号，角色由 role 指定；生产走真实 RBAC + 密码校验）。"""
-    role = body.role if body.role in ("pharmacist", "admin", "finance") else "pharmacist"
-    token = create_token(sub=body.username or role, role=role)
-    return TokenOut(token=token, role=role, user_id=0)
+async def admin_login(body: AdminLogin, db: AsyncSession = Depends(get_db)):
+    """PC 运营后台登录：校验 staff 账号密码，返回真实角色令牌（角色以库为准，忽略入参 role）。"""
+    staff = await staff_service.authenticate(db, body.username, body.password)
+    if not staff:
+        raise HTTPException(status_code=401, detail="账号或密码错误")
+    token = create_token(sub=str(staff.id), role=staff.role)
+    return TokenOut(token=token, role=staff.role, user_id=staff.id)
 
 
 @router.get("/me", response_model=Me)

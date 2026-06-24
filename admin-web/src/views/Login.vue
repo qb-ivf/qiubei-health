@@ -8,16 +8,17 @@ const router = useRouter()
 const form = reactive({ username: '', password: '' })
 
 async function login() {
-  if (!form.username) {
-    ElMessage.warning('请输入账号')
+  if (!form.username || !form.password) {
+    ElMessage.warning('请输入账号和密码')
     return
   }
   try {
-    // 开发期：后端按 role 下发 JWT（M8 接真实 RBAC + 密码校验）。admin 拥有全部权限
+    // 真实 RBAC：后端校验 staff 账号密码，角色以库为准
     const res = await request.post('/auth/admin/login', {
-      username: form.username, password: form.password, role: 'admin'
+      username: form.username, password: form.password
     })
     localStorage.setItem('token', res.token)
+    localStorage.setItem('role', res.role)
     router.replace('/dashboard')
   } catch (e) { /* 拦截器已提示 */ }
 }
