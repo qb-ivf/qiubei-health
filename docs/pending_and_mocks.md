@@ -14,8 +14,8 @@
 | 5 | **医生白名单**开发期自动通过（`DOCTOR_AUTO_APPROVE=true`）        | `backend/.env`、`auth_service.login_doctor`                                                        | M8 资质终审上线                                 | 生产置 false，走 admin 审核                 |
 | 6 | 处方 PDF ✅ M9 reportlab 生成；**CA 数字签名仍占位**              | `services/compliance_service.py`                                                                   | 待**CA 合同**（SM2 云端加签）                   |                                             |
 | 7 | 卫健委上报 ✅ M9 异步队列+重试+死信骨架（mock 加密/接口）         | `services/compliance_service.py`、`workers/compliance.py`                                          | 待**卫健委规范**（AES/SM4+Sign）；生产换 Celery |                                             |
-| 8 | **敏感字段加密**用开发回退密钥（未设 `ENCRYPTION_KEY`）           | `backend/app/core/crypto.py`                                                                       | 上线前                                          | 生成并配置正式 Fernet key                   |
-| 9 | **JWT 密钥**为默认值                                              | `backend/.env` `JWT_SECRET`                                                                        | 上线前                                          | 换强密钥                                    |
+| 8 | **敏感字段加密**用开发回退密钥（未设 `ENCRYPTION_KEY`）           | `backend/app/core/crypto.py`                                                                       | 正式对外前                                      | 待执行 `deploy/DEPLOY-ubuntu.md` 第 9 步生成 Fernet key。⚠️ 回退密钥派生自 `JWT_SECRET`，已有真实加密数据时换密钥需先做迁移 |
+| 9 | **JWT 密钥**为默认值                                              | `backend/.env` `JWT_SECRET`                                                                        | 正式对外前                                      | 同上，deploy 第 9 步换强密钥（换后旧 token 失效，需重登录）  |
 | 25 | **生产密钥明文落盘**：APIv3 密钥 / 商户私钥 / AppSecret 以明文存于服务器 `backend/.env`、`backend/secrets/` | `backend/.env`、`backend/secrets/apiclient_key.pem` | 上线前 | 改用 KMS / 密钥管理服务或部署平台的环境变量注入；私钥文件限权 600、最小化可读账号；定期轮换 |
 
 ## 🟠 P1：功能未做实 / 简化，影响体验或多端
@@ -43,7 +43,7 @@
 | 20 | **医生端 AppID** 为占位（与患者端相同）     | `miniprogram-doctor/project.config.json` | 第二个测试号/正式号到位 |
 | 21 | **数据库建表**用启动 `create_all`（非迁移） | `backend/main.py`                        | 引入**Alembic** 迁移    |
 | 22 | **图标**依赖 jsdelivr 在线字体              | 两端`app.js` `loadFontFace`              | 可改本地字体包/自托管   |
-| 23 | **CORS** 全放开                             | `backend/main.py`                        | 上线由 Nginx/网关收敛   |
+| 23 | **CORS** ✅ 代码已可配（`CORS_ORIGINS`，DEBUG=false 时生效收敛）；待填 admin-web 域名 | `backend/main.py`、`core/config.py` | 部署 admin-web 时填 `CORS_ORIGINS` |
 
 ---
 

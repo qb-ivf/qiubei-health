@@ -1,0 +1,15 @@
+# 生产覆盖层：与 docker-compose.yml 叠加使用
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# 作用：关闭 --reload 与 DEBUG，加自动重启。其余（MySQL/Redis/卷）沿用基础文件。
+services:
+  api:
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    environment:
+      DEBUG: "false"          # 关闭：不再自动建表/灌示例数据/放开 CORS
+    restart: always
+
+  mysql:
+    restart: always
+
+  redis:
+    restart: always

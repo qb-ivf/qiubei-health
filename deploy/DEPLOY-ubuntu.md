@@ -164,6 +164,47 @@ cd /opt/qiubei-health/backend && docker compose restart api
 
 ---
 
+## 第 9 步：生产安全加固（正式对外前，在服务器上做）
+
+> ⚠️ **顺序很重要**：`ENCRYPTION_KEY` 的开发回退值是由 `JWT_SECRET` 派生的。一旦库里已有真实加密数据（身份证/手机号），**更换任一密钥都会导致旧数据解不开**。所以务必先确认数据量。
+
+### 9.1 确认是否已有真实加密数据
+```bash
+cd /opt/qiubei-health/backend
+docker compose exec mysql mysql -uqiubei -pqiubei qiubei \
+  -e "SELECT count(*) AS patients FROM patients; SELECT count(*) AS users_with_phone FROM users WHERE phone_enc IS NOT NULL;"
+```
+- **基本为 0 / 全是测试数据** → 直接按 9.2 设新密钥（必要时先清测试数据）。
+- **已有真实患者数据** → 不能直接换 `ENCRYPTION_KEY`，需做「旧密钥解密→新密钥重加密」迁移，**先停下来评估**。
+
+### 9.2 生成并写入强密钥（**直接在服务器生成，不要经过聊天/外部**）
+```bash
+cd /opt/qiubei-health/backend
+# 生成强 JWT 密钥
+JWT=$(openssl rand -hex 32)
+# 生成 Fernet 加密密钥（用容器内的 cryptography）
+ENC=$(docker compose exec -T api python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())")
+# 写回 .env（替换占位/默认值）
+sed -i "s|^JWT_SECRET=.*|JWT_SECRET=$JWT|" .env
+sed -i "s|^ENCRYPTION_KEY=.*|ENCRYPTION_KEY=$ENC|" .env
+grep -E "^(JWT_SECRET|ENCRYPTION_KEY)=" .env   # 确认已写入（非默认值）
+```
+> 换 `JWT_SECRET` 后，所有用户已登录的 token 失效，需重新登录——属正常。
+
+### 9.3 收敛 CORS（部署了 admin-web 再填）
+编辑 `.env`：`CORS_ORIGINS=https://admin.qb-medical.cn`（admin-web 的访问域名，逗号分隔多个）。未部署 admin-web 可留空。
+
+### 9.4 用生产 compose 重启（关 --reload / DEBUG，开自动重启）
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+docker compose logs --tail=30 api      # 确认无报错
+curl http://127.0.0.1:8000/health
+```
+> 以后生产环境都用这条 `-f docker-compose.yml -f docker-compose.prod.yml` 启动。
+> 注意：`DEBUG=false` 后不再自动建表（Alembic 迁移待接入，pending #21）；现有表已建好不受影响。
+
+---
+
 ## 常见坑
 
 | 现象 | 排查 |

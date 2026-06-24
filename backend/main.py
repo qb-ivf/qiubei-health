@@ -65,10 +65,13 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title=settings.APP_NAME, debug=settings.DEBUG, lifespan=lifespan)
 
-# 联调期放开跨域；上线由 Nginx/网关统一收敛
+# 跨域：DEBUG 下放开便于联调；生产用 CORS_ORIGINS 白名单（逗号分隔）收敛。
+# 小程序是原生 wx.request，不受 CORS 限制；CORS 仅影响浏览器端（如 admin-web）。
+_cors_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"] if settings.DEBUG else _cors_origins,
+    allow_credentials=not settings.DEBUG,
     allow_methods=["*"],
     allow_headers=["*"],
 )

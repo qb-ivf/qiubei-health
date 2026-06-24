@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     WX_MCH_PRIVATE_KEY_PATH: str = ""   # 商户 API 私钥 apiclient_key.pem 路径（相对 backend/ 或绝对路径）
     WX_PAY_NOTIFY_URL: str = ""         # 支付结果回调地址（公网 HTTPS）；空则支付走 mock 回退
 
+    # —— CORS（生产收敛；逗号分隔的允许来源，空=不允许跨域；小程序非浏览器不受影响） ——
+    CORS_ORIGINS: str = ""
+
     # —— 医生白名单（开发期自动通过；生产置 False，走 admin 终审） ——
     DOCTOR_AUTO_APPROVE: bool = True
 
