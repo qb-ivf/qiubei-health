@@ -168,12 +168,13 @@ async def logistics(order_id: int, uid: int = Depends(get_current_user_id), db: 
 
 @router.get("/queue")
 async def doctor_queue(user=Depends(require_approved_doctor), db: AsyncSession = Depends(get_db)):
-    """医生候诊队列：候诊中(WAITING)订单，按下单时间升序（PRD §3.2）。
-
-    MVP：返回全部候诊订单（开发演示）；生产按 doctor_id 过滤。
-    """
+    """医生候诊队列：本医生名下候诊中(WAITING)订单，按下单时间升序（PRD §3.2）。"""
+    res = await db.execute(select(Doctor.id).where(Doctor.user_id == int(user["sub"])))
+    doctor_id = res.scalar_one_or_none()
     res = await db.execute(
-        select(Order).where(Order.status == int(OrderStatus.WAITING)).order_by(Order.id.asc())
+        select(Order)
+        .where(Order.status == int(OrderStatus.WAITING), Order.doctor_id == doctor_id)
+        .order_by(Order.id.asc())
     )
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     out = []
@@ -193,6 +194,12 @@ async def doctor_queue(user=Depends(require_approved_doctor), db: AsyncSession =
 @router.post("/{order_id}/accept")
 async def accept(order_id: int, user=Depends(require_approved_doctor), db: AsyncSession = Depends(get_db)):
     """医生立即接诊：WAITING→CONSULTING + 向患者推 CALL_INVITE（PRD §2.1/§2.2）。"""
+    # 仅可接诊分配给本医生的订单
+    res = await db.execute(select(Doctor.id).where(Doctor.user_id == int(user["sub"])))
+    my_doctor_id = res.scalar_one_or_none()
+    target = await db.get(Order, order_id)
+    if not target or target.doctor_id != my_doctor_id:
+        raise HTTPException(status_code=404, detail="订单不存在或不属于您")
     try:
         order = await order_service.transition(
             db, order_id, OrderStatus.CONSULTING, expect_from=OrderStatus.WAITING

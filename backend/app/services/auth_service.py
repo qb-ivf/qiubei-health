@@ -9,10 +9,57 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..constants import Role
 from ..core.config import settings
 from ..core.crypto import encrypt
+from ..core.redis import redis_client
 from ..core.security import create_token
 from ..models.user import Doctor, User
 
 logger = logging.getLogger("auth")
+
+
+async def _wx_access_token(appid: str, secret: str) -> str | None:
+    """获取并缓存小程序 access_token（有效 ~7200s）。"""
+    key = f"wx:access_token:{appid}"
+    cached = await redis_client.get(key)
+    if cached:
+        return cached
+    async with httpx.AsyncClient(timeout=8) as client:
+        r = await client.get(
+            "https://api.weixin.qq.com/cgi-bin/token",
+            params={"grant_type": "client_credential", "appid": appid, "secret": secret},
+        )
+        data = r.json()
+    token = data.get("access_token")
+    if token:
+        await redis_client.set(key, token, ex=max(int(data.get("expires_in", 7200)) - 200, 60))
+        return token
+    logger.warning("获取 access_token 失败: %s", data)
+    return None
+
+
+async def wx_get_phone(phone_code: str, appid: str, secret: str) -> str | None:
+    """用 getPhoneNumber 返回的 code 换取手机号（新版动态码方案）。"""
+    token = await _wx_access_token(appid, secret)
+    if not token:
+        return None
+    async with httpx.AsyncClient(timeout=8) as client:
+        r = await client.post(
+            f"https://api.weixin.qq.com/wxa/business/getuserphonenumber?access_token={token}",
+            json={"code": phone_code},
+        )
+        data = r.json()
+    if data.get("errcode") == 0 and data.get("phone_info"):
+        return data["phone_info"].get("purePhoneNumber")
+    logger.warning("getuserphonenumber 失败: %s", data)
+    return None
+
+
+async def _resolve_phone(phone_code: str | None, dev_phone: str | None, appid: str, secret: str) -> str | None:
+    """优先用 getPhoneNumber 真实解密；无密钥/失败则回退 dev_phone（开发）。"""
+    if phone_code and appid and secret:
+        phone = await wx_get_phone(phone_code, appid, secret)
+        if phone:
+            return phone
+    return dev_phone
 
 
 async def wx_code2session(code: str, appid: str, secret: str) -> str | None:
@@ -43,20 +90,22 @@ async def _get_or_create_user(db: AsyncSession, openid: str, role: str, phone: s
     return user
 
 
-async def login_patient(db: AsyncSession, code: str, dev_phone: str | None) -> tuple[User, str]:
+async def login_patient(db: AsyncSession, code: str, phone_code: str | None, dev_phone: str | None) -> tuple[User, str]:
     openid = await wx_code2session(code, settings.WX_PATIENT_APPID, settings.WX_PATIENT_SECRET)
     if not openid:
         raise ValueError("微信登录失败")
-    user = await _get_or_create_user(db, openid, Role.PATIENT, dev_phone)
+    phone = await _resolve_phone(phone_code, dev_phone, settings.WX_PATIENT_APPID, settings.WX_PATIENT_SECRET)
+    user = await _get_or_create_user(db, openid, Role.PATIENT, phone)
     token = create_token(sub=str(user.id), role=Role.PATIENT)
     return user, token
 
 
-async def login_doctor(db: AsyncSession, code: str, dev_phone: str | None) -> tuple[User, str]:
+async def login_doctor(db: AsyncSession, code: str, phone_code: str | None, dev_phone: str | None) -> tuple[User, str]:
     openid = await wx_code2session(code, settings.WX_DOCTOR_APPID, settings.WX_DOCTOR_SECRET)
     if not openid:
         raise ValueError("微信登录失败")
-    user = await _get_or_create_user(db, openid, Role.DOCTOR, dev_phone)
+    phone = await _resolve_phone(phone_code, dev_phone, settings.WX_DOCTOR_APPID, settings.WX_DOCTOR_SECRET)
+    user = await _get_or_create_user(db, openid, Role.DOCTOR, phone)
 
     # 允许登录；接诊/开方权限由 audit_status 把关（未审医生进资质提交页，见 require_approved_doctor）。
     # 首次登录建一条医生记录：开发期自动通过，生产期 pending 待 admin 终审。

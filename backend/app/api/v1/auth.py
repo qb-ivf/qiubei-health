@@ -16,7 +16,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 @router.post("/login", response_model=TokenOut)
 async def patient_login(body: WxLogin, db: AsyncSession = Depends(get_db)):
     try:
-        user, token = await auth_service.login_patient(db, body.code, body.dev_phone)
+        user, token = await auth_service.login_patient(db, body.code, body.phone_code, body.dev_phone)
         await db.commit()
     except ValueError as e:
         await db.rollback()
@@ -27,7 +27,7 @@ async def patient_login(body: WxLogin, db: AsyncSession = Depends(get_db)):
 @router.post("/doctor/login", response_model=TokenOut)
 async def doctor_login(body: WxLogin, db: AsyncSession = Depends(get_db)):
     try:
-        user, token = await auth_service.login_doctor(db, body.code, body.dev_phone)
+        user, token = await auth_service.login_doctor(db, body.code, body.phone_code, body.dev_phone)
         await db.commit()
     except PermissionError as e:
         await db.rollback()
