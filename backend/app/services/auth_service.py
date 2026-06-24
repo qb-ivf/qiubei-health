@@ -58,17 +58,15 @@ async def login_doctor(db: AsyncSession, code: str, dev_phone: str | None) -> tu
         raise ValueError("微信登录失败")
     user = await _get_or_create_user(db, openid, Role.DOCTOR, dev_phone)
 
-    # 白名单校验（PRD §2.4）：必须是已认证医生
+    # 允许登录；接诊/开方权限由 audit_status 把关（未审医生进资质提交页，见 require_approved_doctor）。
+    # 首次登录建一条医生记录：开发期自动通过，生产期 pending 待 admin 终审。
     res = await db.execute(select(Doctor).where(Doctor.user_id == user.id))
     doctor = res.scalar_one_or_none()
     if doctor is None:
-        if not settings.DOCTOR_AUTO_APPROVE:
-            raise PermissionError("非认证执业医师，无法登录")
-        doctor = Doctor(user_id=user.id, audit_status="approved")  # 开发期自动通过
+        status = "approved" if settings.DOCTOR_AUTO_APPROVE else "pending"
+        doctor = Doctor(user_id=user.id, audit_status=status)
         db.add(doctor)
         await db.flush()
-    elif doctor.audit_status != "approved":
-        raise PermissionError("医生资质审核未通过")
 
     token = create_token(sub=str(user.id), role=Role.DOCTOR)
     return user, token

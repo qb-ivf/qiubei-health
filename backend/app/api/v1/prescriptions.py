@@ -11,7 +11,7 @@ from ...models.user import Doctor, Patient
 from ...schemas.prescription import PrescriptionCreate, PrescriptionOut, RejectIn
 from ...services import compliance_service
 from ...services import prescription_service as rx_service
-from ..deps import get_current_user, require_role
+from ..deps import get_current_user, require_approved_doctor, require_role
 
 router = APIRouter(prefix="/prescriptions", tags=["prescriptions"])
 
@@ -26,9 +26,7 @@ async def _decorate(db: AsyncSession, rx) -> PrescriptionOut:
 
 
 @router.post("", response_model=PrescriptionOut)
-async def submit(body: PrescriptionCreate, user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if user.get("role") != "doctor":
-        raise HTTPException(status_code=403, detail="仅医生可开方")
+async def submit(body: PrescriptionCreate, user=Depends(require_approved_doctor), db: AsyncSession = Depends(get_db)):
     try:
         rx = await rx_service.submit(db, int(user["sub"]), body)
         await db.commit()

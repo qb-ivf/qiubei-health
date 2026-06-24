@@ -11,7 +11,7 @@
 | 2 | **手机号**未真正解密（dev_phone 直传）                            | 同上 + 两端`login.js`                                                                              | 正式主体小程序                                  | `getPhoneNumber` 需企业主体                 |
 | 3 | ✅✅ **真实微信支付 V3 已上线并验证**（2026-06-24，生产 `https://api.qb-medical.cn` 实付 1 分闭环通过） | `backend/app/services/pay_service.py`、`api/v1/orders.py` `prepay`/`drug-prepay`/`pay/callback`、患者 `utils/pay.js` | 完成 | 凭据在 `backend/.env`（私钥 `backend/secrets/apiclient_key.pem`，gitignore）。`is_enabled()` 以 `WX_PAY_NOTIFY_URL` 为开关。挂号费用 `order_no`、药费用 `order_no-DRUG` 作 out_trade_no。`/pay/mock` 等 dev 接口保留。部署见 `deploy/DEPLOY-ubuntu.md` |
 | 4 | **实名认证**仅校验身份证格式，无三方核验                          | `backend/app/services/patient_service.py` `real_name_verify`                                       | 接公安二要素/三方                               |                                             |
-| 5 | **医生白名单**开发期自动通过（`DOCTOR_AUTO_APPROVE=true`）        | `backend/.env`、`auth_service.login_doctor`                                                        | M8 资质终审上线                                 | 生产置 false，走 admin 审核                 |
+| 5 | ✅ **医生资质审核闭环已实现**（端到端验证通过）：login 放行未审医生、`POST /doctors/qualification` 提交、医生端资质页按状态路由、接诊/开方端点 `require_approved_doctor`。**生产可置 `DOCTOR_AUTO_APPROVE=false`** 走 admin 终审 | `auth_service.login_doctor`、`api/deps.py`、`api/v1/doctors.py`、`orders.py`、`prescriptions.py`、医生端 `pages/qualification/*`、`login.js` | 生产 .env 置 false 即生效 | 开发保留 true 便于联调；正式对外前在服务器置 false |
 | 6 | 处方 PDF ✅ M9 reportlab 生成；**CA 数字签名仍占位**              | `services/compliance_service.py`                                                                   | 待**CA 合同**（SM2 云端加签）                   |                                             |
 | 7 | 卫健委上报 ✅ M9 异步队列+重试+死信骨架（mock 加密/接口）         | `services/compliance_service.py`、`workers/compliance.py`                                          | 待**卫健委规范**（AES/SM4+Sign）；生产换 Celery |                                             |
 | 8 | **敏感字段加密**用开发回退密钥（未设 `ENCRYPTION_KEY`）           | `backend/app/core/crypto.py`                                                                       | 正式对外前                                      | 待执行 `deploy/DEPLOY-ubuntu.md` 第 9 步生成 Fernet key。⚠️ 回退密钥派生自 `JWT_SECRET`，已有真实加密数据时换密钥需先做迁移 |
@@ -41,7 +41,7 @@
 
 | #  | 现状                                        | 位置                                     | 何时替换                |
 | :- | :------------------------------------------ | :--------------------------------------- | :---------------------- |
-| 20 | **医生端 AppID** 为占位（与患者端相同）     | `miniprogram-doctor/project.config.json` | 第二个测试号/正式号到位 |
+| 20 | ✅ **医生端 AppID 已配真号** `wx22d31040c9fcafc6`；后端 `WX_DOCTOR_*` 已配 | `miniprogram-doctor/project.config.json`、`backend/.env` | 完成（小程序后台需配 request 合法域名 + app.js 指向生产） |
 | 21 | **数据库建表**用启动 `create_all`（非迁移） | `backend/main.py`                        | 引入**Alembic** 迁移    |
 | 22 | **图标**依赖 jsdelivr 在线字体              | 两端`app.js` `loadFontFace`              | 可改本地字体包/自托管   |
 | 23 | **CORS** ✅ 代码已可配（`CORS_ORIGINS`，DEBUG=false 时生效收敛）；待填 admin-web 域名 | `backend/main.py`、`core/config.py` | 部署 admin-web 时填 `CORS_ORIGINS` |

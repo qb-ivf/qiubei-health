@@ -23,10 +23,16 @@ Page({
           app.globalData.token = res.token;
           wx.setStorageSync('token', res.token);
           app.connectSignaling(); // 登录后建立信令长连接
-          wx.showToast({ title: '登录成功', icon: 'success' });
-          setTimeout(() => wx.reLaunch({ url: '/pages/hall/hall' }), 600);
+          // 按资质审核状态路由：approved → 接诊大厅；否则 → 资质提交/审核页
+          return request('/doctors/profile');
+        }).then((profile) => {
+          if (profile && profile.audit_status === 'approved') {
+            wx.showToast({ title: '登录成功', icon: 'success' });
+            setTimeout(() => wx.reLaunch({ url: '/pages/hall/hall' }), 600);
+          } else {
+            wx.reLaunch({ url: '/pages/qualification/qualification' });
+          }
         }).catch((err) => {
-          // 403 = 非白名单医生
           wx.showToast({ title: (err && err.detail) || '登录失败（检查后端地址）', icon: 'none' });
         });
       },

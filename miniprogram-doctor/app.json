@@ -2,7 +2,8 @@
   "pages": [
     "pages/hall/hall",
     "pages/workbench/workbench",
-    "pages/login/login"
+    "pages/login/login",
+    "pages/qualification/qualification"
   ],
   "subPackages": [
     {

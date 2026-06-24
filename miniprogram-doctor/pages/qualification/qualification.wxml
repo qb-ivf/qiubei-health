@@ -1,0 +1,55 @@
+<view class="q">
+  <!-- 审核状态横幅 -->
+  <view wx:if="{{audit_status}}" class="q-status q-status--{{audit_status}}">
+    <text class="q-status__txt">资质审核：{{statusText}}</text>
+    <text wx:if="{{audit_status==='pending'}}" class="q-status__sub">资料已提交，请耐心等待管理员终审</text>
+    <text wx:elif="{{audit_status==='rejected'}}" class="q-status__sub">审核未通过，请核对资料后重新提交</text>
+    <text wx:elif="{{audit_status==='approved'}}" class="q-status__sub">已通过认证，可进入接诊大厅</text>
+  </view>
+
+  <!-- 已通过：进入大厅 -->
+  <view wx:if="{{audit_status==='approved'}}" class="q-pass">
+    <button class="q-btn q-btn--primary" bindtap="enterHall">进入接诊大厅</button>
+  </view>
+
+  <!-- 资质表单（未通过 / 待审 / 首次均可填写提交） -->
+  <view wx:else class="q-form">
+    <view class="q-title">执业资质认证</view>
+    <view class="q-tip">请如实填写，提交后由医院运营终审通过方可接诊。</view>
+
+    <view class="q-field">
+      <text class="q-label">姓名 *</text>
+      <input class="q-input" placeholder="真实姓名" value="{{form.name}}" data-f="name" bindinput="onField" />
+    </view>
+    <view class="q-field">
+      <text class="q-label">医师资格证编号 *</text>
+      <input class="q-input" placeholder="资格证编号" value="{{form.license_no}}" data-f="license_no" bindinput="onField" />
+    </view>
+    <view class="q-field">
+      <text class="q-label">医师执业证编号 *</text>
+      <input class="q-input" placeholder="执业证编号" value="{{form.practice_no}}" data-f="practice_no" bindinput="onField" />
+    </view>
+    <view class="q-field">
+      <text class="q-label">科室</text>
+      <input class="q-input" placeholder="如：呼吸内科" value="{{form.dept}}" data-f="dept" bindinput="onField" />
+    </view>
+    <view class="q-field">
+      <text class="q-label">职称</text>
+      <input class="q-input" placeholder="如：主治医师" value="{{form.title}}" data-f="title" bindinput="onField" />
+    </view>
+    <view class="q-field">
+      <text class="q-label">从业年限</text>
+      <input class="q-input" type="number" placeholder="如：8" value="{{form.years}}" data-f="years" bindinput="onField" />
+    </view>
+    <view class="q-field">
+      <text class="q-label">擅长</text>
+      <textarea class="q-textarea" placeholder="擅长的疾病/方向" value="{{form.good_at}}" data-f="good_at" bindinput="onField" />
+    </view>
+
+    <button class="q-btn q-btn--primary" loading="{{submitting}}" bindtap="submit">
+      {{audit_status==='rejected' ? '重新提交审核' : '提交审核'}}
+    </button>
+  </view>
+
+  <view class="q-logout" bindtap="logout">退出登录</view>
+</view>

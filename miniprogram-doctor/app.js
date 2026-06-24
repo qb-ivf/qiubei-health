@@ -8,8 +8,8 @@ App({
     doctor: null,           // 当前登录医生信息
     onDuty: false,          // 接诊状态开关（FRD 页面 D1）
     socketTask: null,       // 全局 WebSocket 实例
-    baseUrl: 'http://127.0.0.1:8000',
-    wsUrl: 'ws://127.0.0.1:8000/ws',
+    baseUrl: 'https://api.qb-medical.cn',
+    wsUrl: 'wss://api.qb-medical.cn/ws',
     ORDER_STATUS
   },
 
