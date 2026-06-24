@@ -1,7 +1,7 @@
 {
   "miniprogramRoot": "./",
   "compileType": "miniprogram",
-  "appid": "wx562db043af9f917c",
+  "appid": "wx44cd15c9d3e4da1a",
   "projectname": "qiubei-health-patient",
   "setting": {
     "es6": true,

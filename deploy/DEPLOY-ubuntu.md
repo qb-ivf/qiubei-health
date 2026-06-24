@@ -45,6 +45,28 @@ systemctl enable --now docker
 docker compose version    # 验证
 ```
 
+### 2.1 配置镜像加速器（**必做**，否则拉镜像超时）
+
+国内服务器直连 Docker Hub 会 `i/o timeout`，拉不下 mysql/redis 镜像。需配阿里云镜像加速器：
+
+- 阿里云控制台 → **容器镜像服务 ACR** → 镜像工具 → **镜像加速器** → 复制你的专属地址（形如 `https://xxxx.mirror.aliyuncs.com`）
+
+```bash
+mkdir -p /etc/docker
+cat > /etc/docker/daemon.json <<'EOF'
+{
+  "registry-mirrors": [
+    "https://<你的ID>.mirror.aliyuncs.com",
+    "https://docker.m.daocloud.io",
+    "https://dockerproxy.com"
+  ]
+}
+EOF
+systemctl daemon-reload && systemctl restart docker
+docker info | grep -A3 "Registry Mirrors"   # 确认生效
+```
+> 把第一行 `<你的ID>` 换成你的专属地址；后两个是公共备用，多配兜底。
+
 ---
 
 ## 第 3 步：拉代码 + 上传机密 + 启动后端
