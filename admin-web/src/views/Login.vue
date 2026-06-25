@@ -19,6 +19,7 @@ async function login() {
     })
     localStorage.setItem('token', res.token)
     localStorage.setItem('role', res.role)
+    localStorage.setItem('uname', form.username)
     router.replace('/')
   } catch (e) { /* 拦截器已提示 */ }
 }
@@ -61,7 +62,7 @@ async function login() {
 .login__name { font-size: 30px; font-weight: 800; letter-spacing: 3px; line-height: 1.1; }
 .login__en { font-size: 12px; opacity: .9; letter-spacing: 1.5px; margin-top: 4px; }
 .login__card { width: 380px; border-radius: 16px; box-shadow: 0 12px 40px rgba(0, 0, 0, .18); }
-.login__title { font-size: 19px; font-weight: 700; text-align: center; color: var(--brand-blue); }
+.login__title { font-size: 19px; font-weight: 700; text-align: center; color: var(--brand-primary); }
 .login__sub { font-size: 12px; color: var(--el-text-color-secondary); text-align: center; margin: 6px 0 18px; }
 .login__btn { width: 100%; font-weight: 600; letter-spacing: 4px; }
 .login__foot { color: rgba(255, 255, 255, .85); font-size: 12px; letter-spacing: .5px; }

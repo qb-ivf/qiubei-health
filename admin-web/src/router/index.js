@@ -18,7 +18,8 @@ const routes = [
       { path: 'finance', name: '财务对账提现', meta: { roles: ['admin', 'finance'] }, component: () => import('@/views/Finance.vue') },
       { path: 'dashboard', name: '监管上报面板', meta: { roles: ['admin'] }, component: () => import('@/views/Dashboard.vue') },
       { path: 'audit-logs', name: '操作审计', meta: { roles: ['admin'] }, component: () => import('@/views/AuditLogs.vue') },
-      { path: 'staff', name: '账号管理', meta: { roles: ['admin'] }, component: () => import('@/views/Staff.vue') }
+      { path: 'staff', name: '账号管理', meta: { roles: ['admin'] }, component: () => import('@/views/Staff.vue') },
+      { path: 'theme', name: '系统主题', meta: { roles: ['admin', 'pharmacist', 'finance'] }, component: () => import('@/views/Theme.vue') }
     ]
   }
 ]
