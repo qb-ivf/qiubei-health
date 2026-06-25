@@ -41,7 +41,7 @@ async def get_schedule(db: AsyncSession, doctor_id: int, day: str | None) -> lis
     out = []
     for s in res.scalars().all():
         out.append(SlotOut(id=s.id, day=s.day, start_time=s.start_time,
-                           end_time=s.end_time, remaining=await _remaining(s)))
+                           end_time=s.end_time, remaining=await _remaining(s), quota=s.quota))
     return out
 
 

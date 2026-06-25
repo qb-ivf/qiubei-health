@@ -1,0 +1,33 @@
+.sch { min-height: 100vh; background: #f4f5f7; }
+
+.sch-days { white-space: nowrap; background: #fff; padding: 20rpx 16rpx; }
+.sch-day {
+  display: inline-flex; flex-direction: column; align-items: center;
+  width: 110rpx; padding: 14rpx 0; margin-right: 12rpx; border-radius: 14rpx; background: #f4f5f7;
+}
+.sch-day--on { background: #0056c4; }
+.sch-day__lab { font-size: 26rpx; color: #303133; }
+.sch-day__md { font-size: 22rpx; color: #909399; margin-top: 4rpx; }
+.sch-day--on .sch-day__lab, .sch-day--on .sch-day__md { color: #fff; }
+
+.sch-bar { display: flex; align-items: center; justify-content: space-between; padding: 24rpx 32rpx 8rpx; }
+.sch-quota { display: flex; align-items: center; gap: 16rpx; }
+.sch-quota__t { font-size: 26rpx; color: #606266; }
+.sch-quota__in {
+  width: 110rpx; height: 64rpx; border: 1rpx solid #dcdfe6; border-radius: 10rpx;
+  text-align: center; font-size: 28rpx; background: #fff;
+}
+.sch-openall { background: #006c46; color: #fff; font-size: 26rpx; padding: 14rpx 28rpx; border-radius: 32rpx; }
+
+.sch-tip { font-size: 22rpx; color: #909399; padding: 8rpx 32rpx 16rpx; }
+
+.sch-grid { display: flex; flex-wrap: wrap; padding: 0 24rpx 40rpx; }
+.sch-slot {
+  width: calc(50% - 24rpx); margin: 12rpx; box-sizing: border-box;
+  background: #fff; border: 1rpx solid #ebeef5; border-radius: 14rpx;
+  padding: 24rpx; display: flex; flex-direction: column; align-items: center;
+}
+.sch-slot--on { background: #ecf5ff; border-color: #0056c4; }
+.sch-slot__time { font-size: 30rpx; color: #303133; font-weight: 600; }
+.sch-slot__st { font-size: 24rpx; color: #0056c4; margin-top: 8rpx; }
+.sch-slot__st--off { color: #c0c4cc; }

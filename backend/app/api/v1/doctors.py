@@ -1,13 +1,18 @@
-"""医生与排班接口（M2，公开可读）+ 医生本人资质提交/查询。"""
+"""医生与排班接口（M2，公开可读）+ 医生本人资质/诊金/排班自助管理。"""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...core.database import get_db
+from ...core.redis import redis_client
+from ...models.schedule import Slot
 from ...models.user import Doctor
-from ...schemas.doctor import DoctorOut, DoctorProfileOut, QualificationIn, SlotOut
+from ...schemas.doctor import (
+    DoctorOut, DoctorProfileOut, FeeIn, QualificationIn, SlotOut, SlotsCreate,
+)
 from ...services import doctor_service
-from ..deps import get_current_user_id, require_role
+from ...services.doctor_service import slot_key
+from ..deps import get_current_user_id, require_approved_doctor, require_role
 
 router = APIRouter(prefix="/doctors", tags=["doctors"])
 
@@ -50,6 +55,71 @@ async def submit_qualification(
     await db.commit()
     await db.refresh(doctor)
     return doctor
+
+
+async def _require_my_doctor(uid: int, db: AsyncSession) -> Doctor:
+    res = await db.execute(select(Doctor).where(Doctor.user_id == uid))
+    doctor = res.scalar_one_or_none()
+    if not doctor:
+        raise HTTPException(status_code=404, detail="医生记录不存在")
+    return doctor
+
+
+@router.post("/fee", response_model=DoctorProfileOut)
+async def set_fee(body: FeeIn, user=Depends(require_approved_doctor), db: AsyncSession = Depends(get_db)):
+    """医生设置本人挂号费（诊金设置）。"""
+    if body.fee_fen < 0:
+        raise HTTPException(status_code=400, detail="金额不能为负")
+    doctor = await _require_my_doctor(int(user["sub"]), db)
+    doctor.register_fee_fen = body.fee_fen
+    await db.commit()
+    await db.refresh(doctor)
+    return doctor
+
+
+@router.get("/my-schedule", response_model=list[SlotOut])
+async def my_schedule(user=Depends(require_approved_doctor), db: AsyncSession = Depends(get_db)):
+    """医生查看本人号源（排班管理）。"""
+    doctor = await _require_my_doctor(int(user["sub"]), db)
+    return await doctor_service.get_schedule(db, doctor.id, None)
+
+
+@router.post("/slots", response_model=list[SlotOut])
+async def create_slots(body: SlotsCreate, user=Depends(require_approved_doctor), db: AsyncSession = Depends(get_db)):
+    """医生为某天批量建号源（号源锁同步写 Redis）。同日同开始时间不重复建。"""
+    doctor = await _require_my_doctor(int(user["sub"]), db)
+    quota = max(1, body.quota)
+    out = []
+    for t in body.times:
+        exists = await db.scalar(
+            select(Slot.id).where(Slot.doctor_id == doctor.id, Slot.day == body.day, Slot.start_time == t.start)
+        )
+        if exists:
+            continue
+        slot = Slot(doctor_id=doctor.id, day=body.day, start_time=t.start, end_time=t.end, quota=quota, remaining=quota)
+        db.add(slot)
+        await db.flush()
+        await redis_client.set(slot_key(slot.id), quota)  # 号源锁
+        out.append(SlotOut(id=slot.id, day=slot.day, start_time=slot.start_time, end_time=slot.end_time, remaining=quota, quota=quota))
+    await db.commit()
+    return out
+
+
+@router.delete("/slots/{slot_id}")
+async def delete_slot(slot_id: int, user=Depends(require_approved_doctor), db: AsyncSession = Depends(get_db)):
+    """医生删除本人某个号源（仅未被预约的可删）。"""
+    doctor = await _require_my_doctor(int(user["sub"]), db)
+    slot = await db.get(Slot, slot_id)
+    if not slot or slot.doctor_id != doctor.id:
+        raise HTTPException(status_code=404, detail="号源不存在或不属于您")
+    left = await redis_client.get(slot_key(slot_id))
+    remaining = int(left) if left is not None else slot.remaining
+    if remaining < slot.quota:
+        raise HTTPException(status_code=409, detail="该时段已有预约，不可删除")
+    await db.delete(slot)
+    await db.commit()
+    await redis_client.delete(slot_key(slot_id))
+    return {"ok": True}
 
 
 @router.get("/{doctor_id}", response_model=DoctorOut)

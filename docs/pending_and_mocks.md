@@ -29,7 +29,7 @@
 | 12 | ✅ **候诊队列按医生过滤**：只返回本医生名下 WAITING 订单；接诊端点加归属校验（接他人订单→404） | `backend/app/api/v1/orders.py` `doctor_queue`/`accept` | 完成 |
 | 13 | **WebSocket** 用单进程内存连接管理                                      | `backend/app/ws.py`                                  | 多实例部署前                          |
 | 14 | **超时取消**用 asyncio 轮询（每 30s）                                   | `backend/main.py` `_expiry_sweep`                    | 可选优化                              |
-| 15 | **示例医生/号源**为启动 seed 假数据                                     | `backend/app/services/doctor_service.py` `seed_demo` | 接入真实排班后删                      |
+| 15 | ✅ **医生自助排班/诊金已实现**（建/查/删号源 + 改诊金，医生端「排班管理/诊金设置」页）；seed 仅本地 dev 用 | `api/v1/doctors.py` `slots`/`fee`/`my-schedule`、医生端 `pages/schedule`、`workbench` | 生产 seed 不跑（DEBUG=false）；示例医生用 `ops-cheatsheet` 4.6 清理 |
 | 16 | ~~EMR/开方/药师审方~~ ✅ M5 已实现（CA 签章仍占位见 #6）                | —                                                   | 完成                                  |
 | 17 | ~~物流/退款/消息通知~~ ✅ M7 已实现（微信订阅消息下发仍占位）           | `notification_service`                               | 订阅消息下发待正式主体                |
 | 18 | PC 后台：资质终审/药品字典/财务提现 ✅ M8 接真；监管面板 ✅ M9 接真     | —                                                   | 完成                                  |

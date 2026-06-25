@@ -20,6 +20,7 @@ class SlotOut(BaseModel):
     start_time: str
     end_time: str
     remaining: int
+    quota: int = 0
 
 
 class QualificationIn(BaseModel):
@@ -33,6 +34,23 @@ class QualificationIn(BaseModel):
     years: int | None = None
 
 
+class FeeIn(BaseModel):
+    """医生设置本人挂号费（单位：分）。"""
+    fee_fen: int
+
+
+class TimeRange(BaseModel):
+    start: str  # 09:00
+    end: str    # 09:30
+
+
+class SlotsCreate(BaseModel):
+    """医生为某天批量建号源。"""
+    day: str               # 2026-06-26
+    times: list[TimeRange]
+    quota: int = 5
+
+
 class DoctorProfileOut(BaseModel):
     """医生本人档案（含审核状态，供医生端按状态路由）。"""
     id: int
@@ -43,6 +61,7 @@ class DoctorProfileOut(BaseModel):
     practice_no: str | None = None
     good_at: str | None = None
     years: int | None = None
+    register_fee_fen: int = 0  # 挂号费(分)，供诊金设置回显
     audit_status: str          # pending / approved / rejected
 
     model_config = {"from_attributes": True}

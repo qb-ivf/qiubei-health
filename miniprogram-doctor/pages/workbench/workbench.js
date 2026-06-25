@@ -4,7 +4,7 @@ const { request } = require('../../utils/request.js');
 Page({
   data: {
     balance: '0.00',
-    doctor: { name: '', title: '', audit_status: '' },
+    doctor: { name: '', title: '', audit_status: '', fee_fen: 0 },
     authText: '',
     metrics: { done: 0, score: '—', praise: 0 },  // 真实统计接口接入前用占位 0/—
     manage: [
@@ -31,7 +31,7 @@ Page({
       if (!p) return;
       const map = { approved: '执业资格已认证', pending: '资质审核中', rejected: '资质审核未通过' };
       this.setData({
-        doctor: { name: p.name || '医生', title: p.title || '', audit_status: p.audit_status || '' },
+        doctor: { name: p.name || '医生', title: p.title || '', audit_status: p.audit_status || '', fee_fen: p.register_fee_fen || 0 },
         authText: map[p.audit_status] || ''
       });
     }).catch(() => {});
@@ -58,9 +58,30 @@ Page({
     const t = e.currentTarget.dataset.t || '';
     if (t.indexOf('资质') > -1) {
       wx.navigateTo({ url: '/pages/qualification/qualification' });
+    } else if (t.indexOf('排班') > -1) {
+      wx.navigateTo({ url: '/pages/schedule/schedule' });
+    } else if (t.indexOf('诊金') > -1) {
+      this.editFee();
     } else {
-      wx.showToast({ title: t, icon: 'none' });
+      wx.showToast({ title: t + '（建设中）', icon: 'none' });
     }
+  },
+
+  // 诊金设置：弹窗输入挂号费（元），保存到后端
+  editFee() {
+    const cur = this.data.doctor.fee_fen ? (this.data.doctor.fee_fen / 100).toFixed(2) : '';
+    wx.showModal({
+      title: '诊金设置', editable: true, placeholderText: '挂号费（元），如 40', content: cur,
+      confirmText: '保存', cancelText: '取消',
+      success: (r) => {
+        if (!r.confirm) return;
+        const yuan = parseFloat(r.content);
+        if (isNaN(yuan) || yuan < 0) { wx.showToast({ title: '金额无效', icon: 'none' }); return; }
+        request('/doctors/fee', { method: 'POST', data: { fee_fen: Math.round(yuan * 100) } })
+          .then((p) => { this.setData({ 'doctor.fee_fen': p.register_fee_fen }); wx.showToast({ title: '已保存', icon: 'success' }); })
+          .catch((e) => wx.showToast({ title: (e && e.detail) || '保存失败', icon: 'none' }));
+      }
+    });
   },
   logout() {
     wx.showModal({

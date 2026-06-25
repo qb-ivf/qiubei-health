@@ -1,0 +1,31 @@
+<view class="sch">
+  <!-- 日期选择 -->
+  <scroll-view scroll-x class="sch-days">
+    <view class="sch-day {{activeDay===item.date ? 'sch-day--on' : ''}}" wx:for="{{days}}" wx:key="date"
+          bindtap="selectDay" data-d="{{item.date}}">
+      <text class="sch-day__lab">{{item.label}}</text>
+      <text class="sch-day__md">{{item.md}}</text>
+    </view>
+  </scroll-view>
+
+  <!-- 每号配额 + 一键开放 -->
+  <view class="sch-bar">
+    <view class="sch-quota">
+      <text class="sch-quota__t">每时段号数</text>
+      <input class="sch-quota__in" type="number" value="{{quota}}" bindinput="changeQuota" />
+    </view>
+    <view class="sch-openall" bindtap="openAll">一键全开</view>
+  </view>
+
+  <view class="sch-tip">点"未开放"开号，点"已开放"删号（已被预约的不可删）</view>
+
+  <!-- 时段网格 -->
+  <view class="sch-grid">
+    <view class="sch-slot {{item.open ? 'sch-slot--on' : ''}}" wx:for="{{slots}}" wx:key="start"
+          bindtap="toggleSlot" data-i="{{index}}">
+      <text class="sch-slot__time">{{item.start}}~{{item.end}}</text>
+      <text wx:if="{{item.open}}" class="sch-slot__st">剩 {{item.remaining}}/{{item.quota}}</text>
+      <text wx:else class="sch-slot__st sch-slot__st--off">未开放</text>
+    </view>
+  </view>
+</view>
