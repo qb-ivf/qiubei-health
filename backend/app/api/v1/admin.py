@@ -112,6 +112,36 @@ async def admin_delete_slot(slot_id: int, request: Request, user=Depends(_admin)
     return {"ok": True}
 
 
+@router.put("/doctors/{doctor_id}")
+async def update_doctor(doctor_id: int, request: Request, body: dict = Body(...), user=Depends(_admin), db: AsyncSession = Depends(get_db)):
+    """运营编辑医生信息（资料填错/代填修正）。挂号费单位为元，转存分。"""
+    d = await db.get(Doctor, doctor_id)
+    if not d:
+        raise HTTPException(status_code=404, detail="医生不存在")
+    if "name" in body:
+        d.name = (body["name"] or "").strip() or None
+    if "dept" in body:
+        d.dept = (body.get("dept") or "").strip() or None
+    if "title" in body:
+        d.title = (body.get("title") or "").strip() or None
+    if "license_no" in body:
+        d.license_no = (body.get("license_no") or "").strip() or None
+    if "practice_no" in body:
+        d.practice_no = (body.get("practice_no") or "").strip() or None
+    if "good_at" in body:
+        d.good_at = (body.get("good_at") or "").strip() or None
+    if "years" in body:
+        d.years = int(body["years"]) if body.get("years") not in (None, "") else None
+    if "register_fee" in body:
+        fee = float(body["register_fee"] or 0)
+        if fee < 0:
+            raise HTTPException(status_code=400, detail="挂号费不能为负")
+        d.register_fee_fen = int(round(fee * 100))
+    await audit_service.record(db, user, request, "编辑医生信息", "doctor", doctor_id, d.name or str(doctor_id))
+    await db.commit()
+    return {"id": d.id}
+
+
 @router.post("/doctors/{doctor_id}/audit")
 async def audit_doctor(doctor_id: int, request: Request, approve: bool = Body(embed=True), user=Depends(_admin), db: AsyncSession = Depends(get_db)):
     d = await db.get(Doctor, doctor_id)

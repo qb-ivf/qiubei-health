@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import request from '@/api/request'
 
@@ -9,6 +9,11 @@ const list = ref([])
 const loading = ref(false)
 const drawer = ref(false)
 const current = ref({})
+
+// —— 编辑医生信息 ——
+const editVisible = ref(false)
+const editId = ref(null)
+const editForm = reactive({ name: '', dept: '', title: '', license_no: '', practice_no: '', good_at: '', years: null, register_fee: 0 })
 
 const TABS = [
   { k: 'pending', t: '待审核' },
@@ -31,7 +36,7 @@ async function load() {
       id: d.id, name: d.name || '(未填)', dept: d.dept || '—', title: d.title || '—',
       license: d.license_no || '—', practice: d.practice_no || '—',
       phone: d.phone || '—', goodAt: d.good_at || '—', years: d.years, fee: d.register_fee,
-      status: d.audit_status, time: d.created_at
+      status: d.audit_status, time: d.created_at, raw: d
     }))
   } finally {
     loading.value = false
@@ -41,6 +46,23 @@ onMounted(load)
 function switchTab(k) { tab.value = k; load() }
 
 function detail(row) { current.value = row; drawer.value = true }
+
+function edit(row) {
+  const d = row.raw || {}
+  editId.value = row.id
+  Object.assign(editForm, {
+    name: d.name || '', dept: d.dept || '', title: d.title || '',
+    license_no: d.license_no || '', practice_no: d.practice_no || '',
+    good_at: d.good_at || '', years: d.years ?? null, register_fee: d.register_fee ?? 0,
+  })
+  editVisible.value = true
+}
+async function saveEdit() {
+  try {
+    await request.put(`/admin/doctors/${editId.value}`, { ...editForm })
+    ElMessage.success('已保存'); editVisible.value = false; load()
+  } catch (e) { /* 拦截器已提示 */ }
+}
 
 async function pass(row) {
   await request.post(`/admin/doctors/${row.id}/audit`, { approve: true })
@@ -74,9 +96,10 @@ async function deny(row) {
           <el-tag :type="(STATUS[row.status] || {}).type">{{ (STATUS[row.status] || {}).t || row.status }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="240">
+      <el-table-column label="操作" width="320">
         <template #default="{ row }">
           <el-button size="small" @click="detail(row)">查看详情</el-button>
+          <el-button size="small" type="primary" plain @click="edit(row)">编辑</el-button>
           <el-button size="small" type="success" :disabled="row.status === 'approved'" @click="pass(row)">通过</el-button>
           <el-button size="small" type="danger" :disabled="row.status === 'rejected'" @click="deny(row)">驳回</el-button>
         </template>
@@ -101,10 +124,29 @@ async function deny(row) {
       </el-descriptions-item>
     </el-descriptions>
     <div class="drawer-foot">
+      <el-button type="primary" plain @click="edit(current)">编辑信息</el-button>
       <el-button type="success" :disabled="current.status === 'approved'" @click="pass(current)">通过终审</el-button>
       <el-button type="danger" :disabled="current.status === 'rejected'" @click="deny(current)">驳回</el-button>
     </div>
   </el-drawer>
+
+  <!-- 编辑医生信息 -->
+  <el-dialog v-model="editVisible" title="编辑医生信息" width="520px">
+    <el-form :model="editForm" label-width="120px">
+      <el-form-item label="姓名"><el-input v-model="editForm.name" /></el-form-item>
+      <el-form-item label="科室"><el-input v-model="editForm.dept" /></el-form-item>
+      <el-form-item label="职称"><el-input v-model="editForm.title" placeholder="如：主任医师" /></el-form-item>
+      <el-form-item label="资格证号"><el-input v-model="editForm.license_no" /></el-form-item>
+      <el-form-item label="执业证号"><el-input v-model="editForm.practice_no" /></el-form-item>
+      <el-form-item label="擅长"><el-input v-model="editForm.good_at" type="textarea" :rows="2" /></el-form-item>
+      <el-form-item label="执业年限"><el-input-number v-model="editForm.years" :min="0" :max="60" /></el-form-item>
+      <el-form-item label="挂号费(元)"><el-input-number v-model="editForm.register_fee" :min="0" :precision="2" :step="1" /></el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="editVisible = false">取消</el-button>
+      <el-button type="primary" @click="saveEdit">保存</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <style scoped>
