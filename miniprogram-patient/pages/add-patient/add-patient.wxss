@@ -1,0 +1,16 @@
+.ap { min-height: 100vh; background: #f4f5f7; padding: 24rpx; box-sizing: border-box; }
+
+.ap-form { background: #fff; border-radius: 16rpx; padding: 8rpx 28rpx; }
+.ap-field {
+  display: flex; align-items: center; min-height: 100rpx;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+.ap-field:last-child { border-bottom: none; }
+.ap-label { width: 180rpx; font-size: 28rpx; color: #606266; }
+.ap-input { flex: 1; font-size: 28rpx; color: #303133; }
+.ap-picker { flex: 1; }
+.ap-picker__v { font-size: 28rpx; color: #303133; display: flex; justify-content: space-between; }
+.ap-picker__arrow { color: #c0c4cc; }
+
+.ap-tip { font-size: 24rpx; color: #909399; margin: 24rpx 8rpx; }
+.ap-btn { background: #0056c4; color: #fff; font-size: 30rpx; border-radius: 44rpx; height: 88rpx; line-height: 88rpx; }

@@ -35,3 +35,16 @@ async def set_default(
     await patient_service.set_default(db, uid, patient_id)
     await db.commit()
     return {"code": 0}
+
+
+@router.delete("/{patient_id}")
+async def delete_patient(
+    patient_id: int, uid: int = Depends(get_current_user_id), db: AsyncSession = Depends(get_db)
+):
+    try:
+        await patient_service.delete_patient(db, uid, patient_id)
+        await db.commit()
+    except ValueError as e:
+        await db.rollback()
+        raise HTTPException(status_code=404, detail=str(e))
+    return {"ok": True}

@@ -10,7 +10,10 @@
       </view>
       <text class="text-caption text-on-surface-variant">{{item.idMask}}</text>
     </view>
-    <text wx:if="{{item.active}}" class="material-symbols-outlined ms-fill text-primary">check_circle</text>
+    <view style="display:flex;align-items:center;gap:20rpx;">
+      <text wx:if="{{item.active}}" class="material-symbols-outlined ms-fill text-primary">check_circle</text>
+      <text catchtap="del" data-id="{{item.id}}" style="color:#f56c6c;font-size:26rpx;">删除</text>
+    </view>
   </view>
 
   <view class="pt-add" bindtap="addPatient">

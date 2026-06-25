@@ -4,7 +4,7 @@ import re
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..core.crypto import encrypt
+from ..core.crypto import decrypt, encrypt
 from ..core.security import mask_id_card, mask_name
 from ..models.user import Patient
 from ..schemas.patient import PatientCreate, PatientOut
@@ -18,8 +18,13 @@ def real_name_verify(name: str, id_card: str) -> bool:
 
 
 def _to_out(p: Patient) -> PatientOut:
+    idc = None
+    try:
+        idc = decrypt(p.id_card_enc) if p.id_card_enc else None
+    except Exception:  # noqa: BLE001 解密失败（换过密钥等）
+        idc = None
     return PatientOut(
-        id=p.id, name=mask_name(p.name), id_card="(已加密)",
+        id=p.id, name=mask_name(p.name), id_card=mask_id_card(idc) if idc else "(已加密)",
         gender=p.gender, relation=p.relation, verified=p.verified, is_default=p.is_default,
     )
 
@@ -50,3 +55,19 @@ async def set_default(db: AsyncSession, user_id: int, patient_id: int) -> None:
     await db.execute(
         update(Patient).where(Patient.id == patient_id, Patient.user_id == user_id).values(is_default=True)
     )
+
+
+async def delete_patient(db: AsyncSession, user_id: int, patient_id: int) -> None:
+    res = await db.execute(select(Patient).where(Patient.id == patient_id, Patient.user_id == user_id))
+    p = res.scalar_one_or_none()
+    if not p:
+        raise ValueError("就诊人不存在")
+    was_default = p.is_default
+    await db.delete(p)
+    await db.flush()
+    if was_default:  # 删的是默认就诊人 → 另选一个设为默认
+        res = await db.execute(select(Patient).where(Patient.user_id == user_id).limit(1))
+        other = res.scalar_one_or_none()
+        if other:
+            other.is_default = True
+            await db.flush()

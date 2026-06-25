@@ -3,7 +3,7 @@ const { request } = require('../../utils/request.js');
 
 Page({
   data: {
-    user: { name: '王小明', idMask: '310***********1234' },
+    user: { name: '', idMask: '' },
     orders: [
       { t: '待接诊', icon: 'pending_actions', s: 1, badge: 0 },
       { t: '问诊中', icon: 'chat_bubble', s: 2 },
@@ -20,8 +20,18 @@ Page({
 
   onShow() {
     const p = app.globalData.currentPatient;
-    if (p) this.setData({ user: { name: p.name, idMask: p.idMask || '310***********1234' } });
+    if (p) this.setData({ user: { name: p.name, idMask: p.idMask || '' } });
     if (!app.globalData.token) return;
+    // 拉真实默认就诊人
+    request('/patients').then((list) => {
+      const ps = Array.isArray(list) ? list : [];
+      const def = ps.find((x) => x.is_default) || ps[0];
+      if (def) {
+        this.setData({ user: { name: def.name, idMask: def.id_card } });
+        app.globalData.currentPatient = { id: def.id, name: def.name, idMask: def.id_card };
+        wx.setStorageSync('currentPatient', app.globalData.currentPatient);
+      }
+    }).catch(() => {});
     // 待接诊角标用真实数
     request('/orders/mine?status=1').then((l) => {
       const n = (l || []).length;
@@ -30,6 +40,7 @@ Page({
   },
 
   goPatients() { wx.navigateTo({ url: '/pages/patients/patients' }); },
+  comingSoon() { wx.showToast({ title: '功能完善中，敬请期待', icon: 'none' }); },
 
   // 我的问诊：按状态进订单列表
   goOrders(e) {

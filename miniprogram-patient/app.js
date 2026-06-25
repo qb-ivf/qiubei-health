@@ -38,11 +38,29 @@ App({
     if (this.globalData.token) signaling.connect();
   },
 
-  // 回到前台：重连信令 + 补偿错过的视频呼叫
+  // 回到前台：重连信令 + 补偿错过的视频呼叫 + 同步默认就诊人
   onShow() {
     if (!this.globalData.token) return;
     signaling.connect();
     this.tryRejoinConsult();
+    this.loadDefaultPatient();
+  },
+
+  // 拉取并设置默认就诊人（真实数据，替代写死的"王小明"）
+  loadDefaultPatient() {
+    if (!this.globalData.token) return;
+    wx.request({
+      url: this.globalData.baseUrl.replace(/\/$/, '') + '/api/v1/patients',
+      header: { 'content-type': 'application/json', Authorization: 'Bearer ' + this.globalData.token },
+      success: ({ data }) => {
+        const ps = Array.isArray(data) ? data : [];
+        const def = ps.find((p) => p.is_default) || ps[0];
+        if (def) {
+          this.globalData.currentPatient = { id: def.id, name: def.name, idMask: def.id_card };
+          wx.setStorageSync('currentPatient', this.globalData.currentPatient);
+        }
+      }
+    });
   },
 
   // 登录成功后调用，建立信令连接

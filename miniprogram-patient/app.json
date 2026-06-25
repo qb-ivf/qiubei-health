@@ -6,7 +6,8 @@
     "pages/profile/profile",
     "pages/login/login",
     "pages/search/search",
-    "pages/patients/patients"
+    "pages/patients/patients",
+    "pages/add-patient/add-patient"
   ],
   "subPackages": [
     {

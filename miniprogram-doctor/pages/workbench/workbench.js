@@ -43,6 +43,7 @@ Page({
     }).catch(() => {});
   },
 
+  comingSoon() { wx.showToast({ title: '功能完善中，敬请期待', icon: 'none' }); },
   goRecords() { wx.navigateTo({ url: '/subpackages/consult/pages/order-list/order-list?title=接诊记录' }); },
   goFinance() { wx.navigateTo({ url: '/pages/finance/finance' }); },
 

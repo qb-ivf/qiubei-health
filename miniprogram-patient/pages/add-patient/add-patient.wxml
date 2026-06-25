@@ -1,0 +1,27 @@
+<view class="ap">
+  <view class="ap-form">
+    <view class="ap-field">
+      <text class="ap-label">姓名</text>
+      <input class="ap-input" placeholder="就诊人真实姓名" value="{{name}}" data-f="name" bindinput="onField" />
+    </view>
+    <view class="ap-field">
+      <text class="ap-label">身份证号</text>
+      <input class="ap-input" placeholder="18 位身份证号" value="{{idCard}}" data-f="idCard" bindinput="onField" />
+    </view>
+    <view class="ap-field">
+      <text class="ap-label">性别</text>
+      <picker class="ap-picker" range="{{genders}}" value="{{genderIdx}}" bindchange="onGender">
+        <view class="ap-picker__v">{{genders[genderIdx]}} <text class="ap-picker__arrow">›</text></view>
+      </picker>
+    </view>
+    <view class="ap-field">
+      <text class="ap-label">与本人关系</text>
+      <picker class="ap-picker" range="{{relations}}" value="{{relationIdx}}" bindchange="onRelation">
+        <view class="ap-picker__v">{{relations[relationIdx]}} <text class="ap-picker__arrow">›</text></view>
+      </picker>
+    </view>
+  </view>
+
+  <view class="ap-tip">提交后需通过实名认证，请确保信息真实有效。</view>
+  <button class="ap-btn" loading="{{submitting}}" bindtap="submit">提交</button>
+</view>

@@ -24,6 +24,8 @@ Page({
 
   onShow() {
     this.loadDoctors();
+    const p = app.globalData.currentPatient;
+    if (p) this.setData({ currentPatient: p });
     if (!app.globalData.token) { this.setData({ queueBar: '' }); return; }
     app.connectSignaling(); // 兜底：确保信令长连接已建立（接收 CALL_INVITE）
     request('/orders/active').then((r) => {

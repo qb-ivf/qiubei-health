@@ -60,8 +60,8 @@
   <!-- 支持 -->
   <view class="px-margin-x" style="margin-top:48rpx;padding-bottom:64rpx;">
     <view class="card wb-list">
-      <view class="wb-row"><text class="material-symbols-outlined text-on-surface-variant" style="margin-right:24rpx;">qr_code_2</text><text class="text-body-md flex-1">专属医患码</text><text class="material-symbols-outlined text-outline-variant">chevron_right</text></view>
-      <view class="wb-row"><text class="material-symbols-outlined text-on-surface-variant" style="margin-right:24rpx;">support_agent</text><text class="text-body-md flex-1">在线客服/技术支持</text><text class="material-symbols-outlined text-outline-variant">chevron_right</text></view>
+      <view class="wb-row" bindtap="comingSoon"><text class="material-symbols-outlined text-on-surface-variant" style="margin-right:24rpx;">qr_code_2</text><text class="text-body-md flex-1">专属医患码</text><text class="material-symbols-outlined text-outline-variant">chevron_right</text></view>
+      <view class="wb-row" bindtap="comingSoon"><text class="material-symbols-outlined text-on-surface-variant" style="margin-right:24rpx;">support_agent</text><text class="text-body-md flex-1">在线客服/技术支持</text><text class="material-symbols-outlined text-outline-variant">chevron_right</text></view>
       <view class="wb-row" bindtap="logout"><text class="material-symbols-outlined text-error" style="margin-right:24rpx;">logout</text><text class="text-body-md text-error flex-1">退出登录</text></view>
     </view>
   </view>
