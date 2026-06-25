@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     WX_MCH_CERT_SERIAL: str = ""        # 商户 API 证书序列号
     WX_MCH_PRIVATE_KEY_PATH: str = ""   # 商户 API 私钥 apiclient_key.pem 路径（相对 backend/ 或绝对路径）
     WX_PAY_NOTIFY_URL: str = ""         # 支付结果回调地址（公网 HTTPS）；空则支付走 mock 回退
+    WX_PAY_PUBLIC_KEY_PATH: str = ""    # 微信支付公钥 pub_key.pem 路径（公钥模式回调验签，新商户用）
+    WX_PAY_PUBLIC_KEY_ID: str = ""      # 微信支付公钥ID（PUB_KEY_ID_...，可选，留存备用）
 
     # —— CORS（生产收敛；逗号分隔的允许来源，空=不允许跨域；小程序非浏览器不受影响） ——
     CORS_ORIGINS: str = ""

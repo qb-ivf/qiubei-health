@@ -65,6 +65,19 @@ def _private_key():
     return serialization.load_pem_private_key(_key_path().read_bytes(), password=None)
 
 
+@lru_cache(maxsize=1)
+def _wx_public_key():
+    """微信支付公钥（公钥模式回调验签，从商户平台下载的 pub_key.pem）。未配置则返回 None。"""
+    p = Path(settings.WX_PAY_PUBLIC_KEY_PATH or "")
+    if not p:
+        return None
+    if not p.is_absolute():
+        p = Path(__file__).resolve().parents[2] / p
+    if not p.exists():
+        return None
+    return serialization.load_pem_public_key(p.read_bytes())
+
+
 def _sign(message: str) -> str:
     sig = _private_key().sign(message.encode(), padding.PKCS1v15(), hashes.SHA256())
     return b64encode(sig).decode()
@@ -174,15 +187,27 @@ async def _verify(headers, body: str) -> None:
     signature = headers.get("Wechatpay-Signature")
     if not all([serial, timestamp, nonce, signature]):
         raise PayError("回调缺少签名头")
+    msg = f"{timestamp}\n{nonce}\n{body}\n".encode()
+    sig = b64decode(signature)
+
+    # 公钥模式（新商户）：直接用微信支付公钥验签，无需下载平台证书
+    pub = _wx_public_key()
+    if pub is not None:
+        try:
+            pub.verify(sig, msg, padding.PKCS1v15(), hashes.SHA256())
+            return
+        except Exception as e:  # noqa: BLE001 验签失败
+            raise PayError("回调验签失败(公钥)") from e
+
+    # 平台证书模式（旧商户）：拉取/缓存平台证书后验签
     cert = _platform_certs.get(serial)
     if cert is None:
         await _refresh_platform_certs()  # 证书轮换：未命中则刷新一次
         cert = _platform_certs.get(serial)
     if cert is None:
         raise PayError("未找到对应平台证书")
-    msg = f"{timestamp}\n{nonce}\n{body}\n".encode()
     try:
-        cert.public_key().verify(b64decode(signature), msg, padding.PKCS1v15(), hashes.SHA256())
+        cert.public_key().verify(sig, msg, padding.PKCS1v15(), hashes.SHA256())
     except Exception as e:  # noqa: BLE001 验签失败
         raise PayError("回调验签失败") from e
 
