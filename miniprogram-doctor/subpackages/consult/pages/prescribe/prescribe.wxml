@@ -63,6 +63,9 @@
         </view>
         <view class="pr-field">
           <text class="text-label-md text-on-surface-variant">医嘱</text>
+          <view wx:if="{{phrases.length}}" class="pr-phrases">
+            <view class="pr-phrase" wx:for="{{phrases}}" wx:key="id" bindtap="insertPhrase" data-t="{{item.content}}">{{item.content}}</view>
+          </view>
           <textarea class="pr-textarea" placeholder="嘱咐患者注意事项..." value="{{form.advice}}" data-f="advice" bindinput="onField" adjust-position="{{false}}" cursor-spacing="20" bindfocus="onFocus" bindblur="onBlur"></textarea>
         </view>
       </view>

@@ -15,7 +15,13 @@ Page({
     ]
   },
 
-  onShow() { this.loadWallet(); this.loadProfile(); },
+  onShow() { this.loadWallet(); this.loadProfile(); this.loadStats(); },
+
+  // 真实累计接诊量
+  loadStats() {
+    if (!app.globalData.token) return;
+    request('/doctors/stats').then((s) => this.setData({ 'metrics.done': s.consulted || 0 })).catch(() => {});
+  },
 
   loadWallet() {
     if (!app.globalData.token) return;
@@ -62,6 +68,8 @@ Page({
       wx.navigateTo({ url: '/pages/schedule/schedule' });
     } else if (t.indexOf('诊金') > -1) {
       this.editFee();
+    } else if (t.indexOf('常用语') > -1) {
+      wx.navigateTo({ url: '/pages/phrases/phrases' });
     } else {
       wx.showToast({ title: t + '（建设中）', icon: 'none' });
     }

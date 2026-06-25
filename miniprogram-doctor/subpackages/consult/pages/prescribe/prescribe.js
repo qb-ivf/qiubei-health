@@ -24,6 +24,7 @@ Page({
     timeText: '00:00', seconds: 0,
     drugKw: '',
     suggestions: [],
+    phrases: [],   // 常用语（一键填入医嘱）
     usageOptions: ['一日三次，一次一粒', '一日两次，一次一粒', '一日三次，一次两粒', '睡前服用一次'],
     drugs: [
       { name: '阿莫西林胶囊 (Amoxicillin)', spec: '0.25g*24粒/盒', price: '18.50', qty: 1, usageIdx: 0 }
@@ -35,6 +36,18 @@ Page({
     this.setData({ [`form.${e.currentTarget.dataset.f}`]: e.detail.value });
   },
 
+  loadPhrases() {
+    request('/doctors/phrases').then((l) => this.setData({ phrases: Array.isArray(l) ? l : [] })).catch(() => {});
+  },
+
+  // 点常用语 → 追加到医嘱
+  insertPhrase(e) {
+    const txt = e.currentTarget.dataset.t || '';
+    const cur = this.data.form.advice || '';
+    const sep = cur && !/[\n；;]$/.test(cur) ? '；' : '';
+    this.setData({ 'form.advice': cur + sep + txt });
+  },
+
   onLoad(query) {
     const info = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
     this.setData({ statusBar: info.statusBarHeight || 20 });
@@ -42,6 +55,7 @@ Page({
     this.roomId = query.room || '';
     this.orderId = (query.room || '').replace('room_', '') || query.order || '';
     this.fetchRtc();
+    this.loadPhrases();
     this._timer = setInterval(() => {
       const s = this.data.seconds + 1;
       this.setData({ seconds: s, timeText: `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}` });

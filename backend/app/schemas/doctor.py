@@ -39,6 +39,17 @@ class FeeIn(BaseModel):
     fee_fen: int
 
 
+class PhraseIn(BaseModel):
+    content: str
+
+
+class PhraseOut(BaseModel):
+    id: int
+    content: str
+
+    model_config = {"from_attributes": True}
+
+
 class TimeRange(BaseModel):
     start: str  # 09:00
     end: str    # 09:30

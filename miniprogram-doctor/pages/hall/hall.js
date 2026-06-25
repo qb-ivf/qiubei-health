@@ -23,7 +23,13 @@ Page({
     signaling.on(signaling.SIGNAL.QUEUE_UPDATE, () => this.loadQueue());
   },
 
-  onShow() { this.loadProfile(); this.loadWallet(); this.loadQueue(); },
+  onShow() { this.loadProfile(); this.loadWallet(); this.loadStats(); this.loadQueue(); },
+
+  // 真实累计接诊量
+  loadStats() {
+    if (!app.globalData.token) return;
+    request('/doctors/stats').then((s) => this.setData({ 'stats.done': s.consulted || 0 })).catch(() => {});
+  },
 
   onUnload() {
     signaling.off(signaling.SIGNAL.START_STREAM);

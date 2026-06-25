@@ -1,0 +1,15 @@
+<view class="ph">
+  <view class="ph-add">
+    <input class="ph-add__in" placeholder="新增常用语，如：多饮温水，注意休息" value="{{input}}" bindinput="onInput" confirm-type="done" bindconfirm="add" />
+    <view class="ph-add__btn" bindtap="add">添加</view>
+  </view>
+
+  <view class="ph-tip">问诊「书写病历」时可一键填入医嘱</view>
+
+  <view class="ph-item" wx:for="{{list}}" wx:key="id">
+    <text class="ph-item__txt">{{item.content}}</text>
+    <text class="ph-item__del" bindtap="del" data-id="{{item.id}}">删除</text>
+  </view>
+
+  <view wx:if="{{!list.length}}" class="ph-empty">还没有常用语，添加一条试试</view>
+</view>

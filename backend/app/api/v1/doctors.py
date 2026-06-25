@@ -1,14 +1,17 @@
 """医生与排班接口（M2，公开可读）+ 医生本人资质/诊金/排班自助管理。"""
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ...constants import OrderStatus
 from ...core.database import get_db
 from ...core.redis import redis_client
+from ...models.order import Order
+from ...models.phrase import Phrase
 from ...models.schedule import Slot
 from ...models.user import Doctor
 from ...schemas.doctor import (
-    DoctorOut, DoctorProfileOut, FeeIn, QualificationIn, SlotOut, SlotsCreate,
+    DoctorOut, DoctorProfileOut, FeeIn, PhraseIn, PhraseOut, QualificationIn, SlotOut, SlotsCreate,
 )
 from ...services import doctor_service
 from ...services.doctor_service import slot_key
@@ -120,6 +123,54 @@ async def delete_slot(slot_id: int, user=Depends(require_approved_doctor), db: A
     await db.commit()
     await redis_client.delete(slot_key(slot_id))
     return {"ok": True}
+
+
+# 已接诊：接诊过的订单（已进入问诊/审方/完成等，排除待支付/候诊/取消）
+_CONSULTED = [
+    int(OrderStatus.CONSULTING), int(OrderStatus.AUDITING), int(OrderStatus.REJECTED),
+    int(OrderStatus.PRESCRIBED), int(OrderStatus.FINISHED), int(OrderStatus.REFUNDED),
+]
+
+
+@router.get("/phrases", response_model=list[PhraseOut])
+async def list_phrases(uid: int = Depends(get_current_user_id), db: AsyncSession = Depends(get_db)):
+    """医生本人常用语列表。"""
+    res = await db.execute(select(Phrase).where(Phrase.user_id == uid).order_by(Phrase.id.desc()))
+    return res.scalars().all()
+
+
+@router.post("/phrases", response_model=PhraseOut)
+async def add_phrase(body: PhraseIn, user=Depends(require_role("doctor")), db: AsyncSession = Depends(get_db)):
+    """新增常用语。"""
+    content = (body.content or "").strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="内容不能为空")
+    phrase = Phrase(user_id=int(user["sub"]), content=content[:255])
+    db.add(phrase)
+    await db.commit()
+    await db.refresh(phrase)
+    return phrase
+
+
+@router.delete("/phrases/{phrase_id}")
+async def delete_phrase(phrase_id: int, user=Depends(require_role("doctor")), db: AsyncSession = Depends(get_db)):
+    """删除本人常用语。"""
+    phrase = await db.get(Phrase, phrase_id)
+    if not phrase or phrase.user_id != int(user["sub"]):
+        raise HTTPException(status_code=404, detail="常用语不存在")
+    await db.delete(phrase)
+    await db.commit()
+    return {"ok": True}
+
+
+@router.get("/stats")
+async def my_stats(user=Depends(require_approved_doctor), db: AsyncSession = Depends(get_db)):
+    """医生本人统计：累计已接诊数（工作台/大厅展示用）。"""
+    doctor = await _require_my_doctor(int(user["sub"]), db)
+    consulted = await db.scalar(
+        select(func.count(Order.id)).where(Order.doctor_id == doctor.id, Order.status.in_(_CONSULTED))
+    )
+    return {"consulted": int(consulted or 0)}
 
 
 @router.get("/{doctor_id}", response_model=DoctorOut)

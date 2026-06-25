@@ -4,7 +4,8 @@
     "pages/workbench/workbench",
     "pages/login/login",
     "pages/qualification/qualification",
-    "pages/schedule/schedule"
+    "pages/schedule/schedule",
+    "pages/phrases/phrases"
   ],
   "subPackages": [
     {

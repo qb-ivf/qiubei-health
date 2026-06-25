@@ -1,0 +1,19 @@
+.ph { min-height: 100vh; background: #f4f5f7; padding: 24rpx; box-sizing: border-box; }
+
+.ph-add { display: flex; gap: 16rpx; }
+.ph-add__in {
+  flex: 1; height: 80rpx; background: #fff; border: 1rpx solid #dcdfe6;
+  border-radius: 12rpx; padding: 0 24rpx; font-size: 28rpx;
+}
+.ph-add__btn { background: #0056c4; color: #fff; font-size: 28rpx; padding: 0 36rpx; height: 80rpx; line-height: 80rpx; border-radius: 12rpx; }
+
+.ph-tip { font-size: 22rpx; color: #909399; margin: 16rpx 8rpx; }
+
+.ph-item {
+  display: flex; align-items: center; justify-content: space-between;
+  background: #fff; border-radius: 14rpx; padding: 26rpx 28rpx; margin-bottom: 16rpx;
+}
+.ph-item__txt { flex: 1; font-size: 28rpx; color: #303133; margin-right: 20rpx; }
+.ph-item__del { font-size: 26rpx; color: #f56c6c; }
+
+.ph-empty { text-align: center; color: #909399; font-size: 26rpx; margin-top: 80rpx; }
