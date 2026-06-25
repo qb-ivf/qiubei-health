@@ -46,8 +46,8 @@ Page({
     request(`/rtc/user-sig?room_id=${this.data.roomId}`).then((c) => {
       this.rtc = c;
       if (c && c.configured) {
-        this.setData({ configured: true });
-        this._initTRTC(c);
+        // 关键：在渲染完成回调里再初始化，确保 <live-pusher> 已渲染，createPusher 才拿得到推流器
+        this.setData({ configured: true }, () => this._initTRTC(c));
       } else {
         console.log('[rtc] TRTC 未配置，使用占位画面');
       }
@@ -65,14 +65,19 @@ Page({
       this.trtc.createPusher({ beautyLevel: 0, enableCamera: this.data.cameraOn, enableMic: this.data.micOn });
 
       const refreshPlayers = () => this.setData({ playerList: this.trtc.getPlayerList() });
-      this.trtc.on(EVENT.LOCAL_JOIN, () => this.setData({ ready: true }));
+      this.trtc.on(EVENT.LOCAL_JOIN, () => { console.log('[rtc] LOCAL_JOIN ✓'); this.setData({ ready: true }); });
+      this.trtc.on(EVENT.REMOTE_USER_JOIN, (e) => console.log('[rtc] REMOTE_USER_JOIN', e));
       this.trtc.on(EVENT.REMOTE_VIDEO_ADD, () => { this.setData({ ready: true }); refreshPlayers(); });
       this.trtc.on(EVENT.REMOTE_VIDEO_REMOVE, refreshPlayers);
       this.trtc.on(EVENT.REMOTE_AUDIO_ADD, refreshPlayers);
       this.trtc.on(EVENT.REMOTE_AUDIO_REMOVE, refreshPlayers);
+      this.trtc.on(EVENT.ERROR, (e) => {
+        const info = (e && (e.data || e.message)) || e;
+        console.error('[rtc] TRTC ERROR', info);
+        wx.showToast({ title: 'TRTC错误:' + JSON.stringify(info).slice(0, 100), icon: 'none', duration: 6000 });
+      });
 
-      // enterRoom 返回 pusherAttributes，绑定到 <live-pusher>（关键：不是 createPusher 的返回）
-      const pusher = this.trtc.enterRoom({
+      const entered = this.trtc.enterRoom({
         sdkAppID: c.sdkAppId,
         userID: String(c.userId),
         userSig: c.userSig,
@@ -80,9 +85,16 @@ Page({
         enableMic: this.data.micOn,
         enableCamera: this.data.cameraOn,
       });
+      if (!entered) {
+        wx.showToast({ title: '入房失败：参数无效(看Console)', icon: 'none', duration: 6000 });
+        return;
+      }
+      // 关键：强制开启自动推流，否则只采集不进房（SDK 默认 autopush=false）
+      const pusher = this.trtc.setPusherAttributes({ autopush: true });
       this.setData({ pusher });
     } catch (e) {
-      console.warn('[rtc] TRTC 初始化失败，使用占位画面', e);
+      console.error('[rtc] TRTC 初始化异常', e);
+      wx.showToast({ title: 'TRTC异常:' + (e && e.message || e), icon: 'none', duration: 6000 });
     }
   },
 
