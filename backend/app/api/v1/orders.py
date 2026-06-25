@@ -223,6 +223,27 @@ async def accept(order_id: int, user=Depends(require_approved_doctor), db: Async
     return {"room_id": room_id, "invited": order.user_id in manager.active}
 
 
+@router.post("/{order_id}/end-consult")
+async def end_consult(order_id: int, user=Depends(require_approved_doctor), db: AsyncSession = Depends(get_db)):
+    """医生挂断结束问诊：CONSULTING→FINISHED（无处方）。让订单离开进行中状态，
+    避免患者端"离线补偿"把它当作进行中而反复拉回呼叫。仅本医生可操作；非 CONSULTING 则忽略。"""
+    res = await db.execute(select(Doctor.id).where(Doctor.user_id == int(user["sub"])))
+    my_doctor_id = res.scalar_one_or_none()
+    target = await db.get(Order, order_id)
+    if not target or target.doctor_id != my_doctor_id:
+        raise HTTPException(status_code=404, detail="订单不存在或不属于您")
+    if target.status == int(OrderStatus.CONSULTING):
+        try:
+            target = await order_service.transition(
+                db, order_id, OrderStatus.FINISHED, expect_from=OrderStatus.CONSULTING
+            )
+            await db.commit()
+        except order_service.StateError as e:
+            await db.rollback()
+            raise HTTPException(status_code=409, detail=str(e))
+    return {"status": target.status}
+
+
 @router.get("/active", response_model=ActiveOrderOut)
 async def active_order(uid: int = Depends(get_current_user_id), db: AsyncSession = Depends(get_db)):
     """当前进行中订单（首页黄色排队条用）。"""

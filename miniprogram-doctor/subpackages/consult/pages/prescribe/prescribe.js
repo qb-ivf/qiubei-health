@@ -134,7 +134,20 @@ Page({
     if (this.trtc) this.setData({ pusher: this.trtc.setPusherAttributes({ enableCamera: cameraOn }) });
   },
   back() { wx.navigateBack(); },
-  hangup() { this._exitRoom(); wx.navigateBack(); },
+  hangup() {
+    wx.showModal({
+      title: '结束问诊', content: '确认挂断并结束本次视频问诊？',
+      confirmText: '结束', cancelText: '继续',
+      success: (r) => {
+        if (!r.confirm) return;
+        this._exitRoom();
+        // 后端置 FINISHED（患者端不再被离线补偿拉回）+ 通知患者结束
+        if (this.orderId) request(`/orders/${this.orderId}/end-consult`, { method: 'POST' }).catch(() => {});
+        signaling.send(signaling.SIGNAL.CALL_FINISHED, { roomId: this.roomId });
+        wx.navigateBack({ fail: () => wx.switchTab({ url: '/pages/hall/hall' }) });
+      }
+    });
+  },
 
   onDrugInput(e) {
     const kw = e.detail.value;
