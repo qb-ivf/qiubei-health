@@ -1,6 +1,7 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import request from '@/api/request'
 const route = useRoute()
 const router = useRouter()
 
@@ -61,6 +62,21 @@ function onCommand(cmd) {
     router.replace('/login')
   }
 }
+
+// 缺号源医生数 → 排班管理菜单红点角标（仅 admin 可见该菜单/接口）
+const noSlotCount = ref(0)
+async function loadAlerts() {
+  if (role !== 'admin') return
+  try {
+    const res = await request.get('/admin/no-slot-doctors')
+    noSlotCount.value = res.count || 0
+  } catch (e) { /* 拦截器已提示 */ }
+}
+function itemBadge(path) { return path === '/doctor-schedule' ? noSlotCount.value : 0 }
+function groupHasAlert(n) {
+  return !!(n.children && n.children.some((c) => itemBadge(c.path) > 0))
+}
+onMounted(loadAlerts)
 </script>
 
 <template>
@@ -111,12 +127,17 @@ function onCommand(cmd) {
             </el-menu-item>
             <el-sub-menu v-else :index="n.title">
               <template #title>
-                <el-icon><component :is="n.icon" /></el-icon>
+                <el-badge is-dot :hidden="!groupHasAlert(n)" class="nav-dot">
+                  <el-icon><component :is="n.icon" /></el-icon>
+                </el-badge>
                 <span>{{ n.title }}</span>
               </template>
               <el-menu-item v-for="c in n.children" :key="c.path" :index="c.path">
                 <el-icon><component :is="c.icon" /></el-icon>
-                <template #title>{{ c.title }}</template>
+                <template #title>
+                  <span>{{ c.title }}</span>
+                  <el-badge v-if="itemBadge(c.path)" :value="itemBadge(c.path)" :max="99" class="nav-badge" />
+                </template>
               </el-menu-item>
             </el-sub-menu>
           </template>
@@ -134,4 +155,10 @@ function onCommand(cmd) {
 <style scoped>
 .app { height: 100vh; }
 .app__body { height: calc(100vh - 58px); }
+
+/* 菜单角标：组图标右上红点（折叠时也可见）+ 排班管理项的数字角标 */
+:deep(.nav-dot) { vertical-align: middle; margin-right: 5px; }
+:deep(.nav-dot .el-icon) { margin-right: 0; }
+:deep(.nav-badge) { margin-left: 8px; vertical-align: middle; }
+:deep(.nav-badge .el-badge__content) { border: none; }
 </style>

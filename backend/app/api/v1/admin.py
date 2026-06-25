@@ -64,6 +64,13 @@ async def list_doctors(status: str | None = None, user=Depends(_admin), db: Asyn
 
 
 # —— 医生排班管理（运营代医生开号/加减号/删号，复用医生端 Redis 同步逻辑）——
+@router.get("/no-slot-doctors")
+async def no_slot_doctors(user=Depends(_admin), db: AsyncSession = Depends(get_db)):
+    """侧边栏角标用：无可约号源的在册医生计数 + 名单（轻量，避开整个 overview）。"""
+    items = await doctor_service.doctors_lacking_slots(db)
+    return {"count": len(items), "list": items}
+
+
 @router.get("/doctors/{doctor_id}/schedule")
 async def doctor_schedule(doctor_id: int, day: str | None = None, user=Depends(_admin), db: AsyncSession = Depends(get_db)):
     return await doctor_service.get_schedule(db, doctor_id, day)
