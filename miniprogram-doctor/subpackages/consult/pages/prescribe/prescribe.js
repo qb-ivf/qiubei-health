@@ -18,6 +18,7 @@ Page({
     tab: 'record',
     kbHeight: 0,
     micOn: true, cameraOn: true, ready: false,
+    callEnded: false,       // 患者已挂断 → 视频结束，医生留在本页开方
     configured: false,      // 后端是否已配 TRTC
     pusher: {},             // 本地推流属性（医生自己）
     playerList: [],         // 远端拉流（患者，取 [0]）
@@ -56,12 +57,25 @@ Page({
     this.orderId = (query.room || '').replace('room_', '') || query.order || '';
     this.fetchRtc();
     this.loadPhrases();
+    // 监听患者挂断：结束视频但不离页，医生继续写病历/开处方
+    signaling.connect();
+    signaling.on(signaling.SIGNAL.CALL_FINISHED, (m) => this.onPeerFinished(m));
     this._timer = setInterval(() => {
       const s = this.data.seconds + 1;
       this.setData({ seconds: s, timeText: `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}` });
     }, 1000);
   },
-  onUnload() { clearInterval(this._timer); this._exitRoom(); },
+  onUnload() { clearInterval(this._timer); signaling.off(signaling.SIGNAL.CALL_FINISHED); this._exitRoom(); },
+
+  // 患者先挂断：销毁视频流，留在本页让医生完成病历与处方
+  onPeerFinished(m) {
+    if (m && m.roomId && this.roomId && String(m.roomId) !== String(this.roomId)) return;
+    if (this.data.callEnded) return;
+    clearInterval(this._timer);
+    this._exitRoom();
+    this.setData({ callEnded: true, configured: false, ready: false, playerList: [] });
+    wx.showToast({ title: '患者已结束通话，请完成病历与处方', icon: 'none', duration: 2500 });
+  },
 
   // 取 TRTC 入房凭证（UserSig）→ 初始化入房
   fetchRtc() {
