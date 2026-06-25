@@ -5,6 +5,7 @@ const router = useRouter()
 
 const menus = [
   { path: '/dashboard', title: '监管上报面板', icon: 'DataLine' },
+  { path: '/orders', title: '订单管理', icon: 'List' },
   { path: '/pharmacist', title: '药师审方', icon: 'DocumentChecked' },
   { path: '/doctor-audit', title: '医生资质终审', icon: 'Postcard' },
   { path: '/drugs', title: '药品字典', icon: 'FirstAidKit' },

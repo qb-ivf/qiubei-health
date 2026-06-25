@@ -11,7 +11,7 @@ function wText(s) { return s === 'paid' ? '已打款' : s === 'rejected' ? '已�
 
 async function load() {
   withdrawals.value = (await request.get('/admin/withdrawals')).map((w) => ({
-    id: w.id, doctor: w.doctor, amount: w.amount, time: '', status: wText(w.status)
+    id: w.id, doctor: w.doctor, amount: w.amount, time: w.created_at || '', status: wText(w.status)
   }))
   ledger.value = (await request.get('/finance/ledger')).map((l) => ({
     order: l.order_id, total: l.total, hospital: l.hospital, doctor: l.doctor, platform: l.platform
