@@ -24,7 +24,9 @@ def _slot_key(slot_id: int) -> str:
     return f"slot:remaining:{slot_id}"
 
 
-async def create_register_order(db: AsyncSession, user_id: int, doctor_id: int, slot_id: int, patient_id: int) -> Order:
+async def create_register_order(
+    db: AsyncSession, user_id: int, doctor_id: int, slot_id: int, patient_id: int, consult_type: str = "video"
+) -> Order:
     """创建挂号订单：Redis 号源锁（DECR 防超卖）+ PENDING。"""
     doctor = await db.get(Doctor, doctor_id)
     if doctor is None:
@@ -40,6 +42,7 @@ async def create_register_order(db: AsyncSession, user_id: int, doctor_id: int, 
         order_no="REG" + uuid.uuid4().hex[:16].upper(),
         user_id=user_id, patient_id=patient_id, doctor_id=doctor_id, slot_id=slot_id,
         register_fee_fen=doctor.register_fee_fen, status=int(OrderStatus.PENDING),
+        consult_type=consult_type if consult_type in ("video", "text") else "video",
     )
     db.add(order)
     await db.flush()

@@ -6,12 +6,12 @@ const { request } = require('./request.js');
  * 测试号无商户号时 requestPayment 会 fail，自动降级开发 mock 支付。
  * @returns {Promise<{ok:boolean, orderId?:number, mock?:boolean, cancelled?:boolean}>}
  */
-async function payRegister({ doctorId, slotId, patientId }) {
+async function payRegister({ doctorId, slotId, patientId, consultType }) {
   let order;
   try {
     order = await request('/orders/register', {
       method: 'POST',
-      data: { doctor_id: doctorId, slot_id: slotId, patient_id: patientId }
+      data: { doctor_id: doctorId, slot_id: slotId, patient_id: patientId, consult_type: consultType || 'video' }
     });
   } catch (e) {
     return { ok: false, detail: (e && e.detail) || '下单失败' };

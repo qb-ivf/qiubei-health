@@ -65,6 +65,7 @@ Page({
 
   // 取 TRTC 入房凭证（UserSig）→ 初始化入房
   fetchRtc() {
+    if (!this.roomId) return; // 图文问诊开处方场景：无房间，不初始化视频
     request(`/rtc/user-sig?room_id=${this.roomId}`).then((c) => {
       this.rtc = c;
       if (c && c.configured) {

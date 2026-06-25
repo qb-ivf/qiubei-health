@@ -17,7 +17,8 @@
         "pages/call/call",
         "pages/video-room/video-room",
         "pages/prescription/prescription",
-        "pages/order/order"
+        "pages/order/order",
+        "pages/chat/chat"
       ]
     }
   ],

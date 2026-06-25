@@ -20,5 +20,6 @@ class Order(Base, TimestampMixin):
     status: Mapped[int] = mapped_column(Integer, default=int(OrderStatus.PENDING))
     register_fee_fen: Mapped[int] = mapped_column(Integer, default=0)  # 挂号费(分)
     drug_fee_fen: Mapped[int] = mapped_column(Integer, default=0)      # 药费(分)
+    consult_type: Mapped[str] = mapped_column(String(8), default="video")  # video 视频 / text 图文
 
     __table_args__ = (Index("ix_orders_status", "status"),)

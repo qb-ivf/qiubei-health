@@ -30,7 +30,7 @@ async def create_register_order(
     """挂号下单（号源锁，PENDING）。"""
     try:
         order = await order_service.create_register_order(
-            db, uid, body.doctor_id, body.slot_id, body.patient_id
+            db, uid, body.doctor_id, body.slot_id, body.patient_id, body.consult_type
         )
         await db.commit()
         await db.refresh(order)
@@ -215,12 +215,20 @@ async def accept(order_id: int, user=Depends(require_approved_doctor), db: Async
     doctor_uid = int(user["sub"])
     rooms[room_id] = {"patient": order.user_id, "doctor": doctor_uid}
     doctor = await db.get(Doctor, order.doctor_id)
-    await manager.send(order.user_id, {
-        "type": Signal.CALL_INVITE,
-        "roomId": room_id,
-        "doctorName": doctor.name if doctor else "医生",
-    })
-    return {"room_id": room_id, "invited": order.user_id in manager.active}
+    if order.consult_type == "text":
+        # 图文：不推视频呼叫；通知患者医生已接诊（患者在聊天页等待）
+        await manager.send(order.user_id, {"type": Signal.CHAT_MESSAGE, "orderId": order.id, "msg": None})
+    else:
+        await manager.send(order.user_id, {
+            "type": Signal.CALL_INVITE,
+            "roomId": room_id,
+            "doctorName": doctor.name if doctor else "医生",
+        })
+    return {
+        "room_id": room_id,
+        "consult_type": order.consult_type,
+        "invited": order.user_id in manager.active,
+    }
 
 
 @router.post("/{order_id}/end-consult")

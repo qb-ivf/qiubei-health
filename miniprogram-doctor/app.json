@@ -12,7 +12,8 @@
       "root": "subpackages/consult",
       "name": "consult",
       "pages": [
-        "pages/prescribe/prescribe"
+        "pages/prescribe/prescribe",
+        "pages/chat/chat"
       ]
     }
   ],

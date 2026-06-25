@@ -8,6 +8,7 @@ class RegisterOrderCreate(BaseModel):
     doctor_id: int
     slot_id: int
     patient_id: int
+    consult_type: str = "video"   # video 视频 / text 图文
 
 
 class OrderOut(BaseModel):

@@ -80,9 +80,15 @@ Page({
     const id = e.currentTarget.dataset.id;
     const patient = this.data.queue.find((q) => q.id === id);
     request(`/orders/${id}/accept`, { method: 'POST' }).then((res) => {
+      const name = patient ? patient.name : '';
+      if (res.consult_type === 'text') {
+        // 图文：进聊天页
+        wx.navigateTo({ url: `/subpackages/consult/pages/chat/chat?orderId=${id}&peer=${name}` });
+        return;
+      }
       wx.showToast({ title: res.invited ? '已呼叫患者' : '患者不在线，已接诊', icon: 'none' });
       wx.navigateTo({
-        url: `/subpackages/consult/pages/prescribe/prescribe?room=${res.room_id}&name=${patient ? patient.name : ''}`
+        url: `/subpackages/consult/pages/prescribe/prescribe?room=${res.room_id}&name=${name}`
       });
     }).catch((err) => {
       wx.showToast({ title: (err && err.detail) || '接诊失败', icon: 'none' });

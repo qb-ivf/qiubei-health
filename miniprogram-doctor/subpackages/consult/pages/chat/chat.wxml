@@ -1,0 +1,25 @@
+<view class="chat">
+  <view class="chat-top">
+    <text class="chat-top__peer">{{peer}}</text>
+    <view class="chat-top__rx" bindtap="openPrescribe">开处方</view>
+  </view>
+
+  <scroll-view scroll-y class="chat-list" scroll-into-view="{{scrollTo}}" scroll-with-animation>
+    <view wx:if="{{!messages.length}}" class="chat-empty">患者发起图文问诊，开始问诊吧</view>
+    <view class="chat-row {{item.mine ? 'chat-row--mine' : ''}}" wx:for="{{messages}}" wx:key="id" id="m{{item.id}}">
+      <view class="chat-bubble {{item.mine ? 'chat-bubble--mine' : ''}}">
+        <image wx:if="{{item.type==='image'}}" class="chat-img" src="{{item.content}}" mode="widthFix"
+               bindtap="previewImage" data-src="{{item.content}}"></image>
+        <text wx:else class="chat-txt">{{item.content}}</text>
+      </view>
+    </view>
+  </scroll-view>
+
+  <view class="chat-bar">
+    <view class="chat-img-btn" bindtap="sendImage">
+      <text class="material-symbols-outlined" style="font-size:48rpx;color:var(--primary);">image</text>
+    </view>
+    <input class="chat-input" placeholder="输入消息…" value="{{input}}" bindinput="onInput" confirm-type="send" bindconfirm="send" />
+    <view class="chat-send" bindtap="send">发送</view>
+  </view>
+</view>

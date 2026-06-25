@@ -62,11 +62,17 @@ Page({
     if (!app.ensureConsent()) return; // 知情同意（首次需先签署再支付）
 
     const patientId = (app.globalData.currentPatient && app.globalData.currentPatient.id) || 1;
-    const res = await payRegister({ doctorId: +this.doctorId, slotId: this.data.selectedSlot, patientId });
+    const consultType = this.data.service;
+    const res = await payRegister({ doctorId: +this.doctorId, slotId: this.data.selectedSlot, patientId, consultType });
     if (res.ok) {
       app.globalData.queueing = true;
-      wx.showToast({ title: res.mock ? '支付成功(模拟)，安排诊室中' : '预约成功', icon: 'success', duration: 1500 });
-      setTimeout(() => wx.switchTab({ url: '/pages/index/index' }), 1500);
+      if (consultType === 'text') {
+        wx.showToast({ title: '预约成功，进入问诊', icon: 'success', duration: 1000 });
+        setTimeout(() => wx.redirectTo({ url: `/subpackages/consult/pages/chat/chat?orderId=${res.orderId}&peer=${this.data.doctor.name || '医生'}` }), 1000);
+      } else {
+        wx.showToast({ title: res.mock ? '支付成功(模拟)，安排诊室中' : '预约成功', icon: 'success', duration: 1500 });
+        setTimeout(() => wx.switchTab({ url: '/pages/index/index' }), 1500);
+      }
     } else if (!res.cancelled) {
       wx.showToast({ title: res.detail || '支付失败', icon: 'none' });
     }
