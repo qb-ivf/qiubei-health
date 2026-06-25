@@ -27,6 +27,7 @@ class Patient(Base, TimestampMixin):
     user_id: Mapped[int] = mapped_column(BigInteger, index=True)  # 所属账号
     name: Mapped[str] = mapped_column(String(64))
     id_card_enc: Mapped[str] = mapped_column(String(255))
+    phone_enc: Mapped[str | None] = mapped_column(String(255), nullable=True)  # 就诊人手机号(密文)
     gender: Mapped[str | None] = mapped_column(String(8), nullable=True)
     relation: Mapped[str] = mapped_column(String(16), default="本人")
     verified: Mapped[bool] = mapped_column(Boolean, default=False)

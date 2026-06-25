@@ -2,7 +2,7 @@
 from fastapi import APIRouter
 
 from . import (
-    admin, auth, chat, consents, doctors, finance, notifications, orders, patients, prescriptions, rtc,
+    admin, auth, chat, consents, doctors, finance, notifications, orders, patients, prescriptions, rtc, sms,
 )
 
 api_router = APIRouter()
@@ -17,4 +17,5 @@ api_router.include_router(notifications.router)
 api_router.include_router(admin.router)
 api_router.include_router(rtc.router)
 api_router.include_router(chat.router)
+api_router.include_router(sms.router)
 # TODO(后续子系统)：signaling(ws) / schedule / emr / pharmacist / admin / finance / compliance

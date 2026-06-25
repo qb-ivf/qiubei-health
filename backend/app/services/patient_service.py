@@ -5,9 +5,10 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.crypto import decrypt, encrypt
-from ..core.security import mask_id_card, mask_name
+from ..core.security import mask_id_card, mask_name, mask_phone
 from ..models.user import Patient
-from ..schemas.patient import PatientCreate, PatientOut
+from ..schemas.patient import PatientCreate, PatientOut, PatientUpdate
+from . import sms_service
 
 _ID_RE = re.compile(r"^\d{17}[\dXx]$")
 
@@ -18,13 +19,15 @@ def real_name_verify(name: str, id_card: str) -> bool:
 
 
 def _to_out(p: Patient) -> PatientOut:
-    idc = None
+    idc = phone = None
     try:
         idc = decrypt(p.id_card_enc) if p.id_card_enc else None
+        phone = decrypt(p.phone_enc) if p.phone_enc else None
     except Exception:  # noqa: BLE001 解密失败（换过密钥等）
-        idc = None
+        pass
     return PatientOut(
         id=p.id, name=mask_name(p.name), id_card=mask_id_card(idc) if idc else "(已加密)",
+        phone=mask_phone(phone) if phone else None,
         gender=p.gender, relation=p.relation, verified=p.verified, is_default=p.is_default,
     )
 
@@ -32,17 +35,39 @@ def _to_out(p: Patient) -> PatientOut:
 async def create_patient(db: AsyncSession, user_id: int, data: PatientCreate) -> PatientOut:
     if not real_name_verify(data.name, data.id_card):
         raise ValueError("实名信息不合法（姓名或身份证号有误）")
+    if data.phone and not await sms_service.verify_code(data.phone, data.code or ""):
+        raise ValueError("手机验证码错误或已过期")
 
     res = await db.execute(select(Patient).where(Patient.user_id == user_id))
     first = res.scalars().first() is None  # 首个就诊人设为默认
 
     patient = Patient(
         user_id=user_id, name=data.name, id_card_enc=encrypt(data.id_card),
+        phone_enc=encrypt(data.phone) if data.phone else None,
         gender=data.gender, relation=data.relation, verified=True, is_default=first,
     )
     db.add(patient)
     await db.flush()
     return _to_out(patient)
+
+
+async def update_patient(db: AsyncSession, user_id: int, patient_id: int, data: PatientUpdate) -> PatientOut:
+    res = await db.execute(select(Patient).where(Patient.id == patient_id, Patient.user_id == user_id))
+    p = res.scalar_one_or_none()
+    if not p:
+        raise ValueError("就诊人不存在")
+    if data.name:
+        p.name = data.name
+    if data.gender is not None:
+        p.gender = data.gender
+    if data.relation:
+        p.relation = data.relation
+    if data.phone:
+        if not await sms_service.verify_code(data.phone, data.code or ""):
+            raise ValueError("手机验证码错误或已过期")
+        p.phone_enc = encrypt(data.phone)
+    await db.flush()
+    return _to_out(p)
 
 
 async def list_patients(db: AsyncSession, user_id: int) -> list[PatientOut]:

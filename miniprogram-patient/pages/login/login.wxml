@@ -1,6 +1,6 @@
 <!-- 登录授权（FRD §2.1 手机号一键授权） -->
 <view class="login">
-  <view class="login__logo"><text class="material-symbols-outlined" style="font-size:96rpx;color:var(--primary);">festival</text></view>
+  <view class="login__logo"><image src="/images/logo.png" style="width:120rpx;height:120rpx;" mode="aspectFit"></image></view>
   <text class="text-headline-lg text-on-surface">逑贝互联网医院</text>
   <text class="text-body-sm text-on-surface-variant" style="margin-top:12rpx;">登录后即可预约问诊与查看处方</text>
 

@@ -11,7 +11,7 @@ Page({
     request('/patients').then((list) => {
       const patients = (Array.isArray(list) ? list : []).map((p) => ({
         id: p.id, name: p.name, relation: p.relation, verified: p.verified,
-        idMask: p.id_card, active: p.is_default
+        gender: p.gender || '', idMask: p.id_card, active: p.is_default
       }));
       this.setData({ patients });
       // 同步默认就诊人到全局
@@ -51,6 +51,13 @@ Page({
         }).catch((err) => wx.showToast({ title: (err && err.detail) || '删除失败', icon: 'none' }));
       }
     });
+  },
+
+  edit(e) {
+    const id = +e.currentTarget.dataset.id;
+    const p = this.data.patients.find((x) => x.id === id);
+    if (!p) return;
+    wx.navigateTo({ url: `/pages/add-patient/add-patient?id=${p.id}&name=${p.name}&gender=${p.gender}&relation=${p.relation}` });
   },
 
   addPatient() {

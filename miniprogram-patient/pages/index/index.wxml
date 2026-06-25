@@ -3,7 +3,7 @@
   <!-- 自定义 NavigationBar -->
   <view class="appbar" style="padding-top: {{statusBar}}px; height: calc(112rpx + {{statusBar}}px);">
     <view class="flex items-center gap-1">
-      <text class="material-symbols-outlined text-primary" style="font-size:48rpx;">festival</text>
+      <image src="/images/logo.png" style="width:52rpx;height:52rpx;" mode="aspectFit"></image>
       <text class="text-headline-md text-primary font-semibold">逑贝互联网医院</text>
     </view>
     <view class="patient-pill flex items-center" bindtap="onSwitchPatient">

@@ -51,6 +51,14 @@ class Settings(BaseSettings):
     # —— 医生白名单（开发期自动通过；生产置 False，走 admin 终审） ——
     DOCTOR_AUTO_APPROVE: bool = True
 
+    # —— 腾讯云短信（验证码；留空走开发模式打印验证码） ——
+    TENCENT_SMS_SECRET_ID: str = ""
+    TENCENT_SMS_SECRET_KEY: str = ""
+    TENCENT_SMS_SDK_APP_ID: str = ""
+    TENCENT_SMS_SIGN: str = ""          # 短信签名内容
+    TENCENT_SMS_TEMPLATE_ID: str = ""   # 验证码模板 ID
+    TENCENT_SMS_REGION: str = "ap-guangzhou"
+
     # —— 合规网关（卫健委 / CA） ——
     GOV_REPORT_URL: str = ""
     GOV_APP_SECRET: str = ""

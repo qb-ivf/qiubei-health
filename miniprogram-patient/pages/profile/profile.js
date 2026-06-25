@@ -27,7 +27,7 @@ Page({
       const ps = Array.isArray(list) ? list : [];
       const def = ps.find((x) => x.is_default) || ps[0];
       if (def) {
-        this.setData({ user: { name: def.name, idMask: def.id_card } });
+        this.setData({ user: { name: def.name, idMask: def.id_card }, _cur: def });
         app.globalData.currentPatient = { id: def.id, name: def.name, idMask: def.id_card };
         wx.setStorageSync('currentPatient', app.globalData.currentPatient);
       }
@@ -41,6 +41,12 @@ Page({
 
   goPatients() { wx.navigateTo({ url: '/pages/patients/patients' }); },
   comingSoon() { wx.showToast({ title: '功能完善中，敬请期待', icon: 'none' }); },
+
+  editCurrent() {
+    const c = this.data._cur;
+    if (!c) { wx.navigateTo({ url: '/pages/patients/patients' }); return; }
+    wx.navigateTo({ url: `/pages/add-patient/add-patient?id=${c.id}&name=${c.name}&gender=${c.gender || ''}&relation=${c.relation}` });
+  },
 
   // 我的问诊：按状态进订单列表
   goOrders(e) {

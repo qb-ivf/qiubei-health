@@ -25,7 +25,10 @@
         <text class="text-headline-md text-on-surface">{{user.name}} (自己)</text>
         <text class="text-caption text-on-surface-variant">{{user.idMask}}</text>
       </view>
-      <view class="pc-patient__btn" bindtap="goPatients">切换/添加</view>
+      <view style="display:flex;gap:16rpx;align-items:center;">
+        <text bindtap="editCurrent" style="color:#0056c4;font-size:26rpx;">编辑</text>
+        <view class="pc-patient__btn" bindtap="goPatients">切换/添加</view>
+      </view>
     </view>
   </view>
 

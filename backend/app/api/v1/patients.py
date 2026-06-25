@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...core.database import get_db
-from ...schemas.patient import PatientCreate, PatientOut
+from ...schemas.patient import PatientCreate, PatientOut, PatientUpdate
 from ...services import patient_service
 from ..deps import get_current_user_id
 
@@ -21,6 +21,20 @@ async def add_patient(
 ):
     try:
         out = await patient_service.create_patient(db, uid, body)
+        await db.commit()
+    except ValueError as e:
+        await db.rollback()
+        raise HTTPException(status_code=422, detail=str(e))
+    return out
+
+
+@router.put("/{patient_id}", response_model=PatientOut)
+async def update_patient(
+    patient_id: int, body: PatientUpdate, uid: int = Depends(get_current_user_id), db: AsyncSession = Depends(get_db)
+):
+    """编辑就诊人（姓名/性别/关系/手机号；改手机号需验证码）。"""
+    try:
+        out = await patient_service.update_patient(db, uid, patient_id, body)
         await db.commit()
     except ValueError as e:
         await db.rollback()

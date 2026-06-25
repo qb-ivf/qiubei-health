@@ -12,6 +12,7 @@ from app.core.database import engine
 # (表, 列, 列定义)
 COLUMNS = [
     ("orders", "consult_type", "VARCHAR(8) NOT NULL DEFAULT 'video'"),
+    ("patients", "phone_enc", "VARCHAR(255) NULL"),
 ]
 
 

@@ -12,5 +12,11 @@
 .ap-picker__v { font-size: 28rpx; color: #303133; display: flex; justify-content: space-between; }
 .ap-picker__arrow { color: #c0c4cc; }
 
+.ap-code {
+  font-size: 26rpx; color: #0056c4; padding: 0 20rpx; white-space: nowrap;
+  border-left: 1rpx solid #ebeef5; height: 48rpx; line-height: 48rpx;
+}
+.ap-code--off { color: #c0c4cc; }
+
 .ap-tip { font-size: 24rpx; color: #909399; margin: 24rpx 8rpx; }
 .ap-btn { background: #0056c4; color: #fff; font-size: 30rpx; border-radius: 44rpx; height: 88rpx; line-height: 88rpx; }
