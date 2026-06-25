@@ -1,7 +1,9 @@
 const app = getApp();
 const signaling = require('../../../../utils/signaling.js');
 const { request } = require('../../../../utils/request.js');
-const TRTC = require('../../../../utils/trtc-wx.js'); // 占位桩；上线前用官方 SDK 覆盖
+// 占位桩；上线前用官方 trtc-wx.js 覆盖 utils/trtc-wx.js。兼容 module.exports / export default
+const _trtc = require('../../../../utils/trtc-wx.js');
+const TRTC = (_trtc && _trtc.default) ? _trtc.default : _trtc;
 
 Page({
   data: {
@@ -60,8 +62,7 @@ Page({
         console.warn('[rtc] 当前为 trtc-wx 占位桩，请安装官方 SDK 后真机验证');
       }
       const EVENT = this.trtc.EVENT;
-      const p = this.trtc.createPusher({ beautyLevel: 0, enableCamera: this.data.cameraOn, enableMic: this.data.micOn });
-      this.setData({ pusher: p.pusherAttributes || p });
+      this.trtc.createPusher({ beautyLevel: 0, enableCamera: this.data.cameraOn, enableMic: this.data.micOn });
 
       const refreshPlayers = () => this.setData({ playerList: this.trtc.getPlayerList() });
       this.trtc.on(EVENT.LOCAL_JOIN, () => this.setData({ ready: true }));
@@ -70,12 +71,16 @@ Page({
       this.trtc.on(EVENT.REMOTE_AUDIO_ADD, refreshPlayers);
       this.trtc.on(EVENT.REMOTE_AUDIO_REMOVE, refreshPlayers);
 
-      this.trtc.enterRoom({
+      // enterRoom 返回 pusherAttributes，绑定到 <live-pusher>（关键：不是 createPusher 的返回）
+      const pusher = this.trtc.enterRoom({
         sdkAppID: c.sdkAppId,
         userID: String(c.userId),
         userSig: c.userSig,
         strRoomID: String(c.roomId), // 字符串房间号（room_xxx）
+        enableMic: this.data.micOn,
+        enableCamera: this.data.cameraOn,
       });
+      this.setData({ pusher });
     } catch (e) {
       console.warn('[rtc] TRTC 初始化失败，使用占位画面', e);
     }
