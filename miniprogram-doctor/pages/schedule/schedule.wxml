@@ -17,15 +17,23 @@
     <view class="sch-openall" bindtap="openAll">一键全开</view>
   </view>
 
-  <view class="sch-tip">点"未开放"开号，点"已开放"删号（已被预约的不可删）</view>
+  <view class="sch-tip">未开放时段点"＋开号"；已开放可用 −/＋ 加减号数（已约的不可减到其以下）</view>
 
   <!-- 时段网格 -->
   <view class="sch-grid">
-    <view class="sch-slot {{item.open ? 'sch-slot--on' : ''}}" wx:for="{{slots}}" wx:key="start"
-          bindtap="toggleSlot" data-i="{{index}}">
+    <view class="sch-slot {{item.open ? 'sch-slot--on' : ''}}" wx:for="{{slots}}" wx:key="start">
       <text class="sch-slot__time">{{item.start}}~{{item.end}}</text>
-      <text wx:if="{{item.open}}" class="sch-slot__st">剩 {{item.remaining}}/{{item.quota}}</text>
-      <text wx:else class="sch-slot__st sch-slot__st--off">未开放</text>
+
+      <block wx:if="{{item.open}}">
+        <view class="sch-stepper">
+          <text class="sch-stepper__btn" catchtap="changeSlotQuota" data-i="{{index}}" data-d="-1">−</text>
+          <text class="sch-stepper__num">剩{{item.remaining}}/{{item.quota}}</text>
+          <text class="sch-stepper__btn" catchtap="changeSlotQuota" data-i="{{index}}" data-d="1">＋</text>
+        </view>
+        <text class="sch-slot__del" catchtap="delSlot" data-i="{{index}}">删除</text>
+      </block>
+
+      <view wx:else class="sch-slot__open" catchtap="openSlot" data-i="{{index}}">＋ 开号</view>
     </view>
   </view>
 </view>

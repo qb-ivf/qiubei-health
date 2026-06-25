@@ -11,7 +11,7 @@ from ...models.phrase import Phrase
 from ...models.schedule import Slot
 from ...models.user import Doctor
 from ...schemas.doctor import (
-    DoctorOut, DoctorProfileOut, FeeIn, PhraseIn, PhraseOut, QualificationIn, SlotOut, SlotsCreate,
+    DoctorOut, DoctorProfileOut, FeeIn, PhraseIn, PhraseOut, QualificationIn, SlotOut, SlotQuotaIn, SlotsCreate,
 )
 from ...services import doctor_service
 from ...services.doctor_service import slot_key
@@ -106,6 +106,27 @@ async def create_slots(body: SlotsCreate, user=Depends(require_approved_doctor),
         out.append(SlotOut(id=slot.id, day=slot.day, start_time=slot.start_time, end_time=slot.end_time, remaining=quota, quota=quota))
     await db.commit()
     return out
+
+
+@router.patch("/slots/{slot_id}", response_model=SlotOut)
+async def update_slot_quota(slot_id: int, body: SlotQuotaIn, user=Depends(require_approved_doctor), db: AsyncSession = Depends(get_db)):
+    """调整某号源的总号数（加号/减号）。已约的不能减到其以下。"""
+    doctor = await _require_my_doctor(int(user["sub"]), db)
+    slot = await db.get(Slot, slot_id)
+    if not slot or slot.doctor_id != doctor.id:
+        raise HTTPException(status_code=404, detail="号源不存在或不属于您")
+    new_quota = max(1, body.quota)
+    left = await redis_client.get(slot_key(slot_id))
+    remaining = int(left) if left is not None else slot.remaining
+    booked = slot.quota - remaining
+    if new_quota < booked:
+        raise HTTPException(status_code=409, detail=f"已约 {booked} 人，号数不能少于此")
+    slot.quota = new_quota
+    slot.remaining = new_quota - booked
+    await db.commit()
+    await redis_client.set(slot_key(slot_id), slot.remaining)
+    return SlotOut(id=slot.id, day=slot.day, start_time=slot.start_time, end_time=slot.end_time,
+                   remaining=slot.remaining, quota=slot.quota)
 
 
 @router.delete("/slots/{slot_id}")

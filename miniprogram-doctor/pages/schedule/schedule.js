@@ -52,22 +52,37 @@ Page({
     }).catch(() => {});
   },
 
-  // 点未开 → 开号；点已开 → 删号
-  toggleSlot(e) {
-    const i = +e.currentTarget.dataset.i;
-    const slot = this.data.slots[i];
-    if (slot.open) {
-      if (slot.remaining < slot.quota) { wx.showToast({ title: '该时段已有预约，不可删', icon: 'none' }); return; }
-      request(`/doctors/slots/${slot.id}`, { method: 'DELETE' })
-        .then(() => this.load())
-        .catch((err) => wx.showToast({ title: (err && err.detail) || '删除失败', icon: 'none' }));
-    } else {
-      request('/doctors/slots', {
-        method: 'POST',
-        data: { day: this.data.activeDay, quota: this.data.quota, times: [{ start: slot.start, end: slot.end }] }
-      }).then(() => this.load())
-        .catch((err) => wx.showToast({ title: (err && err.detail) || '开号失败', icon: 'none' }));
-    }
+  // 未开放时段：开号（用顶部设定的号数）
+  openSlot(e) {
+    const slot = this.data.slots[+e.currentTarget.dataset.i];
+    if (!slot || slot.open) return;
+    request('/doctors/slots', {
+      method: 'POST',
+      data: { day: this.data.activeDay, quota: this.data.quota, times: [{ start: slot.start, end: slot.end }] }
+    }).then(() => this.load())
+      .catch((err) => wx.showToast({ title: (err && err.detail) || '开号失败', icon: 'none' }));
+  },
+
+  // 加号 / 减号：调整某时段总号数
+  changeSlotQuota(e) {
+    const slot = this.data.slots[+e.currentTarget.dataset.i];
+    const delta = +e.currentTarget.dataset.d;
+    if (!slot || !slot.open) return;
+    const next = slot.quota + delta;
+    if (next < 1) return;
+    request(`/doctors/slots/${slot.id}`, { method: 'PATCH', data: { quota: next } })
+      .then(() => this.load())
+      .catch((err) => wx.showToast({ title: (err && err.detail) || '调整失败', icon: 'none' }));
+  },
+
+  // 删除某时段（未被预约的可删）
+  delSlot(e) {
+    const slot = this.data.slots[+e.currentTarget.dataset.i];
+    if (!slot || !slot.open) return;
+    if (slot.remaining < slot.quota) { wx.showToast({ title: '该时段已有预约，不可删', icon: 'none' }); return; }
+    request(`/doctors/slots/${slot.id}`, { method: 'DELETE' })
+      .then(() => this.load())
+      .catch((err) => wx.showToast({ title: (err && err.detail) || '删除失败', icon: 'none' }));
   },
 
   // 一键开放该日全部预设时段

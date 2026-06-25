@@ -29,5 +29,13 @@
 }
 .sch-slot--on { background: #ecf5ff; border-color: #0056c4; }
 .sch-slot__time { font-size: 30rpx; color: #303133; font-weight: 600; }
-.sch-slot__st { font-size: 24rpx; color: #0056c4; margin-top: 8rpx; }
-.sch-slot__st--off { color: #c0c4cc; }
+
+.sch-stepper { display: flex; align-items: center; margin-top: 16rpx; }
+.sch-stepper__btn {
+  width: 56rpx; height: 56rpx; line-height: 56rpx; text-align: center;
+  border: 1rpx solid #0056c4; color: #0056c4; border-radius: 50%; font-size: 36rpx;
+}
+.sch-stepper__num { min-width: 130rpx; text-align: center; font-size: 26rpx; color: #0056c4; }
+.sch-slot__del { font-size: 24rpx; color: #f56c6c; margin-top: 14rpx; }
+
+.sch-slot__open { margin-top: 16rpx; font-size: 28rpx; color: #0056c4; padding: 8rpx 24rpx; }

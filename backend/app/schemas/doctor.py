@@ -62,6 +62,11 @@ class SlotsCreate(BaseModel):
     quota: int = 5
 
 
+class SlotQuotaIn(BaseModel):
+    """调整某号源的总号数（加号/减号）。"""
+    quota: int
+
+
 class DoctorProfileOut(BaseModel):
     """医生本人档案（含审核状态，供医生端按状态路由）。"""
     id: int
