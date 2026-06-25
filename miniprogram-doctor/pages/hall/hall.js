@@ -68,6 +68,10 @@ Page({
     }).catch(() => {});
   },
 
+  goWaiting() { wx.navigateTo({ url: '/subpackages/consult/pages/order-list/order-list?status=1&title=待接诊' }); },
+  goConsulted() { wx.navigateTo({ url: '/subpackages/consult/pages/order-list/order-list?title=接诊记录' }); },
+  goFinance() { wx.navigateTo({ url: '/pages/finance/finance' }); },
+
   toggleDuty(e) {
     const onDuty = e.detail.value;
     app.globalData.onDuty = onDuty;

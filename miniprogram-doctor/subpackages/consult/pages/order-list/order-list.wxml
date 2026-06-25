@@ -1,0 +1,13 @@
+<view class="ol">
+  <view wx:if="{{!list.length}}" class="ol-empty">暂无接诊记录</view>
+  <view class="ol-item" wx:for="{{list}}" wx:key="id" bindtap="open" data-i="{{index}}">
+    <view class="ol-item__top">
+      <text class="ol-item__name">{{item.patient_name}} <text class="ol-item__g">{{item.gender || ''}}</text></text>
+      <text class="ol-item__st">{{item.statusText}}</text>
+    </view>
+    <view class="ol-item__bot">
+      <text class="ol-item__tag">{{item.typeText}}问诊</text>
+      <text class="ol-item__go">查看 ›</text>
+    </view>
+  </view>
+</view>

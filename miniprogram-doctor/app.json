@@ -5,7 +5,8 @@
     "pages/login/login",
     "pages/qualification/qualification",
     "pages/schedule/schedule",
-    "pages/phrases/phrases"
+    "pages/phrases/phrases",
+    "pages/finance/finance"
   ],
   "subPackages": [
     {
@@ -13,7 +14,8 @@
       "name": "consult",
       "pages": [
         "pages/prescribe/prescribe",
-        "pages/chat/chat"
+        "pages/chat/chat",
+        "pages/order-list/order-list"
       ]
     }
   ],

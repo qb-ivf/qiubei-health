@@ -43,6 +43,9 @@ Page({
     }).catch(() => {});
   },
 
+  goRecords() { wx.navigateTo({ url: '/subpackages/consult/pages/order-list/order-list?title=接诊记录' }); },
+  goFinance() { wx.navigateTo({ url: '/pages/finance/finance' }); },
+
   // 发起提现 → 冻结余额 → 进 PC 后台财务审批
   withdraw() {
     wx.showModal({

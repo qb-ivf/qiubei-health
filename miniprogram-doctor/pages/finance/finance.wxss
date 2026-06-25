@@ -1,0 +1,23 @@
+.fin { min-height: 100vh; background: #f4f5f7; padding: 24rpx; box-sizing: border-box; }
+
+.fin-card {
+  background: linear-gradient(135deg, #0056c4, #1d6fec); border-radius: 20rpx;
+  padding: 40rpx 32rpx; color: #fff; display: flex; flex-direction: column;
+}
+.fin-card__lab { font-size: 26rpx; opacity: .9; }
+.fin-card__bal { font-size: 64rpx; font-weight: 700; margin: 12rpx 0 24rpx; }
+.fin-card__btn { align-self: flex-start; background: #fff; color: #0056c4; font-size: 28rpx; padding: 14rpx 40rpx; border-radius: 36rpx; }
+.fin-card__tip { font-size: 22rpx; opacity: .8; margin-top: 20rpx; }
+
+.fin-title { font-size: 28rpx; color: #606266; margin: 32rpx 8rpx 16rpx; }
+.fin-empty { text-align: center; color: #909399; font-size: 26rpx; margin-top: 60rpx; }
+
+.fin-item {
+  background: #fff; border-radius: 14rpx; padding: 28rpx; margin-bottom: 16rpx;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.fin-item__amt { font-size: 30rpx; font-weight: 600; color: #303133; }
+.fin-item__st { font-size: 26rpx; }
+.fin-item__st--pending { color: #ad6800; }
+.fin-item__st--paid { color: #389e0d; }
+.fin-item__st--rejected { color: #cf1322; }

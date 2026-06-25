@@ -1,0 +1,15 @@
+<view class="fin">
+  <view class="fin-card">
+    <text class="fin-card__lab">可提现余额（元）</text>
+    <text class="fin-card__bal">¥{{balance}}</text>
+    <view class="fin-card__btn" bindtap="withdraw">去提现</view>
+    <text class="fin-card__tip">每周五可提现至银行卡/微信钱包</text>
+  </view>
+
+  <view class="fin-title">提现记录</view>
+  <view wx:if="{{!list.length}}" class="fin-empty">暂无提现记录</view>
+  <view class="fin-item" wx:for="{{list}}" wx:key="id">
+    <text class="fin-item__amt">¥{{item.amount}}</text>
+    <text class="fin-item__st fin-item__st--{{item.status}}">{{item.status_text}}</text>
+  </view>
+</view>

@@ -23,9 +23,9 @@
 
   <!-- 业绩看板 -->
   <view class="px-margin-x grid grid-cols-3 gap-3" style="margin-top:24rpx;">
-    <view class="card hall-stat"><text class="text-caption text-on-surface-variant">待接诊</text><text class="text-headline-md text-primary">{{stats.waiting}}人</text></view>
-    <view class="card hall-stat"><text class="text-caption text-on-surface-variant">已接诊</text><text class="text-headline-md text-on-surface">{{stats.done}}人</text></view>
-    <view class="card hall-stat"><text class="text-caption text-on-surface-variant">总收益</text><text class="text-headline-md text-on-surface">¥{{stats.income}}</text></view>
+    <view class="card hall-stat" bindtap="goWaiting"><text class="text-caption text-on-surface-variant">待接诊</text><text class="text-headline-md text-primary">{{stats.waiting}}人</text></view>
+    <view class="card hall-stat" bindtap="goConsulted"><text class="text-caption text-on-surface-variant">已接诊</text><text class="text-headline-md text-on-surface">{{stats.done}}人</text></view>
+    <view class="card hall-stat" bindtap="goFinance"><text class="text-caption text-on-surface-variant">总收益</text><text class="text-headline-md text-on-surface">¥{{stats.income}}</text></view>
   </view>
 
   <!-- 待重开处方（REJECTED，FRD §4） -->

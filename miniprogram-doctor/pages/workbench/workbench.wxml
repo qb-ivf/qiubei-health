@@ -23,7 +23,7 @@
 
   <!-- 指标 -->
   <view class="px-margin-x wb-metrics-wrap">
-    <view class="card wb-metrics">
+    <view class="card wb-metrics" bindtap="goRecords">
       <view class="wb-metric"><text class="text-caption text-on-surface-variant">总接诊量</text><text class="text-label-lg text-primary font-bold">{{metrics.done}} 单</text></view>
       <view class="wb-metric wb-metric--mid"><text class="text-caption text-on-surface-variant">综合评分</text><text class="text-label-lg text-primary font-bold">{{metrics.score}}</text></view>
       <view class="wb-metric"><text class="text-caption text-on-surface-variant">线上赞赏</text><text class="text-label-lg text-primary font-bold">{{metrics.praise}} 个</text></view>
@@ -35,7 +35,7 @@
     <view class="card" style="padding:32rpx;">
       <view class="flex justify-between items-center mb-md">
         <view class="flex items-center gap-2"><text class="material-symbols-outlined text-primary">account_balance_wallet</text><text class="text-label-lg text-on-surface font-bold">我的收入</text></view>
-        <view class="wb-withdraw" bindtap="withdraw">去提现</view>
+        <view class="wb-withdraw" bindtap="goFinance">去提现</view>
       </view>
       <text class="text-headline-lg text-on-surface font-bold">¥{{balance}}</text>
       <view class="flex items-center gap-2" style="margin-top:24rpx;padding-top:24rpx;border-top:1rpx solid var(--outline-variant);">

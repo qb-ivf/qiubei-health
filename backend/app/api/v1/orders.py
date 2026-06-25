@@ -272,6 +272,28 @@ async def my_orders(status: int | None = None, uid: int = Depends(get_current_us
     return out
 
 
+@router.get("/doctor-mine")
+async def doctor_orders(status: int | None = None, user=Depends(require_approved_doctor), db: AsyncSession = Depends(get_db)):
+    """医生本人接诊订单列表（接诊记录）。可选 status 过滤。"""
+    res = await db.execute(select(Doctor.id).where(Doctor.user_id == int(user["sub"])))
+    doctor_id = res.scalar_one_or_none()
+    stmt = select(Order).where(Order.doctor_id == doctor_id)
+    if status is not None:
+        stmt = stmt.where(Order.status == status)
+    res = await db.execute(stmt.order_by(Order.id.desc()))
+    out = []
+    for o in res.scalars().all():
+        patient = await db.get(Patient, o.patient_id)
+        out.append({
+            "id": o.id, "status": o.status,
+            "consult_type": getattr(o, "consult_type", "video"),
+            "patient_name": mask_name(patient.name) if patient and patient.name else "患者",
+            "gender": patient.gender if patient else None,
+            "room_id": o.room_id,
+        })
+    return out
+
+
 @router.get("/active", response_model=ActiveOrderOut)
 async def active_order(uid: int = Depends(get_current_user_id), db: AsyncSession = Depends(get_db)):
     """当前进行中订单（首页黄色排队条用）。"""

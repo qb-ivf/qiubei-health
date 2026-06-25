@@ -1,0 +1,11 @@
+.ol { min-height: 100vh; background: #f4f5f7; padding: 24rpx; box-sizing: border-box; }
+.ol-empty { text-align: center; color: #909399; font-size: 26rpx; margin-top: 100rpx; }
+
+.ol-item { background: #fff; border-radius: 16rpx; padding: 28rpx; margin-bottom: 20rpx; }
+.ol-item__top { display: flex; justify-content: space-between; align-items: center; }
+.ol-item__name { font-size: 30rpx; font-weight: 600; color: #303133; }
+.ol-item__g { font-size: 24rpx; color: #909399; font-weight: 400; }
+.ol-item__st { font-size: 26rpx; color: #0056c4; }
+.ol-item__bot { display: flex; justify-content: space-between; align-items: center; margin-top: 16rpx; }
+.ol-item__tag { font-size: 22rpx; color: #0056c4; background: rgba(0,86,196,.08); padding: 4rpx 16rpx; border-radius: 20rpx; }
+.ol-item__go { font-size: 26rpx; color: #909399; }
