@@ -33,7 +33,7 @@
 | 16 | ~~EMR/开方/药师审方~~ ✅ M5 已实现（CA 签章仍占位见 #6）                | —                                                   | 完成                                  |
 | 17 | ~~物流/退款/消息通知~~ ✅ M7 已实现（微信订阅消息下发仍占位）           | `notification_service`                               | 订阅消息下发待正式主体                |
 | 18 | PC 后台：资质终审/药品字典/财务提现 ✅ M8 接真；监管面板 ✅ M9 接真     | —                                                   | 完成                                  |
-| 19 | **图文问诊聊天**未实现，IM 选型未定                                     | —                                                   | M7+（自建 WS or 环信）                |
+| 19 | 🔨 **图文咨询后端已实现**（自建 WS：消息收发/图片上传/历史/WS 推送）；**待前端聊天页 + 入口路由 + 订单 consult_type** | `api/v1/chat.py`、`models/message.py`、`main.py`(/uploads 静态) | 前端聊天页 + consult_type（加列需 ALTER orders） |
 | 24 | **医生钱包余额**为池化演示（未按医生维度核算）                          | `finance_service.doctor_balance_fen`                 | 上线前                                |
 
 ## 🟡 P2：工程 / 配置

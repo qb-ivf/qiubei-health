@@ -6,9 +6,11 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.router import api_router
 from app.core.config import settings
@@ -77,6 +79,11 @@ app.add_middleware(
 )
 
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+
+# 图文咨询图片：本地存储 + 静态托管（/uploads 经 Nginx 同样反代到后端）
+_UPLOAD_DIR = Path(__file__).resolve().parent / "uploads"
+_UPLOAD_DIR.mkdir(exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(_UPLOAD_DIR)), name="uploads")
 
 # WebSocket 信令（挂在根路径 /ws）
 from app.ws import router as ws_router  # noqa: E402

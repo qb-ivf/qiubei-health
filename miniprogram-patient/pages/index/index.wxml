@@ -62,7 +62,7 @@
     <!-- 快捷九宫格 -->
     <view class="px-margin-x mt-6">
       <view class="quick card">
-        <view class="quick__item" wx:for="{{quickServices}}" wx:key="t">
+        <view class="quick__item" wx:for="{{quickServices}}" wx:key="t" bindtap="comingSoon">
           <text class="material-symbols-outlined text-primary" style="font-size:48rpx;">{{item.icon}}</text>
           <text class="text-caption text-on-surface" style="margin-top:8rpx;">{{item.t}}</text>
         </view>

@@ -3,6 +3,7 @@ from .base import Base
 from .drug import Drug
 from .gov_report import GovReport
 from .ledger import Ledger
+from .message import Message
 from .notification import Notification
 from .order import Order
 from .phrase import Phrase
@@ -14,5 +15,5 @@ from .withdrawal import Withdrawal
 
 __all__ = [
     "Base", "Order", "Slot", "Prescription", "Ledger", "Notification", "Drug", "Withdrawal",
-    "GovReport", "User", "Patient", "Doctor", "Consent", "Staff", "Phrase",
+    "GovReport", "User", "Patient", "Doctor", "Consent", "Staff", "Phrase", "Message",
 ]

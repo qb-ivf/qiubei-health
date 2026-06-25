@@ -37,6 +37,7 @@ class Signal:
     START_STREAM = "START_STREAM"
     CALL_FINISHED = "CALL_FINISHED"
     QUEUE_UPDATE = "QUEUE_UPDATE"   # 候诊队列变化（新患者支付入队）→ 通知医生刷新
+    CHAT_MESSAGE = "CHAT_MESSAGE"   # 图文咨询：收到对方新消息
 
 
 class Role:

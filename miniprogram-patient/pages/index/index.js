@@ -41,6 +41,7 @@ Page({
     }).catch(() => {});
   },
 
+  comingSoon() { wx.showToast({ title: '功能完善中，敬请期待', icon: 'none' }); },
   goSearch() { wx.navigateTo({ url: '/pages/search/search' }); },
   goRegister() { wx.switchTab({ url: '/pages/register/register' }); },
   goDoctor(e) {
