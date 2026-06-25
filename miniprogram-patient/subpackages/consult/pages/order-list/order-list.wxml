@@ -9,6 +9,7 @@
       <text class="ol-item__tag">{{item.typeText}}问诊</text>
       <text class="ol-item__no">订单号 {{item.order_no}}</text>
     </view>
+    <view wx:if="{{item.timeText}}" class="ol-item__time" style="color:#9aa3ab;font-size:24rpx;margin-top:6rpx;">{{item.timeText}}</view>
     <view class="ol-item__bot">
       <text class="ol-item__fee">挂号费 ¥{{item.feeYuan}}</text>
       <text class="ol-item__go">查看 ›</text>

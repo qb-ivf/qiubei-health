@@ -1,4 +1,6 @@
 """处方 Pydantic 模型（M5）。"""
+from datetime import datetime
+
 from pydantic import BaseModel
 
 
@@ -31,6 +33,7 @@ class PrescriptionOut(BaseModel):
     ca_sign: str | None = None
     doctor_name: str | None = None
     patient_name: str | None = None
+    created_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 

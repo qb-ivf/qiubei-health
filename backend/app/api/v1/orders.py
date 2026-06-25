@@ -268,6 +268,7 @@ async def my_orders(status: int | None = None, uid: int = Depends(get_current_us
             "doctor_name": doctor.name if doctor else None,
             "dept": doctor.dept if doctor else None,
             "register_fee_fen": o.register_fee_fen, "room_id": o.room_id,
+            "created_at": o.created_at,
         })
     return out
 

@@ -2,6 +2,9 @@ const { request } = require('../../../../utils/request.js');
 
 const TEXT = { 0: '待支付', 1: '待接诊', 2: '问诊中', 3: '审核中', 4: '待重开', 5: '待付药费', 6: '已完成', 7: '已退款', 9: '已取消' };
 
+// ISO 时间 → "YYYY-MM-DD HH:MM"
+function fmtTime(s) { return s ? String(s).replace('T', ' ').slice(0, 16) : ''; }
+
 Page({
   data: { status: '', list: [] },
 
@@ -20,7 +23,8 @@ Page({
           ...o,
           statusText: TEXT[o.status] || '',
           typeText: o.consult_type === 'text' ? '图文' : '视频',
-          feeYuan: (o.register_fee_fen / 100).toFixed(2)
+          feeYuan: (o.register_fee_fen / 100).toFixed(2),
+          timeText: fmtTime(o.created_at)
         }))
       });
     }).catch(() => {});

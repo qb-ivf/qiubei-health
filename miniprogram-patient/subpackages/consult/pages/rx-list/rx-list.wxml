@@ -6,6 +6,7 @@
       <text class="rl-item__st rl-item__st--{{item.audit_status}}">{{item.auditText}}</text>
     </view>
     <text class="rl-item__doc">开方医生：{{item.doctor_name || '医生'}}</text>
+    <text wx:if="{{item.timeText}}" class="rl-item__time" style="color:#9aa3ab;font-size:24rpx;display:block;margin-top:4rpx;">开方时间：{{item.timeText}}</text>
     <view class="rl-item__bot">
       <text class="rl-item__cnt">共 {{item.drugCount}} 种药品</text>
       <text class="rl-item__go">查看详情 ›</text>
