@@ -10,8 +10,8 @@ App({
     patients: [],           // 就诊人列表
     socketTask: null,       // 全局 WebSocket 实例
     consentSigned: false,   // 是否已签署知情同意（FRD §2.3）
-    baseUrl: 'https://api.qb-medical.cn',          // 后端基址，阶段三联调改为局域网 IP
-    wsUrl: 'ws://api.qb-medical.cn/ws',           // 信令长连接
+    baseUrl: 'https://api.qb-medical.cn',          // 后端基址
+    wsUrl: 'wss://api.qb-medical.cn/ws',           // 信令长连接（真机须 wss）
     ORDER_STATUS
   },
 
