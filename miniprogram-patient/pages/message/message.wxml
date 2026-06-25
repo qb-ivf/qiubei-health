@@ -1,6 +1,10 @@
 <!-- 页面8：消息诊室 -->
+<view class="px-margin-x" style="display:flex;justify-content:flex-end;padding:16rpx 0;">
+  <view wx:if="{{sessions.length}}" bindtap="markAllRead" style="color:#0056c4;font-size:26rpx;padding:8rpx 16rpx;">全部已读</view>
+</view>
 <view class="msg px-margin-x">
-  <view class="card msg-item" wx:for="{{sessions}}" wx:key="id" bindtap="open" data-order="{{item.orderId}}" data-type="{{item.type}}">
+  <view wx:if="{{!sessions.length}}" style="text-align:center;color:#909399;font-size:26rpx;margin-top:80rpx;">暂无消息</view>
+  <view class="card msg-item" wx:for="{{sessions}}" wx:key="id" bindtap="open" data-id="{{item.id}}" data-order="{{item.orderId}}" data-type="{{item.type}}">
     <view class="msg-item__ic" style="background:{{item.bg}};">
       <text class="material-symbols-outlined" style="font-size:44rpx;color:{{item.color}};">{{item.icon}}</text>
       <view wx:if="{{item.unread}}" class="msg-item__dot">{{item.unread}}</view>

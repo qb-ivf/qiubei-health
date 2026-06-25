@@ -16,3 +16,24 @@ async def list_for(db: AsyncSession, user_id: int) -> list[Notification]:
         select(Notification).where(Notification.user_id == user_id).order_by(Notification.id.desc())
     )
     return list(res.scalars().all())
+
+
+async def mark_read(db: AsyncSession, user_id: int, notif_id: int) -> None:
+    res = await db.execute(
+        select(Notification).where(Notification.id == notif_id, Notification.user_id == user_id)
+    )
+    n = res.scalar_one_or_none()
+    if n and not n.read:
+        n.read = True
+        await db.flush()
+
+
+async def mark_all_read(db: AsyncSession, user_id: int) -> int:
+    res = await db.execute(
+        select(Notification).where(Notification.user_id == user_id, Notification.read.is_(False))
+    )
+    items = list(res.scalars().all())
+    for n in items:
+        n.read = True
+    await db.flush()
+    return len(items)

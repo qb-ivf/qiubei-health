@@ -1,0 +1,14 @@
+<view class="rl">
+  <view wx:if="{{!list.length}}" class="rl-empty">暂无处方</view>
+  <view class="rl-item" wx:for="{{list}}" wx:key="id" bindtap="open" data-order="{{item.order_id}}">
+    <view class="rl-item__top">
+      <text class="rl-item__diag">{{item.diagnosis || '处方'}}</text>
+      <text class="rl-item__st rl-item__st--{{item.audit_status}}">{{item.auditText}}</text>
+    </view>
+    <text class="rl-item__doc">开方医生：{{item.doctor_name || '医生'}}</text>
+    <view class="rl-item__bot">
+      <text class="rl-item__cnt">共 {{item.drugCount}} 种药品</text>
+      <text class="rl-item__go">查看详情 ›</text>
+    </view>
+  </view>
+</view>

@@ -18,7 +18,9 @@
         "pages/video-room/video-room",
         "pages/prescription/prescription",
         "pages/order/order",
-        "pages/chat/chat"
+        "pages/chat/chat",
+        "pages/order-list/order-list",
+        "pages/rx-list/rx-list"
       ]
     }
   ],

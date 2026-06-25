@@ -5,13 +5,17 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy import select
+
 from ...core.security import mask_name
 from ...core.database import get_db
+from ...models.order import Order
+from ...models.prescription import Prescription
 from ...models.user import Doctor, Patient
 from ...schemas.prescription import PrescriptionCreate, PrescriptionOut, RejectIn
 from ...services import compliance_service
 from ...services import prescription_service as rx_service
-from ..deps import get_current_user, require_approved_doctor, require_role
+from ..deps import get_current_user, get_current_user_id, require_approved_doctor, require_role
 
 router = APIRouter(prefix="/prescriptions", tags=["prescriptions"])
 
@@ -63,6 +67,18 @@ async def reject(rx_id: int, body: RejectIn, user=Depends(require_role("pharmaci
         await db.rollback()
         raise HTTPException(status_code=409, detail=str(e))
     return await _decorate(db, rx)
+
+
+@router.get("/mine", response_model=list[PrescriptionOut])
+async def my_prescriptions(uid: int = Depends(get_current_user_id), db: AsyncSession = Depends(get_db)):
+    """患者本人处方列表（我的处方）。"""
+    res = await db.execute(
+        select(Prescription)
+        .join(Order, Order.id == Prescription.order_id)
+        .where(Order.user_id == uid)
+        .order_by(Prescription.id.desc())
+    )
+    return [await _decorate(db, rx) for rx in res.scalars().all()]
 
 
 @router.get("/by-order/{order_id}", response_model=PrescriptionOut)

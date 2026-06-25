@@ -26,12 +26,24 @@ Page({
   },
 
   open(e) {
-    const { order, type } = e.currentTarget.dataset;
+    const { id, order, type } = e.currentTarget.dataset;
+    // 打开即标记已读 + 本地清未读
+    if (id) {
+      request(`/notifications/${id}/read`, { method: 'POST' }).catch(() => {});
+      this.setData({ sessions: this.data.sessions.map((s) => (s.id === id ? { ...s, unread: 0 } : s)) });
+    }
     if (!order) return;
     if (type === 'logistics') {
       wx.navigateTo({ url: `/subpackages/consult/pages/order/order?orderId=${order}` });
     } else if (type === 'rx') {
       wx.navigateTo({ url: `/subpackages/consult/pages/prescription/prescription?orderId=${order}` });
     }
+  },
+
+  markAllRead() {
+    request('/notifications/read-all', { method: 'POST' }).then(() => {
+      this.setData({ sessions: this.data.sessions.map((s) => ({ ...s, unread: 0 })) });
+      wx.showToast({ title: '已全部已读', icon: 'success' });
+    }).catch(() => {});
   }
 });

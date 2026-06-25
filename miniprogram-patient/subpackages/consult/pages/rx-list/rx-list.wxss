@@ -1,0 +1,14 @@
+.rl { min-height: 100vh; background: #f4f5f7; padding: 24rpx; box-sizing: border-box; }
+.rl-empty { text-align: center; color: #909399; font-size: 26rpx; margin-top: 100rpx; }
+
+.rl-item { background: #fff; border-radius: 16rpx; padding: 28rpx; margin-bottom: 20rpx; }
+.rl-item__top { display: flex; justify-content: space-between; align-items: center; }
+.rl-item__diag { font-size: 30rpx; font-weight: 600; color: #303133; flex: 1; margin-right: 16rpx; }
+.rl-item__st { font-size: 24rpx; }
+.rl-item__st--pending { color: #ad6800; }
+.rl-item__st--approved { color: #389e0d; }
+.rl-item__st--rejected { color: #cf1322; }
+.rl-item__doc { font-size: 26rpx; color: #606266; display: block; margin: 16rpx 0; }
+.rl-item__bot { display: flex; justify-content: space-between; align-items: center; border-top: 1rpx solid #f0f0f0; padding-top: 16rpx; }
+.rl-item__cnt { font-size: 26rpx; color: #909399; }
+.rl-item__go { font-size: 26rpx; color: #0056c4; }
