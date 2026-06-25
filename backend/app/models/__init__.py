@@ -1,4 +1,5 @@
 """导入所有模型，确保 Base.metadata 完整（供建表/迁移）。"""
+from .audit_log import AuditLog
 from .base import Base
 from .drug import Drug
 from .gov_report import GovReport
@@ -15,5 +16,5 @@ from .withdrawal import Withdrawal
 
 __all__ = [
     "Base", "Order", "Slot", "Prescription", "Ledger", "Notification", "Drug", "Withdrawal",
-    "GovReport", "User", "Patient", "Doctor", "Consent", "Staff", "Phrase", "Message",
+    "GovReport", "User", "Patient", "Doctor", "Consent", "Staff", "Phrase", "Message", "AuditLog",
 ]

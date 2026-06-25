@@ -1,7 +1,7 @@
 """处方接口（M5）：医生开方 / 药师审方 / 患者查看。"""
 import io
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,7 +13,7 @@ from ...models.order import Order
 from ...models.prescription import Prescription
 from ...models.user import Doctor, Patient
 from ...schemas.prescription import PrescriptionCreate, PrescriptionOut, RejectIn
-from ...services import compliance_service
+from ...services import audit_service, compliance_service
 from ...services import prescription_service as rx_service
 from ..deps import get_current_user, get_current_user_id, require_approved_doctor, require_role
 
@@ -47,10 +47,11 @@ async def pending(user=Depends(require_role("pharmacist", "admin")), db: AsyncSe
 
 
 @router.post("/{rx_id}/approve", response_model=PrescriptionOut)
-async def approve(rx_id: int, user=Depends(require_role("pharmacist", "admin")), db: AsyncSession = Depends(get_db)):
+async def approve(rx_id: int, request: Request, user=Depends(require_role("pharmacist", "admin")), db: AsyncSession = Depends(get_db)):
     try:
         rx = await rx_service.approve(db, rx_id)
         await compliance_service.enqueue(db, "prescription", rx.order_id)  # 开药明细上报卫健委
+        await audit_service.record(db, user, request, "审方通过", "prescription", rx_id, f"订单{rx.order_id}")
         await db.commit()
     except rx_service.RxError as e:
         await db.rollback()
@@ -59,9 +60,10 @@ async def approve(rx_id: int, user=Depends(require_role("pharmacist", "admin")),
 
 
 @router.post("/{rx_id}/reject", response_model=PrescriptionOut)
-async def reject(rx_id: int, body: RejectIn, user=Depends(require_role("pharmacist", "admin")), db: AsyncSession = Depends(get_db)):
+async def reject(rx_id: int, body: RejectIn, request: Request, user=Depends(require_role("pharmacist", "admin")), db: AsyncSession = Depends(get_db)):
     try:
         rx = await rx_service.reject(db, rx_id, body.reason)
+        await audit_service.record(db, user, request, "审方驳回", "prescription", rx_id, body.reason)
         await db.commit()
     except rx_service.RxError as e:
         await db.rollback()

@@ -19,7 +19,7 @@ async function login() {
     })
     localStorage.setItem('token', res.token)
     localStorage.setItem('role', res.role)
-    router.replace('/dashboard')
+    router.replace('/')
   } catch (e) { /* 拦截器已提示 */ }
 }
 </script>
