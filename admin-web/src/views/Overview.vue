@@ -1,6 +1,9 @@
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import request from '@/api/request'
+
+const router = useRouter()
 
 // 运营数据大盘
 const data = ref({})
@@ -24,6 +27,19 @@ onMounted(load)
 
 <template>
   <div v-loading="loading">
+    <!-- 预警：在册医生但无可约号源（患者约不上号）-->
+    <el-alert v-if="data.doctors_no_slots" type="warning" :closable="false" show-icon class="warn">
+      <template #title>
+        ⚠️ {{ data.doctors_no_slots }} 位在册医生暂无可约号源，患者约不上号
+      </template>
+      <div class="warn__body">
+        <el-tag v-for="d in (data.doctors_no_slots_list || [])" :key="d.id" type="warning" effect="plain" class="warn__tag">
+          {{ d.name }}（{{ d.dept || '—' }}）
+        </el-tag>
+        <el-button size="small" type="primary" @click="router.push('/doctor-schedule')">去排班管理</el-button>
+      </div>
+    </el-alert>
+
     <!-- 核心指标 -->
     <el-row :gutter="16">
       <el-col :span="6"><el-card><div class="k">今日订单</div><div class="v" style="color:#2e90d9">{{ data.today_orders ?? '—' }}</div><div class="sub">累计 {{ data.total_orders ?? 0 }}</div></el-card></el-col>
@@ -63,4 +79,7 @@ onMounted(load)
 .dist__item { display: flex; align-items: center; gap: 8px; }
 .dist__n { font-size: 22px; font-weight: 700; color: var(--el-text-color-primary); }
 .muted { color: var(--el-text-color-secondary); }
+.warn { margin-bottom: 16px; }
+.warn__body { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
+.warn__tag { margin: 0; }
 </style>

@@ -106,6 +106,35 @@ async def get_schedule(db: AsyncSession, doctor_id: int, day: str | None) -> lis
     return out
 
 
+async def doctors_lacking_slots(db: AsyncSession) -> list[dict]:
+    """在册医生中「未来无可约号源」者（患者约不上号）。
+
+    覆盖两种情况：从未排班、或未来号源已全部约满。可约量以 Redis 为准
+    （预约只扣 Redis 不动 DB.remaining），逐位医生累计其今日起号源的剩余。
+    """
+    today = date.today().isoformat()
+    res = await db.execute(
+        select(Doctor).where(Doctor.audit_status == "approved", Doctor.name.is_not(None)).order_by(Doctor.id)
+    )
+    approved = res.scalars().all()
+
+    res2 = await db.execute(select(Slot).where(Slot.day >= today))
+    by_doctor: dict[int, list[Slot]] = {}
+    for s in res2.scalars().all():
+        by_doctor.setdefault(s.doctor_id, []).append(s)
+
+    out: list[dict] = []
+    for d in approved:
+        available = 0
+        for s in by_doctor.get(d.id, []):
+            available += await _remaining(s)
+            if available > 0:
+                break
+        if available == 0:
+            out.append({"id": d.id, "name": d.name, "dept": d.dept})
+    return out
+
+
 async def seed_demo(db: AsyncSession) -> None:
     """开发期插入示例医生 + 未来 3 天号源（幂等）。"""
     # 药品字典 seed（幂等）

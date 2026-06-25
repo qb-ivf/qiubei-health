@@ -335,6 +335,9 @@ async def overview(user=Depends(_admin), db: AsyncSession = Depends(get_db)):
     rows = await db.execute(select(Order.status, func.count()).group_by(Order.status))
     dist = [{"status": s, "status_text": ORDER_STATUS_TEXT.get(s, str(s)), "count": int(c)} for s, c in rows.all()]
 
+    # 在册医生但无可约号源（患者约不上号）
+    no_slot_doctors = await doctor_service.doctors_lacking_slots(db)
+
     return {
         "total_orders": total_orders, "today_orders": today_orders, "paid_orders": paid_orders,
         "revenue_total": revenue_total / 100, "today_revenue": today_revenue / 100,
@@ -342,6 +345,7 @@ async def overview(user=Depends(_admin), db: AsyncSession = Depends(get_db)):
         "doctors_total": doctors_total, "doctors_approved": doctors_approved, "doctors_pending": doctors_pending,
         "patients": patients, "pending_rx": pending_rx, "pending_withdrawals": pending_withdrawals,
         "status_dist": dist,
+        "doctors_no_slots": len(no_slot_doctors), "doctors_no_slots_list": no_slot_doctors,
     }
 
 
