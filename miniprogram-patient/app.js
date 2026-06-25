@@ -62,12 +62,23 @@ App({
       header: { 'content-type': 'application/json', Authorization: 'Bearer ' + this.globalData.token },
       success: ({ data }) => {
         // status 2 = CONSULTING（医生已接诊，进行中）
-        if (data && data.has && data.status === 2 && data.room_id) {
-          wx.navigateTo({
-            url: `/subpackages/consult/pages/call/call?room=${data.room_id}&doctor=${data.doctor_name || ''}`,
-            fail: () => {}
-          });
-        }
+        if (!(data && data.has && data.status === 2 && data.room_id)) return;
+        if (this._rejoinDismissed === data.room_id) return; // 本次已"暂不"，不再打扰
+        wx.showModal({
+          title: '视频问诊进行中',
+          content: '您有一个进行中的视频问诊，是否进入？',
+          confirmText: '进入', cancelText: '暂不',
+          success: (r) => {
+            if (r.confirm) {
+              wx.navigateTo({
+                url: `/subpackages/consult/pages/call/call?room=${data.room_id}&doctor=${data.doctor_name || ''}`,
+                fail: () => {}
+              });
+            } else {
+              this._rejoinDismissed = data.room_id; // 记住忽略，避免反复弹
+            }
+          }
+        });
       }
     });
   },
