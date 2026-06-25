@@ -5,16 +5,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...constants import OrderStatus
 from ...core.database import get_db
-from ...core.redis import redis_client
 from ...models.order import Order
 from ...models.phrase import Phrase
-from ...models.schedule import Slot
 from ...models.user import Doctor
 from ...schemas.doctor import (
     DoctorOut, DoctorProfileOut, FeeIn, PhraseIn, PhraseOut, QualificationIn, SlotOut, SlotQuotaIn, SlotsCreate,
 )
 from ...services import doctor_service
-from ...services.doctor_service import slot_key
 from ..deps import get_current_user_id, require_approved_doctor, require_role
 
 router = APIRouter(prefix="/doctors", tags=["doctors"])
@@ -91,58 +88,27 @@ async def my_schedule(user=Depends(require_approved_doctor), db: AsyncSession = 
 async def create_slots(body: SlotsCreate, user=Depends(require_approved_doctor), db: AsyncSession = Depends(get_db)):
     """医生为某天批量建号源（号源锁同步写 Redis）。同日同开始时间不重复建。"""
     doctor = await _require_my_doctor(int(user["sub"]), db)
-    quota = max(1, body.quota)
-    out = []
-    for t in body.times:
-        exists = await db.scalar(
-            select(Slot.id).where(Slot.doctor_id == doctor.id, Slot.day == body.day, Slot.start_time == t.start)
-        )
-        if exists:
-            continue
-        slot = Slot(doctor_id=doctor.id, day=body.day, start_time=t.start, end_time=t.end, quota=quota, remaining=quota)
-        db.add(slot)
-        await db.flush()
-        await redis_client.set(slot_key(slot.id), quota)  # 号源锁
-        out.append(SlotOut(id=slot.id, day=slot.day, start_time=slot.start_time, end_time=slot.end_time, remaining=quota, quota=quota))
-    await db.commit()
-    return out
+    return await doctor_service.create_slots(db, doctor.id, body.day, body.times, body.quota)
 
 
 @router.patch("/slots/{slot_id}", response_model=SlotOut)
 async def update_slot_quota(slot_id: int, body: SlotQuotaIn, user=Depends(require_approved_doctor), db: AsyncSession = Depends(get_db)):
     """调整某号源的总号数（加号/减号）。已约的不能减到其以下。"""
     doctor = await _require_my_doctor(int(user["sub"]), db)
-    slot = await db.get(Slot, slot_id)
-    if not slot or slot.doctor_id != doctor.id:
-        raise HTTPException(status_code=404, detail="号源不存在或不属于您")
-    new_quota = max(1, body.quota)
-    left = await redis_client.get(slot_key(slot_id))
-    remaining = int(left) if left is not None else slot.remaining
-    booked = slot.quota - remaining
-    if new_quota < booked:
-        raise HTTPException(status_code=409, detail=f"已约 {booked} 人，号数不能少于此")
-    slot.quota = new_quota
-    slot.remaining = new_quota - booked
-    await db.commit()
-    await redis_client.set(slot_key(slot_id), slot.remaining)
-    return SlotOut(id=slot.id, day=slot.day, start_time=slot.start_time, end_time=slot.end_time,
-                   remaining=slot.remaining, quota=slot.quota)
+    try:
+        return await doctor_service.set_slot_quota(db, slot_id, body.quota, owner_doctor_id=doctor.id)
+    except doctor_service.ScheduleError as e:
+        raise HTTPException(status_code=409, detail=str(e))
 
 
 @router.delete("/slots/{slot_id}")
 async def delete_slot(slot_id: int, user=Depends(require_approved_doctor), db: AsyncSession = Depends(get_db)):
     """医生删除本人某个号源（仅未被预约的可删）。"""
     doctor = await _require_my_doctor(int(user["sub"]), db)
-    slot = await db.get(Slot, slot_id)
-    if not slot or slot.doctor_id != doctor.id:
-        raise HTTPException(status_code=404, detail="号源不存在或不属于您")
-    left = await redis_client.get(slot_key(slot_id))
-    remaining = int(left) if left is not None else slot.remaining
-    if remaining < slot.quota:
-        raise HTTPException(status_code=409, detail="该时段已有预约，不可删除")
-    await db.delete(slot)
-    await db.commit()
-    await redis_client.delete(slot_key(slot_id))
+    try:
+        await doctor_service.delete_slot(db, slot_id, owner_doctor_id=doctor.id)
+    except doctor_service.ScheduleError as e:
+        raise HTTPException(status_code=409, detail=str(e))
     return {"ok": True}
 
 

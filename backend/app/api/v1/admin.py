@@ -15,7 +15,8 @@ from ...models.prescription import Prescription
 from ...models.staff import Staff
 from ...models.user import Doctor, Patient, User
 from ...models.withdrawal import Withdrawal
-from ...services import audit_service, compliance_service, finance_service, staff_service
+from ...schemas.doctor import SlotQuotaIn, SlotsCreate
+from ...services import audit_service, compliance_service, doctor_service, finance_service, staff_service
 from ..deps import require_role
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -60,6 +61,48 @@ async def list_doctors(status: str | None = None, user=Depends(_admin), db: Asyn
             "audit_status": d.audit_status, "created_at": _fmt(d.created_at),
         })
     return out
+
+
+# —— 医生排班管理（运营代医生开号/加减号/删号，复用医生端 Redis 同步逻辑）——
+@router.get("/doctors/{doctor_id}/schedule")
+async def doctor_schedule(doctor_id: int, day: str | None = None, user=Depends(_admin), db: AsyncSession = Depends(get_db)):
+    return await doctor_service.get_schedule(db, doctor_id, day)
+
+
+@router.post("/doctors/{doctor_id}/slots")
+async def admin_create_slots(doctor_id: int, request: Request, body: SlotsCreate, user=Depends(_admin), db: AsyncSession = Depends(get_db)):
+    d = await db.get(Doctor, doctor_id)
+    if not d:
+        raise HTTPException(status_code=404, detail="医生不存在")
+    out = await doctor_service.create_slots(db, doctor_id, body.day, body.times, body.quota)
+    await audit_service.record(
+        db, user, request, "代开号源", "doctor", doctor_id,
+        f"{d.name or doctor_id} {body.day} ×{len(out)}个时段/各{max(1, body.quota)}号",
+    )
+    await db.commit()
+    return out
+
+
+@router.patch("/slots/{slot_id}")
+async def admin_update_slot(slot_id: int, request: Request, body: SlotQuotaIn, user=Depends(_admin), db: AsyncSession = Depends(get_db)):
+    try:
+        slot = await doctor_service.set_slot_quota(db, slot_id, body.quota)
+    except doctor_service.ScheduleError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    await audit_service.record(db, user, request, "调整号源", "slot", slot_id, f"{slot.day} {slot.start_time} → {slot.quota}号")
+    await db.commit()
+    return slot
+
+
+@router.delete("/slots/{slot_id}")
+async def admin_delete_slot(slot_id: int, request: Request, user=Depends(_admin), db: AsyncSession = Depends(get_db)):
+    try:
+        slot = await doctor_service.delete_slot(db, slot_id)
+    except doctor_service.ScheduleError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    await audit_service.record(db, user, request, "删除号源", "slot", slot_id, f"{slot.day} {slot.start_time}")
+    await db.commit()
+    return {"ok": True}
 
 
 @router.post("/doctors/{doctor_id}/audit")

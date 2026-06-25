@@ -24,6 +24,7 @@ const NAV = [
   {
     title: '医生与审核', icon: 'Postcard', children: [
       { path: '/doctor-audit', title: '医生资质终审', icon: 'Postcard', roles: ['admin'] },
+      { path: '/doctor-schedule', title: '排班管理', icon: 'Calendar', roles: ['admin'] },
     ],
   },
   {

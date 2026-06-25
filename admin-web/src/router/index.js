@@ -14,6 +14,7 @@ const routes = [
       { path: 'orders', name: '订单管理', meta: { roles: ['admin', 'finance'] }, component: () => import('@/views/Orders.vue') },
       { path: 'pharmacist', name: '药师审方', meta: { roles: ['admin', 'pharmacist'] }, component: () => import('@/views/PharmacistReview.vue') },
       { path: 'doctor-audit', name: '医生资质终审', meta: { roles: ['admin'] }, component: () => import('@/views/DoctorAudit.vue') },
+      { path: 'doctor-schedule', name: '医生排班管理', meta: { roles: ['admin'] }, component: () => import('@/views/DoctorSchedule.vue') },
       { path: 'drugs', name: '药品字典', meta: { roles: ['admin', 'pharmacist'] }, component: () => import('@/views/Drugs.vue') },
       { path: 'finance', name: '财务对账提现', meta: { roles: ['admin', 'finance'] }, component: () => import('@/views/Finance.vue') },
       { path: 'dashboard', name: '监管上报面板', meta: { roles: ['admin'] }, component: () => import('@/views/Dashboard.vue') },

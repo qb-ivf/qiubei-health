@@ -147,6 +147,47 @@ dc exec redis redis-cli LRANGE room:queue:<doctor_id> 0 -1
 dc restart api
 ```
 
+## 8. 运营后台 admin-web 部署 / 更新（前端静态站）
+
+admin-web 是纯静态站点：本机构建出 `dist/`，scp 到服务器 `/var/www/admin-web`，Nginx 直接托管
+（站点配置 `deploy/nginx/admin.qb-medical.cn.conf`，`/api/` 反代到 8000 后端）。
+
+### 8.1 构建 dist
+本机装了 Node 就直接：
+```powershell
+cd admin-web
+npm run build            # 产物在 admin-web/dist
+```
+本机没装 Node、但有 Docker 时（零本地安装，推荐）：
+```powershell
+cd admin-web
+# node_modules 用容器内独立卷，不碰宿主机；dist 会落到宿主机 admin-web/dist
+docker run --rm -v "${PWD}:/app" -v /app/node_modules -w /app node:20-alpine `
+  sh -c "npm install && npm run build"
+```
+
+### 8.2 上传 + 落位（服务器）
+```powershell
+# ⚠️ 必须先删临时目录，否则 scp -r 会套娃成 /tmp/admin-dist/dist
+ssh root@<服务器IP> "rm -rf /tmp/admin-dist"     # 确认无 Permission denied 才算删成功
+scp -r dist root@<服务器IP>:/tmp/admin-dist
+```
+```bash
+# 服务器：整目录替换
+rm -rf /var/www/admin-web && mv /tmp/admin-dist /var/www/admin-web
+ls /var/www/admin-web/index.html        # 必须在顶层（不是 .../admin-web/dist/index.html）
+ls /var/www/admin-web/assets/ | wc -l    # 资源齐全（构建时会打印总数）
+# 一般无需 reload nginx；改了 nginx 配置才需要：nginx -t && systemctl reload nginx
+```
+改完浏览器 **Ctrl+F5** 强刷（避免缓存旧 index 去拿对不上的分片）。
+
+### 8.3 常见报错对照（都在 Nginx/前端层，不是后端）
+| 现象 | 原因 | 处理 |
+|---|---|---|
+| 整页 `500 Internal Server Error`（nginx 字样） | `/var/www/admin-web/index.html` 不存在，`try_files` 兜底文件缺失 | 多半是套娃，`index.html` 跑到 `dist/` 里了；按 8.2 重新落位 |
+| `Failed to fetch dynamically imported module .../assets/Xxx.js` | 分片缺失，被 `try_files` 兜底成 index.html | dist 上传不完整，按 8.2 干净重传 |
+| `auth_basic_user_file ... failed` | `/etc/nginx/.htpasswd_admin` 丢了 | 重建 htpasswd |
+
 ---
 
 ## 安全/注意
