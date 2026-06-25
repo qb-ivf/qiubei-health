@@ -87,12 +87,22 @@ async def handle_pay_callback(db: AsyncSession, order_no: str) -> Order:
     await db.flush()
     await redis_client.rpush(f"room:queue:{order.doctor_id}", order.id)  # 进排队队列
     await _notify(db, order.user_id, "order", "挂号成功", "请保持手机亮屏，等待医生接诊", order.id)
+    await _push_doctor_queue(db, order.doctor_id)  # 实时通知医生刷新队列
     return order
 
 
 async def _notify(db, uid, ntype, title, body, order_id):
     from . import notification_service  # 局部导入避免循环
     await notification_service.notify(db, uid, ntype, title, body, order_id)
+
+
+async def _push_doctor_queue(db: AsyncSession, doctor_id: int) -> None:
+    """实时通知医生：候诊队列有新患者（医生端收到后刷新队列）。"""
+    from ..constants import Signal
+    from ..ws import manager  # 局部导入避免循环
+    doc = await db.get(Doctor, doctor_id)
+    if doc:
+        await manager.send(doc.user_id, {"type": Signal.QUEUE_UPDATE})
 
 
 async def mark_paid(db: AsyncSession, order_id: int) -> Order:
@@ -107,6 +117,7 @@ async def mark_paid(db: AsyncSession, order_id: int) -> Order:
     await db.flush()
     await redis_client.rpush(f"room:queue:{order.doctor_id}", order.id)
     await _notify(db, order.user_id, "order", "挂号成功", "请保持手机亮屏，等待医生接诊", order.id)
+    await _push_doctor_queue(db, order.doctor_id)  # 实时通知医生刷新队列
     return order
 
 

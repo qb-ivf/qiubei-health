@@ -19,11 +19,16 @@ Page({
     signaling.on(signaling.SIGNAL.START_STREAM, () => {
       wx.showToast({ title: '患者已接听', icon: 'success' });
     });
+    // 新患者支付入队 → 实时刷新候诊队列
+    signaling.on(signaling.SIGNAL.QUEUE_UPDATE, () => this.loadQueue());
   },
 
   onShow() { this.loadProfile(); this.loadWallet(); this.loadQueue(); },
 
-  onUnload() { signaling.off(signaling.SIGNAL.START_STREAM); },
+  onUnload() {
+    signaling.off(signaling.SIGNAL.START_STREAM);
+    signaling.off(signaling.SIGNAL.QUEUE_UPDATE);
+  },
 
   // 真实登录医生身份
   loadProfile() {

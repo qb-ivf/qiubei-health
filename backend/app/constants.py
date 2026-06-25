@@ -36,6 +36,7 @@ class Signal:
     CALL_REJECT = "CALL_REJECT"
     START_STREAM = "START_STREAM"
     CALL_FINISHED = "CALL_FINISHED"
+    QUEUE_UPDATE = "QUEUE_UPDATE"   # 候诊队列变化（新患者支付入队）→ 通知医生刷新
 
 
 class Role:
