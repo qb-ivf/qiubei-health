@@ -1,7 +1,8 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '@/api/request'
+import { refreshAlerts } from '@/composables/alerts'
 
 // 预设可排时段（与医生端小程序一致：上午 4 + 下午 4）
 const PRESET = [
@@ -67,7 +68,7 @@ async function openSlot(s) {
       day: activeDay.value, quota: quota.value, times: [{ start: s.start, end: s.end }],
     })
     ElMessage.success('已开号')
-    load()
+    load(); refreshAlerts()
   } catch (e) { /* 拦截器已提示 */ }
 }
 
@@ -77,7 +78,7 @@ async function openAll() {
       day: activeDay.value, quota: quota.value, times: PRESET,
     })
     ElMessage.success(`已开放 ${out.length} 个新时段`)
-    load()
+    load(); refreshAlerts()
   } catch (e) { /* 拦截器已提示 */ }
 }
 
@@ -86,7 +87,7 @@ async function changeQuota(s, delta) {
   if (next < 1) return
   try {
     await request.patch(`/admin/slots/${s.id}`, { quota: next })
-    load()
+    load(); refreshAlerts()
   } catch (e) { /* 拦截器已提示 */ }
 }
 
@@ -98,11 +99,13 @@ async function delSlot(s) {
   try {
     await request.delete(`/admin/slots/${s.id}`)
     ElMessage.success('已删除')
-    load()
+    load(); refreshAlerts()
   } catch (e) { /* 拦截器已提示 */ }
 }
 
 onMounted(() => { buildDays(); loadDoctors() })
+// 离开排班页时再刷新一次角标，确保补完号源后红点及时消掉
+onBeforeUnmount(refreshAlerts)
 </script>
 
 <template>

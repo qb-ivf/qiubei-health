@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import request from '@/api/request'
+import { noSlotCount, refreshAlerts } from '@/composables/alerts'
 const route = useRoute()
 const router = useRouter()
 
@@ -63,20 +63,12 @@ function onCommand(cmd) {
   }
 }
 
-// 缺号源医生数 → 排班管理菜单红点角标（仅 admin 可见该菜单/接口）
-const noSlotCount = ref(0)
-async function loadAlerts() {
-  if (role !== 'admin') return
-  try {
-    const res = await request.get('/admin/no-slot-doctors')
-    noSlotCount.value = res.count || 0
-  } catch (e) { /* 拦截器已提示 */ }
-}
+// 缺号源医生数 → 排班管理菜单红点角标（仅 admin；状态由 composables/alerts 共享，排班页改完会刷新）
 function itemBadge(path) { return path === '/doctor-schedule' ? noSlotCount.value : 0 }
 function groupHasAlert(n) {
   return !!(n.children && n.children.some((c) => itemBadge(c.path) > 0))
 }
-onMounted(loadAlerts)
+onMounted(refreshAlerts)
 </script>
 
 <template>
