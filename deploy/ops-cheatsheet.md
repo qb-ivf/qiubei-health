@@ -95,6 +95,32 @@ dc exec mysql mysql -uqiubei -pqiubei qiubei -e "UPDATE doctors SET register_fee
 > ⚠️ 这是真实环境：改成 1 分期间，真实患者挂这个医生也只付 1 分。测试窗口尽量短，测完立刻改回。
 > 该医生还需有可约号源（`slots` 表）且 `audit_status='approved'`、`name` 非空，患者端才看得到。
 
+## 4.5 给医生插号源（患者才能约号）
+
+医生通过审核后会出现在患者端列表，但**没有可约时段**就挂不上号。号源扣减以 Redis 为准，
+所以**必须用脚本插**（脚本会同步写 Redis），纯 SQL 插 `slots` 会被判「约满」。
+
+```bash
+# 给医生 <doctor_id> 从今天起 N 天、每天 5 个时段，每个时段 quota 个号
+# 用法：python -m scripts.add_slots <doctor_id> [天数=3] [每时段配额=5]
+dc exec api python -m scripts.add_slots 4 3 5
+
+# 先查医生 id：
+dc exec mysql mysql -uqiubei -pqiubei qiubei -e "SELECT id,name,dept,audit_status FROM doctors;"
+# 查某医生的号源：
+dc exec mysql mysql -uqiubei -pqiubei qiubei -e "SELECT id,day,start_time,remaining FROM slots WHERE doctor_id=4 ORDER BY day,start_time;"
+```
+> 可重复运行（同日同时段不重复插）。时段在 `scripts/add_slots.py` 的 `TIMES` 里改。
+
+## 4.6 清理示例/演示医生（生产首次部署遗留）
+
+最初用 `DEBUG=true` 建表时 seed 写入过示例医生（user_id 1001/1002/1003）。生产应删除，
+只保留真实注册医生：
+```bash
+dc exec mysql mysql -uqiubei -pqiubei qiubei -e "DELETE FROM slots WHERE doctor_id IN (SELECT id FROM doctors WHERE user_id IN (1001,1002,1003)); DELETE FROM doctors WHERE user_id IN (1001,1002,1003);"
+dc exec mysql mysql -uqiubei -pqiubei qiubei -e "SELECT id,name,dept,audit_status FROM doctors;"
+```
+
 ## 5. 运营后台账号管理
 
 ```bash

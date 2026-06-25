@@ -31,7 +31,7 @@
     </view>
     <view class="q-field">
       <text class="q-label">科室</text>
-      <input class="q-input" placeholder="如：呼吸内科" value="{{form.dept}}" data-f="dept" bindinput="onField" />
+      <input class="q-input" placeholder="如：中医科 / 内科 / 妇产科" value="{{form.dept}}" data-f="dept" bindinput="onField" />
     </view>
     <view class="q-field">
       <text class="q-label">职称</text>

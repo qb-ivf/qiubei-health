@@ -12,7 +12,7 @@
           <text class="text-headline-md text-on-surface">{{doctor.name}}</text>
           <text class="hall-id__online">{{onDuty ? '在线' : '休治'}}</text>
         </view>
-        <text class="text-body-sm text-on-surface-variant">{{doctor.title}} · {{doctor.dept}}</text>
+        <text class="text-body-sm text-on-surface-variant">{{doctor.subtitle}}</text>
       </view>
     </view>
     <view class="flex flex-col items-end gap-1">

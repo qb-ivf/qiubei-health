@@ -6,11 +6,12 @@ Page({
     balance: '0.00',
     doctor: { name: '', title: '', audit_status: '' },
     authText: '',
+    metrics: { done: 0, score: '—', praise: 0 },  // 真实统计接口接入前用占位 0/—
     manage: [
       { t: '排班管理', icon: 'calendar_month', color: 'var(--primary)', bg: 'rgba(0,86,196,.1)' },
       { t: '诊金设置', icon: 'payments', color: 'var(--secondary)', bg: 'rgba(0,108,70,.1)' },
       { t: '常用语/快捷回复', icon: 'chat_bubble', color: 'var(--tertiary)', bg: 'rgba(137,77,0,.1)' },
-      { t: '多点执业/资质管理', icon: 'badge', color: 'var(--on-surface-variant)', bg: 'var(--sc-highest)' }
+      { t: '我的资质', icon: 'badge', color: 'var(--on-surface-variant)', bg: 'var(--sc-highest)' }
     ]
   },
 

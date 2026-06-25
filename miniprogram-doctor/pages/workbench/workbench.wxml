@@ -24,9 +24,9 @@
   <!-- 指标 -->
   <view class="px-margin-x wb-metrics-wrap">
     <view class="card wb-metrics">
-      <view class="wb-metric"><text class="text-caption text-on-surface-variant">总接诊量</text><text class="text-label-lg text-primary font-bold">1,248 单</text></view>
-      <view class="wb-metric wb-metric--mid"><text class="text-caption text-on-surface-variant">综合评分</text><text class="text-label-lg text-primary font-bold">4.9 ★</text></view>
-      <view class="wb-metric"><text class="text-caption text-on-surface-variant">线上赞赏</text><text class="text-label-lg text-primary font-bold">320 个</text></view>
+      <view class="wb-metric"><text class="text-caption text-on-surface-variant">总接诊量</text><text class="text-label-lg text-primary font-bold">{{metrics.done}} 单</text></view>
+      <view class="wb-metric wb-metric--mid"><text class="text-caption text-on-surface-variant">综合评分</text><text class="text-label-lg text-primary font-bold">{{metrics.score}}</text></view>
+      <view class="wb-metric"><text class="text-caption text-on-surface-variant">线上赞赏</text><text class="text-label-lg text-primary font-bold">{{metrics.praise}} 个</text></view>
     </view>
   </view>
 

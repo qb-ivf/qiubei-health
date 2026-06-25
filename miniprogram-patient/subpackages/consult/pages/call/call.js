@@ -2,10 +2,10 @@ const app = getApp();
 const signaling = require('../../../../utils/signaling.js');
 
 Page({
-  data: { doctorName: '张建设', roomId: '' },
+  data: { doctorName: '', roomId: '' },
 
   onLoad(query) {
-    this.setData({ doctorName: query.doctor || '张建设', roomId: query.room || '' });
+    this.setData({ doctorName: query.doctor || '', roomId: query.room || '' });
   },
 
   // 接听 → CALL_ANSWER → redirectTo 视频诊室（不留栈）

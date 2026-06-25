@@ -5,18 +5,14 @@ Page({
   data: {
     statusBar: 20,
     queueBar: '',
-    currentPatient: { name: '王小明' },
+    currentPatient: { name: '' },
     quickServices: [
       { icon: 'payments', t: '门诊缴费' },
       { icon: 'analytics', t: '报告查询' },
       { icon: 'medication', t: '处方购药' },
       { icon: 'folder_shared', t: '健康档案' }
     ],
-    doctors: [
-      { id: 1, name: '张建国', dept: '内科', title: '主任医师' },
-      { id: 2, name: '李晓梅', dept: '儿科', title: '副主任医师' },
-      { id: 3, name: '王志强', dept: '外科', title: '专家教授' }
-    ]
+    doctors: []
   },
 
   onLoad() {
@@ -27,10 +23,21 @@ Page({
   },
 
   onShow() {
+    this.loadDoctors();
     if (!app.globalData.token) { this.setData({ queueBar: '' }); return; }
     app.connectSignaling(); // 兜底：确保信令长连接已建立（接收 CALL_INVITE）
     request('/orders/active').then((r) => {
       this.setData({ queueBar: r && r.has ? `您有正在排队的视频问诊（${r.doctor_name || ''}），请保持手机亮屏` : '' });
+    }).catch(() => {});
+  },
+
+  // 出诊医生（从后端动态加载，新增医生自动展示）
+  loadDoctors() {
+    request('/doctors', { auth: false }).then((list) => {
+      const doctors = (Array.isArray(list) ? list : []).map((d) => ({
+        id: d.id, name: d.name, dept: d.dept, title: d.title
+      }));
+      this.setData({ doctors });
     }).catch(() => {});
   },
 

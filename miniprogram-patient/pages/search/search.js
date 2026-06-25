@@ -1,16 +1,20 @@
-const allDoctors = [
-  { id: 1, name: '张建设', dept: '呼吸内科', title: '主任医师' },
-  { id: 2, name: '王美丽', dept: '呼吸内科', title: '副主任医师' },
-  { id: 3, name: '李晓梅', dept: '儿科', title: '副主任医师' },
-  { id: 4, name: '王志强', dept: '外科', title: '专家教授' }
-];
+const { request } = require('../../utils/request.js');
 
 Page({
   data: {
     kw: '',
-    history: ['呼吸内科', '张建设', '咳嗽'],
-    hot: ['内科', '儿科', '妇科', '皮肤科', '发热门诊'],
+    history: [],
+    hot: ['中医科', '内科', '妇产科'],
     results: []
+  },
+
+  onShow() {
+    // 加载真实医生用于本地检索（新增医生自动纳入）
+    request('/doctors', { auth: false }).then((list) => {
+      this._all = (Array.isArray(list) ? list : []).map((d) => ({
+        id: d.id, name: d.name, dept: d.dept, title: d.title
+      }));
+    }).catch(() => { this._all = []; });
   },
 
   onInput(e) { this.applyKw(e.detail.value); },
@@ -19,7 +23,8 @@ Page({
   clear() { this.setData({ kw: '', results: [] }); },
 
   applyKw(kw) {
-    const results = kw ? allDoctors.filter(d => d.name.includes(kw) || d.dept.includes(kw)) : [];
+    const all = this._all || [];
+    const results = kw ? all.filter(d => (d.name || '').includes(kw) || (d.dept || '').includes(kw)) : [];
     this.setData({ kw, results });
   },
 

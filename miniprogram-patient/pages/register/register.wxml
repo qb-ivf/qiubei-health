@@ -22,7 +22,7 @@
   <!-- 科室标题 -->
   <view class="px-margin-x flex items-center gap-2" style="margin-top:32rpx;">
     <text class="material-symbols-outlined text-on-surface-variant" style="font-size:28rpx;">clinical_notes</text>
-    <text class="text-label-lg text-on-surface-variant">呼吸内科 专家列表</text>
+    <text class="text-label-lg text-on-surface-variant">出诊专家列表</text>
   </view>
 
   <!-- 医生卡片 -->

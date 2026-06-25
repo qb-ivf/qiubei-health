@@ -17,7 +17,7 @@
       <view class="call__badge"><text class="material-symbols-outlined ms-fill" style="font-size:32rpx;color:var(--on-secondary-fixed);">videocam</text></view>
     </view>
     <text class="text-headline-lg text-on-surface" style="margin-top:40rpx;">{{doctorName}} 医生</text>
-    <view class="call__dept">主任医师 · 心内科</view>
+    <view class="call__dept">视频问诊</view>
     <text class="text-body-md text-on-surface-variant" style="margin-top:16rpx;">{{doctorName}}医生正在向您发起视频问诊邀请...</text>
   </view>
 

@@ -63,13 +63,14 @@ async def seed_demo(db: AsyncSession) -> None:
     if count and count > 0:
         return
 
+    # 就诊范围：中医科 / 内科 / 妇产科
     demos = [
-        dict(user_id=1001, name="张建设", dept="呼吸内科", title="主任医师",
-             register_fee_fen=5000, good_at="慢阻肺、哮喘、肺部感染等呼吸系统疾病诊治", years=25),
-        dict(user_id=1002, name="王美丽", dept="呼吸内科", title="副主任医师",
-             register_fee_fen=4000, good_at="慢性咳嗽、支气管炎、过敏性鼻炎", years=15),
-        dict(user_id=1003, name="李晓梅", dept="儿科", title="副主任医师",
-             register_fee_fen=4000, good_at="小儿呼吸道感染、发热、消化不良", years=12),
+        dict(user_id=1001, name="李国华", dept="中医科", title="主任医师",
+             register_fee_fen=5000, good_at="中医内科调理、慢性病、亚健康", years=25),
+        dict(user_id=1002, name="王建国", dept="内科", title="主任医师",
+             register_fee_fen=4000, good_at="高血压、糖尿病、呼吸道感染等内科常见病", years=18),
+        dict(user_id=1003, name="陈丽", dept="妇产科", title="副主任医师",
+             register_fee_fen=4000, good_at="孕产期保健、月经不调、妇科常见病", years=15),
     ]
     times = [("09:00", "09:30"), ("09:30", "10:00"), ("10:00", "10:30")]
     today = date.today()

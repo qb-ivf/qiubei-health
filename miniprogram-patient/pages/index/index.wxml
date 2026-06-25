@@ -8,7 +8,7 @@
     </view>
     <view class="patient-pill flex items-center" bindtap="onSwitchPatient">
       <text class="material-symbols-outlined text-primary" style="font-size:28rpx;margin-right:6rpx;">person</text>
-      <text class="text-label-md">{{currentPatient.name || '王小明'}}</text>
+      <text class="text-label-md">{{currentPatient.name || '请选择就诊人'}}</text>
     </view>
   </view>
 
@@ -72,7 +72,7 @@
     <!-- 通知跑马灯 -->
     <view class="marquee mt-6">
       <text class="material-symbols-outlined text-tertiary" style="font-size:36rpx;margin-right:12rpx;">notifications</text>
-      <text class="text-body-sm text-on-surface-variant marquee__txt">[通知] 本院已开通全天候线上儿科视频急诊，如遇突发情况请点击视频问诊进入绿色通道。</text>
+      <text class="text-body-sm text-on-surface-variant marquee__txt">[通知] 本院开通中医科、内科、妇产科全天候在线视频问诊，点击视频问诊即可就诊。</text>
     </view>
 
     <!-- 今日出诊名医 -->
@@ -92,6 +92,9 @@
           <text class="text-label-lg text-on-surface">{{item.name}}</text>
           <text class="text-caption text-on-surface-variant">{{item.dept}} · {{item.title}}</text>
           <view class="doc-card__btn">立即咨询</view>
+        </view>
+        <view wx:if="{{!doctors.length}}" class="px-margin-x" style="padding:24rpx 16rpx;">
+          <text class="text-body-sm text-on-surface-variant">暂无出诊医生</text>
         </view>
       </scroll-view>
     </view>

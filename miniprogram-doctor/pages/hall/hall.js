@@ -5,8 +5,8 @@ const signaling = require('../../utils/signaling.js');
 Page({
   data: {
     onDuty: false,
-    doctor: { name: '张建设', title: '主任医师', dept: '呼吸内科' },
-    stats: { waiting: 0, done: 14, income: '700.00' },
+    doctor: { name: '', subtitle: '' },
+    stats: { waiting: 0, done: 0, income: '0.00' },
     rejected: [],
     queue: []
   },
@@ -21,9 +21,27 @@ Page({
     });
   },
 
-  onShow() { this.loadQueue(); },
+  onShow() { this.loadProfile(); this.loadWallet(); this.loadQueue(); },
 
   onUnload() { signaling.off(signaling.SIGNAL.START_STREAM); },
+
+  // 真实登录医生身份
+  loadProfile() {
+    if (!app.globalData.token) return;
+    request('/doctors/profile').then((p) => {
+      if (!p) return;
+      const sub = [p.title, p.dept].filter(Boolean).join(' · ') || '请完善执业资料';
+      this.setData({ doctor: { name: p.name || '医生', subtitle: sub } });
+    }).catch(() => {});
+  },
+
+  // 真实余额
+  loadWallet() {
+    if (!app.globalData.token) return;
+    request('/finance/wallet').then((r) => {
+      this.setData({ 'stats.income': (r.balance || 0).toFixed(2) });
+    }).catch(() => {});
+  },
 
   loadQueue() {
     if (!app.globalData.token) return;
