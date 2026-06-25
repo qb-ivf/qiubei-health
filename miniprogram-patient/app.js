@@ -38,8 +38,39 @@ App({
     if (this.globalData.token) signaling.connect();
   },
 
+  // 回到前台：重连信令 + 补偿错过的视频呼叫
+  onShow() {
+    if (!this.globalData.token) return;
+    signaling.connect();
+    this.tryRejoinConsult();
+  },
+
   // 登录成功后调用，建立信令连接
   connectSignaling() { signaling.connect(); },
+
+  /**
+   * 离线补偿：错过 CALL_INVITE 时，回前台查进行中订单并自动拉回接听页。
+   * 解决"医生接诊瞬间患者不在线 → 收不到呼叫"的问题（信令无离线队列，见 pending #13）。
+   */
+  tryRejoinConsult() {
+    if (!this.globalData.token) return;
+    const pages = getCurrentPages();
+    const cur = pages.length ? pages[pages.length - 1].route : '';
+    if (cur.indexOf('consult/pages/call') > -1 || cur.indexOf('video-room') > -1) return; // 已在通话流程
+    wx.request({
+      url: this.globalData.baseUrl.replace(/\/$/, '') + '/api/v1/orders/active',
+      header: { 'content-type': 'application/json', Authorization: 'Bearer ' + this.globalData.token },
+      success: ({ data }) => {
+        // status 2 = CONSULTING（医生已接诊，进行中）
+        if (data && data.has && data.status === 2 && data.room_id) {
+          wx.navigateTo({
+            url: `/subpackages/consult/pages/call/call?room=${data.room_id}&doctor=${data.doctor_name || ''}`,
+            fail: () => {}
+          });
+        }
+      }
+    });
+  },
 
   /**
    * 全局登录路由守卫（FRD §1.2）。受保护页 onLoad 调用：

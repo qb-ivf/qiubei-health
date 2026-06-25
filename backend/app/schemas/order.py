@@ -24,6 +24,8 @@ class ActiveOrderOut(BaseModel):
     has: bool
     status: OrderStatus | None = None
     doctor_name: str | None = None
+    room_id: str | None = None   # CONSULTING 时有值，供患者错过呼叫后重进视频房
+    order_id: int | None = None
 
 
 class PrepayOut(BaseModel):

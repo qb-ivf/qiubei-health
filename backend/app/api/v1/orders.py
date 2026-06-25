@@ -234,4 +234,7 @@ async def active_order(uid: int = Depends(get_current_user_id), db: AsyncSession
     if not order:
         return ActiveOrderOut(has=False)
     doctor = await db.get(Doctor, order.doctor_id)
-    return ActiveOrderOut(has=True, status=order.status, doctor_name=doctor.name if doctor else None)
+    return ActiveOrderOut(
+        has=True, status=order.status, doctor_name=doctor.name if doctor else None,
+        room_id=order.room_id, order_id=order.id,
+    )
