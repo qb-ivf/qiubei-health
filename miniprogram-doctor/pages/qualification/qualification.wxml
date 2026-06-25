@@ -7,13 +7,13 @@
     <text wx:elif="{{audit_status==='approved'}}" class="q-status__sub">已通过认证，可进入接诊大厅</text>
   </view>
 
-  <!-- 已通过：进入大厅 -->
+  <!-- 已通过：可直接进入大厅（也可在下方查看/更新资料） -->
   <view wx:if="{{audit_status==='approved'}}" class="q-pass">
     <button class="q-btn q-btn--primary" bindtap="enterHall">进入接诊大厅</button>
   </view>
 
-  <!-- 资质表单（未通过 / 待审 / 首次均可填写提交） -->
-  <view wx:else class="q-form">
+  <!-- 资质表单（任何状态均可查看/填写；已通过时更新会重新进入审核） -->
+  <view class="q-form">
     <view class="q-title">执业资质认证</view>
     <view class="q-tip">请如实填写，提交后由医院运营终审通过方可接诊。</view>
 
@@ -47,7 +47,7 @@
     </view>
 
     <button class="q-btn q-btn--primary" loading="{{submitting}}" bindtap="submit">
-      {{audit_status==='rejected' ? '重新提交审核' : '提交审核'}}
+      {{audit_status==='approved' ? '更新资质（需重新审核）' : (audit_status==='rejected' ? '重新提交审核' : '提交审核')}}
     </button>
   </view>
 

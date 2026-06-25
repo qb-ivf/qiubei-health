@@ -9,9 +9,9 @@
           <text class="text-headline-md text-white font-bold">{{doctor.name}}</text>
           <text class="wb-hero__tag">{{doctor.title}}</text>
         </view>
-        <view class="flex items-center gap-1" style="margin-top:6rpx;">
+        <view wx:if="{{authText}}" class="flex items-center gap-1" style="margin-top:6rpx;" bindtap="tapManage" data-t="资质管理">
           <text class="material-symbols-outlined ms-fill" style="font-size:24rpx;color:var(--secondary-fixed-dim);">verified_user</text>
-          <text class="text-caption" style="color:rgba(255,255,255,.9);">执业资格已认证</text>
+          <text class="text-caption" style="color:rgba(255,255,255,.9);">{{authText}}</text>
         </view>
       </view>
     </view>

@@ -4,7 +4,8 @@ const { request } = require('../../utils/request.js');
 Page({
   data: {
     balance: '0.00',
-    doctor: { name: '张大夫', title: '主任医师' },
+    doctor: { name: '', title: '', audit_status: '' },
+    authText: '',
     manage: [
       { t: '排班管理', icon: 'calendar_month', color: 'var(--primary)', bg: 'rgba(0,86,196,.1)' },
       { t: '诊金设置', icon: 'payments', color: 'var(--secondary)', bg: 'rgba(0,108,70,.1)' },
@@ -13,12 +14,25 @@ Page({
     ]
   },
 
-  onShow() { this.loadWallet(); },
+  onShow() { this.loadWallet(); this.loadProfile(); },
 
   loadWallet() {
     if (!app.globalData.token) return;
     request('/finance/wallet').then((r) => {
       this.setData({ balance: (r.balance || 0).toFixed(2) });
+    }).catch(() => {});
+  },
+
+  // 拉本人档案：工作台展示真实姓名/职称/认证状态
+  loadProfile() {
+    if (!app.globalData.token) return;
+    request('/doctors/profile').then((p) => {
+      if (!p) return;
+      const map = { approved: '执业资格已认证', pending: '资质审核中', rejected: '资质审核未通过' };
+      this.setData({
+        doctor: { name: p.name || '医生', title: p.title || '', audit_status: p.audit_status || '' },
+        authText: map[p.audit_status] || ''
+      });
     }).catch(() => {});
   },
 
@@ -39,7 +53,14 @@ Page({
     });
   },
 
-  tapManage(e) { wx.showToast({ title: e.currentTarget.dataset.t, icon: 'none' }); },
+  tapManage(e) {
+    const t = e.currentTarget.dataset.t || '';
+    if (t.indexOf('资质') > -1) {
+      wx.navigateTo({ url: '/pages/qualification/qualification' });
+    } else {
+      wx.showToast({ title: t, icon: 'none' });
+    }
+  },
   logout() {
     wx.showModal({
       title: '退出登录', content: '确认退出当前账号？',
