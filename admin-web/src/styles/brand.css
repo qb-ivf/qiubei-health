@@ -1,0 +1,97 @@
+/* ===================================================================
+   逑贝医疗 · 运营后台 品牌主题（取自 Logo 蓝绿双色）
+   亮色 / 暗色双主题，切换 html.dark 即可
+   =================================================================== */
+:root {
+  --brand-blue: #1577c2;
+  --brand-blue-d: #0f5f9b;
+  --brand-green: #54b45a;
+  --brand-green-d: #3f9a52;
+  --brand-grad: linear-gradient(162deg, #0f6fb8 0%, #1577c2 42%, #2f9e86 100%);
+
+  /* Element Plus 主色 → 品牌蓝 */
+  --el-color-primary: #1577c2;
+  --el-color-primary-light-3: #5ba0d4;
+  --el-color-primary-light-5: #8abbe0;
+  --el-color-primary-light-7: #b9d6ec;
+  --el-color-primary-light-8: #d0e4f2;
+  --el-color-primary-light-9: #e7f1f9;
+  --el-color-primary-dark-2: #115f9b;
+
+  /* 成功/强调 → 品牌绿 */
+  --el-color-success: #54b45a;
+  --el-color-success-light-3: #87ca8c;
+  --el-color-success-light-5: #a9d8ac;
+  --el-color-success-light-9: #e7f4e8;
+  --el-color-success-dark-2: #439048;
+
+  --page-bg: #f2f5f9;
+}
+
+/* 暗色：品牌蓝绿略提亮以适配深底 */
+html.dark {
+  --el-color-primary: #3a98dd;
+  --el-color-primary-light-3: #2b7bb3;
+  --el-color-primary-light-5: #25688f;
+  --el-color-primary-light-7: #20566f;
+  --el-color-primary-light-8: #1d4a5d;
+  --el-color-primary-light-9: #18313b;
+  --el-color-primary-dark-2: #5fb0e6;
+  --el-color-success: #5cc063;
+  --el-color-success-light-3: #3f8a48;
+  --el-color-success-light-9: #1b2a1f;
+}
+
+/* —— 全局底色与卡片质感 —— */
+.el-main { background: var(--page-bg); transition: background .2s; }
+html.dark .el-main { background: var(--el-bg-color-page); }
+
+.el-card {
+  border-radius: 12px;
+  border: 1px solid var(--el-border-color-lighter);
+  box-shadow: 0 2px 14px rgba(20, 70, 120, .05);
+}
+html.dark .el-card { box-shadow: none; }
+.el-card__header { font-weight: 600; }
+
+/* 主按钮加一点品牌渐变质感 */
+.el-button--primary {
+  --el-button-bg-color: var(--brand-blue);
+  --el-button-border-color: var(--brand-blue);
+  --el-button-hover-bg-color: #2a8fce;
+  --el-button-hover-border-color: #2a8fce;
+}
+
+/* —— 品牌侧边栏（蓝绿渐变，亮暗通用，暗色更深）—— */
+.app-aside { background: var(--brand-grad) !important; transition: background .2s; }
+html.dark .app-aside { background: linear-gradient(162deg, #0b4d7c 0%, #0e5b86 45%, #1c6b5b 100%) !important; }
+
+.app-brand {
+  display: flex; align-items: center; gap: 12px;
+  padding: 18px 18px; color: #fff;
+}
+.app-brand__logo { width: 38px; height: 38px; background: #fff; border-radius: 9px; padding: 4px; box-sizing: border-box; }
+.app-brand__txt { display: flex; flex-direction: column; line-height: 1.25; }
+.app-brand__txt b { font-size: 17px; font-weight: 800; letter-spacing: 1px; }
+.app-brand__txt span { font-size: 11px; opacity: .82; letter-spacing: 1px; }
+.app-brand__sep { height: 1px; margin: 0 14px 6px; background: rgba(255, 255, 255, .14); }
+
+.app-aside .el-menu { background: transparent !important; border-right: none; }
+.app-aside .el-menu-item { color: rgba(255, 255, 255, .76) !important; margin: 4px 10px; border-radius: 8px; height: 46px; }
+.app-aside .el-menu-item .el-icon { color: rgba(255, 255, 255, .8); }
+.app-aside .el-menu-item:hover { background: rgba(255, 255, 255, .12) !important; color: #fff !important; }
+.app-aside .el-menu-item:hover .el-icon { color: #fff; }
+.app-aside .el-menu-item.is-active {
+  background: rgba(255, 255, 255, .18) !important; color: #fff !important; font-weight: 600;
+  box-shadow: inset 3px 0 0 0 var(--brand-green);
+}
+.app-aside .el-menu-item.is-active .el-icon { color: #fff; }
+
+/* —— 顶栏（跟随主题）—— */
+.app-header {
+  background: var(--el-bg-color) !important;
+  border-bottom: 1px solid var(--el-border-color-light);
+}
+
+/* —— 登录页品牌背景 —— */
+.login { background: var(--brand-grad) !important; }

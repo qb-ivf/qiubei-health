@@ -149,7 +149,9 @@ async def list_prescriptions(status: str | None = None, user=Depends(_admin), db
             "id": rx.id, "order_id": rx.order_id,
             "patient_name": mask_name(patient.name) if patient else None,
             "doctor_name": doctor.name if doctor else None,
+            "dept": doctor.dept if doctor else None,
             "diagnosis": rx.diagnosis, "items": rx.items or [],
+            "chief": rx.chief, "present_illness": rx.present_illness, "advice": rx.advice,
             "audit_status": rx.audit_status, "reject_reason": rx.reject_reason,
             "created_at": _fmt(rx.created_at),
         })
@@ -177,6 +179,35 @@ async def list_orders(status: int | None = None, user=Depends(_admin), db: Async
             "created_at": _fmt(o.created_at),
         })
     return out
+
+
+@router.get("/orders/{order_id}")
+async def order_detail(order_id: int, user=Depends(_admin), db: AsyncSession = Depends(get_db)):
+    o = await db.get(Order, order_id)
+    if not o:
+        raise HTTPException(status_code=404, detail="订单不存在")
+    patient = await db.get(Patient, o.patient_id)
+    doctor = await db.get(Doctor, o.doctor_id)
+    res = await db.execute(select(Prescription).where(Prescription.order_id == order_id))
+    rx = res.scalars().first()
+    rx_out = None
+    if rx:
+        rx_out = {
+            "id": rx.id, "diagnosis": rx.diagnosis, "chief": rx.chief,
+            "present_illness": rx.present_illness, "advice": rx.advice,
+            "items": rx.items or [], "audit_status": rx.audit_status, "reject_reason": rx.reject_reason,
+        }
+    return {
+        "id": o.id, "order_no": o.order_no,
+        "patient_name": mask_name(patient.name) if patient else None,
+        "doctor_name": doctor.name if doctor else None, "dept": doctor.dept if doctor else None,
+        "type": "图文咨询" if o.consult_type == "text" else "视频问诊",
+        "register_fee": o.register_fee_fen / 100, "drug_fee": o.drug_fee_fen / 100,
+        "total_fee": (o.register_fee_fen + o.drug_fee_fen) / 100,
+        "status": o.status, "status_text": ORDER_STATUS_TEXT.get(o.status, str(o.status)),
+        "created_at": _fmt(o.created_at), "updated_at": _fmt(o.updated_at),
+        "prescription": rx_out,
+    }
 
 
 # —— 提现审批（§4.3）——
