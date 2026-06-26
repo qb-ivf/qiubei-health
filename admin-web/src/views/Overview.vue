@@ -38,8 +38,10 @@ const STATUS_COLOR = {
 // —— 衍生数据 ——
 const kpis = computed(() => {
   const d = data.value
+  const delta = (d.today_new_patients ?? 0) - (d.yest_new_patients ?? 0)
+  const deltaText = `较昨日 ${delta >= 0 ? '+' : ''}${delta}`
   return [
-    { key: 'newp', label: '今日新增就诊人', value: d.today_new_patients ?? '—', sub: `累计建档 ${d.patients ?? 0}`, icon: '👤', color: '#4aa3e0' },
+    { key: 'newp', label: '今日新增就诊人', value: d.today_new_patients ?? '—', sub: deltaText, icon: '👤', color: '#4aa3e0' },
     { key: 'total', label: '累计建档就诊人', value: d.patients ?? '—', sub: '实名就诊人总量', icon: '🗂️', color: '#2fd6a6' },
     { key: 'treat', label: '正在问诊', value: d.in_treatment ?? '—', sub: `今日订单 ${d.today_orders ?? 0}`, icon: '🩺', color: '#9b8cff' },
     { key: 'rev', label: '今日成交额', value: `¥${d.today_revenue ?? '—'}`, sub: `累计 ¥${d.revenue_total ?? 0}`, icon: '💰', color: '#f0a868' },

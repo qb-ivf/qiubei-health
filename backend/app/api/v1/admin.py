@@ -10,7 +10,6 @@ from ...core.crypto import decrypt
 from ...core.database import get_db
 from ...core.security import mask_name, mask_phone
 from ...models.drug import Drug
-from ...models.ledger import Ledger
 from ...models.order import Order
 from ...models.prescription import Prescription
 from ...models.staff import Staff
@@ -377,18 +376,29 @@ async def overview(user=Depends(_admin), db: AsyncSession = Depends(get_db)):
     patients = await _count(Patient)
     pending_withdrawals = await _count(Withdrawal, Withdrawal.status == "pending")
 
-    revenue_total = int(await db.scalar(select(func.coalesce(func.sum(Ledger.total_fen), 0))) or 0)
-    today_revenue = int(await db.scalar(
-        select(func.coalesce(func.sum(Ledger.total_fen), 0)).where(Ledger.created_at >= today)
-    ) or 0)
+    async def _sum(col, *where):
+        q = select(func.coalesce(func.sum(col), 0))
+        for w in where:
+            q = q.where(w)
+        return int(await db.scalar(q) or 0)
+
+    # 成交额(GMV)=已支付订单的挂号费 + 已完成订单实付药费。
+    # 注：与分账 Ledger 口径不同——挂号费支付即计入成交额，药费仅在已完成(已付)时计入。
+    paid = Order.status.notin_([int(OrderStatus.PENDING), int(OrderStatus.CANCELLED), int(OrderStatus.REFUNDED)])
+    finished = Order.status == int(OrderStatus.FINISHED)
+    revenue_total = await _sum(Order.register_fee_fen, paid) + await _sum(Order.drug_fee_fen, finished)
+    today_revenue = (await _sum(Order.register_fee_fen, paid, Order.created_at >= today)
+                     + await _sum(Order.drug_fee_fen, finished, Order.created_at >= today))
     balance = await finance_service.doctor_balance_fen(db)
 
     # 订单状态分布
     rows = await db.execute(select(Order.status, func.count()).group_by(Order.status))
     dist = [{"status": s, "status_text": ORDER_STATUS_TEXT.get(s, str(s)), "count": int(c)} for s, c in rows.all()]
 
-    # 今日新增就诊人 / 正在问诊（候诊中+问诊中）
+    # 今日新增就诊人 / 昨日新增（算环比）/ 正在问诊（候诊中+问诊中）
+    yesterday = _cn_midnight_utc(now_cn.date() - timedelta(days=1))
     today_new_patients = await _count(Patient, Patient.created_at >= today)
+    yest_new_patients = await _count(Patient, Patient.created_at >= yesterday, Patient.created_at < today)
     in_treatment = await _count(Order, Order.status.in_([OrderStatus.WAITING, OrderStatus.CONSULTING]))
 
     # 就诊人增长趋势（近 12 个月，按北京时间月份计数）
@@ -441,7 +451,8 @@ async def overview(user=Depends(_admin), db: AsyncSession = Depends(get_db)):
         "doctor_balance": balance / 100,
         "doctors_total": doctors_total, "doctors_approved": doctors_approved, "doctors_pending": doctors_pending,
         "patients": patients, "pending_rx": pending_rx, "pending_withdrawals": pending_withdrawals,
-        "today_new_patients": today_new_patients, "in_treatment": in_treatment,
+        "today_new_patients": today_new_patients, "yest_new_patients": yest_new_patients,
+        "in_treatment": in_treatment,
         "status_dist": dist,
         "growth_trend": months, "patient_geo": patient_geo, "age_dist": age_dist,
         "doctors_no_slots": len(no_slot_doctors), "doctors_no_slots_list": no_slot_doctors,
