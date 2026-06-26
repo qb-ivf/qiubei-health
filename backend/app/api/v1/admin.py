@@ -375,6 +375,14 @@ async def overview(user=Depends(_admin), db: AsyncSession = Depends(get_db)):
     # 在册医生但无可约号源（患者约不上号）
     no_slot_doctors = await doctor_service.doctors_lacking_slots(db)
 
+    # 系统动态消息：最近运营操作（复用审计日志）
+    recent_activity = [
+        {"id": a.id, "actor_name": a.actor_name or "系统", "actor_role": a.actor_role,
+         "action": a.action, "target_type": a.target_type, "detail": a.detail,
+         "created_at": _fmt(a.created_at)}
+        for a in await audit_service.query(db, limit=12)
+    ]
+
     return {
         "total_orders": total_orders, "today_orders": today_orders, "paid_orders": paid_orders,
         "revenue_total": revenue_total / 100, "today_revenue": today_revenue / 100,
@@ -383,6 +391,7 @@ async def overview(user=Depends(_admin), db: AsyncSession = Depends(get_db)):
         "patients": patients, "pending_rx": pending_rx, "pending_withdrawals": pending_withdrawals,
         "status_dist": dist,
         "doctors_no_slots": len(no_slot_doctors), "doctors_no_slots_list": no_slot_doctors,
+        "recent_activity": recent_activity,
     }
 
 
