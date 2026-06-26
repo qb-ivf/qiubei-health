@@ -192,11 +192,14 @@ html.dark .el-card { box-shadow: none; }
   height: 46px; border-radius: 8px; margin: 4px 10px;
 }
 .app-aside .el-sub-menu .el-menu-item { margin: 4px 10px 4px 14px; }
+/* 选中态：实心填充块（品牌主色 + 白字），各主题统一 */
 .app-aside .el-menu-item.is-active {
-  background: var(--aside-active-bg) !important; color: var(--aside-active-text) !important;
-  font-weight: 600; box-shadow: inset 3px 0 0 0 var(--brand-primary);
+  background: var(--brand-primary) !important; color: #fff !important;
+  font-weight: 600; box-shadow: 0 6px 16px -6px var(--brand-primary);
 }
-.app-aside .el-menu-item.is-active .el-icon { color: var(--aside-active-text); }
+.app-aside .el-menu-item.is-active .el-icon { color: #fff; }
+/* 展开的父级分组标题：淡色高亮，与子项区分 */
+.app-aside .el-sub-menu.is-active > .el-sub-menu__title { color: var(--aside-active-text) !important; }
 .app-aside__foot {
   padding: 12px; border-top: 1px solid var(--aside-border);
 }

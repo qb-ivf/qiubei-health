@@ -1,10 +1,11 @@
 """运营总管理后台接口（PRD 子系统3，M8）。需 admin 角色。"""
-from datetime import datetime
+from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ...constants import OrderStatus
 from ...core.crypto import decrypt
 from ...core.database import get_db
 from ...core.security import mask_name, mask_phone
@@ -16,7 +17,7 @@ from ...models.staff import Staff
 from ...models.user import Doctor, Patient, User
 from ...models.withdrawal import Withdrawal
 from ...schemas.doctor import SlotQuotaIn, SlotsCreate
-from ...services import audit_service, compliance_service, doctor_service, finance_service, staff_service
+from ...services import audit_service, compliance_service, demographics, doctor_service, finance_service, staff_service
 from ..deps import require_role
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -372,6 +373,38 @@ async def overview(user=Depends(_admin), db: AsyncSession = Depends(get_db)):
     rows = await db.execute(select(Order.status, func.count()).group_by(Order.status))
     dist = [{"status": s, "status_text": ORDER_STATUS_TEXT.get(s, str(s)), "count": int(c)} for s, c in rows.all()]
 
+    # 今日新增就诊人 / 正在问诊（候诊中+问诊中）
+    today_new_patients = await _count(Patient, Patient.created_at >= today)
+    in_treatment = await _count(Order, Order.status.in_([OrderStatus.WAITING, OrderStatus.CONSULTING]))
+
+    # 就诊人增长趋势（近 12 个月，按建档月份计数）
+    first_month = (today.replace(day=1) - timedelta(days=334)).replace(day=1)
+    months = []
+    cur = first_month
+    while cur <= today:
+        nxt = (cur + timedelta(days=32)).replace(day=1)
+        cnt = await _count(Patient, Patient.created_at >= cur, Patient.created_at < nxt)
+        months.append({"month": cur.strftime("%Y-%m"), "count": cnt})
+        cur = nxt
+
+    # 全国患者分布 + 年龄分布（解析身份证：前2位省级码、7-14位出生日期）
+    today_d = date.today()
+    geo: dict[str, int] = {}
+    age_counts = {label: 0 for label, _, _ in demographics.AGE_BUCKETS}
+    id_rows = await db.execute(select(Patient.id_card_enc).where(Patient.id_card_enc.isnot(None)))
+    for (enc,) in id_rows.all():
+        info = demographics.parse_id_card(_safe_decrypt(enc), today_d)
+        if not info:
+            continue
+        if info["province"]:
+            geo[info["province"]] = geo.get(info["province"], 0) + 1
+        if info["age"] is not None:
+            bucket = demographics.age_bucket(info["age"])
+            if bucket:
+                age_counts[bucket] += 1
+    patient_geo = [{"province": p, "count": c} for p, c in sorted(geo.items(), key=lambda x: -x[1])]
+    age_dist = [{"label": label, "count": age_counts[label]} for label, _, _ in demographics.AGE_BUCKETS]
+
     # 在册医生但无可约号源（患者约不上号）
     no_slot_doctors = await doctor_service.doctors_lacking_slots(db)
 
@@ -389,7 +422,9 @@ async def overview(user=Depends(_admin), db: AsyncSession = Depends(get_db)):
         "doctor_balance": balance / 100,
         "doctors_total": doctors_total, "doctors_approved": doctors_approved, "doctors_pending": doctors_pending,
         "patients": patients, "pending_rx": pending_rx, "pending_withdrawals": pending_withdrawals,
+        "today_new_patients": today_new_patients, "in_treatment": in_treatment,
         "status_dist": dist,
+        "growth_trend": months, "patient_geo": patient_geo, "age_dist": age_dist,
         "doctors_no_slots": len(no_slot_doctors), "doctors_no_slots_list": no_slot_doctors,
         "recent_activity": recent_activity,
     }
