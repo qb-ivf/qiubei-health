@@ -3,8 +3,26 @@ import { ref, computed, reactive, onMounted, onBeforeUnmount, watch, nextTick } 
 import { useRouter } from 'vue-router'
 import * as echarts from 'echarts'
 import request from '@/api/request'
+import { themeKey } from '@/composables/theme'
 
 const router = useRouter()
+
+// 读取当前生效主题的 CSS 变量，供 echarts 配色跟随系统主题
+function themeVars() {
+  const cs = getComputedStyle(document.documentElement)
+  const v = (n, fb) => (cs.getPropertyValue(n).trim() || fb)
+  return {
+    text: v('--el-text-color-primary', '#e7e9f5'),
+    sub: v('--el-text-color-secondary', '#8b93b8'),
+    line: v('--el-border-color-lighter', 'rgba(255,255,255,.07)'),
+    axis: v('--el-border-color', 'rgba(255,255,255,.14)'),
+    fill: v('--el-fill-color-light', '#141a3a'),
+    card: v('--el-bg-color', '#161c40'),
+    primary: v('--brand-primary', '#7c83ff'),
+    primaryLight: v('--el-color-primary-light-3', '#8b7cff'),
+    rampLow: v('--el-color-primary-light-8', '#1b234d'),
+  }
+}
 
 // 运营数据看板
 const data = ref({})
@@ -73,67 +91,73 @@ async function ensureMap() {
 
 function renderMap() {
   if (!charts.map || !mapReady) return
+  const t = themeVars()
   const geo = data.value.patient_geo || []
   const max = Math.max(1, ...geo.map(g => g.count))
   charts.map.setOption({
+    backgroundColor: 'transparent',
     tooltip: { trigger: 'item', formatter: p => `${p.name}<br/>就诊人 ${p.value || 0}` },
     visualMap: {
       min: 0, max, left: 16, bottom: 16, calculable: true,
-      text: ['高', '低'], textStyle: { color: '#8b93b8' },
-      inRange: { color: ['#1b234d', '#2f5fd0', '#5b8def', '#46e6c6'] },
+      text: ['高', '低'], textStyle: { color: t.sub },
+      inRange: { color: [t.rampLow, t.primary] },
     },
     series: [{
       type: 'map', map: 'china', roam: false,
       label: { show: false }, scaleLimit: { min: 1, max: 3 },
-      itemStyle: { areaColor: '#141a3a', borderColor: 'rgba(255,255,255,.14)', borderWidth: 0.6 },
-      emphasis: { label: { show: true, color: '#fff' }, itemStyle: { areaColor: '#6c5ce7' } },
+      itemStyle: { areaColor: t.fill, borderColor: t.axis, borderWidth: 0.6 },
+      emphasis: { label: { show: true, color: t.text }, itemStyle: { areaColor: t.primary } },
       data: geo.map(g => ({ name: g.province, value: g.count })),
     }],
-  })
+  }, true)
 }
 
 function renderPie() {
   if (!charts.pie) return
+  const t = themeVars()
   const dist = (data.value.status_dist || []).filter(d => d.count > 0)
   charts.pie.setOption({
+    backgroundColor: 'transparent',
     tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
-    legend: { bottom: 0, left: 'center', icon: 'circle', itemWidth: 9, itemHeight: 9, textStyle: { color: '#8b93b8', fontSize: 11 } },
+    legend: { bottom: 0, left: 'center', icon: 'circle', itemWidth: 9, itemHeight: 9, textStyle: { color: t.sub, fontSize: 11 } },
     series: [{
       type: 'pie', radius: ['46%', '70%'], center: ['50%', '44%'], avoidLabelOverlap: true,
-      itemStyle: { borderColor: '#141a3a', borderWidth: 2 },
-      label: { color: '#c2c7e0', fontSize: 11, formatter: '{b}\n{d}%' },
+      itemStyle: { borderColor: t.card, borderWidth: 2 },
+      label: { color: t.sub, fontSize: 11, formatter: '{b}\n{d}%' },
       labelLine: { length: 8, length2: 8 },
-      data: dist.map(d => ({ name: d.status_text, value: d.count, itemStyle: { color: STATUS_COLOR[d.status_text] || '#7c83ff' } })),
+      data: dist.map(d => ({ name: d.status_text, value: d.count, itemStyle: { color: STATUS_COLOR[d.status_text] || t.primary } })),
     }],
-  })
+  }, true)
 }
 
 function renderTrend() {
   if (!charts.trend) return
+  const t = themeVars()
   const rows = data.value.growth_trend || []
   charts.trend.setOption({
+    backgroundColor: 'transparent',
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     grid: { left: 40, right: 16, top: 18, bottom: 26 },
     xAxis: {
       type: 'category', data: rows.map(r => r.month.slice(5) + '月'),
-      axisLabel: { color: '#8b93b8', fontSize: 10 },
-      axisLine: { lineStyle: { color: 'rgba(255,255,255,.12)' } }, axisTick: { show: false },
+      axisLabel: { color: t.sub, fontSize: 10 },
+      axisLine: { lineStyle: { color: t.axis } }, axisTick: { show: false },
     },
     yAxis: {
       type: 'value', minInterval: 1,
-      splitLine: { lineStyle: { color: 'rgba(255,255,255,.06)' } },
-      axisLabel: { color: '#8b93b8', fontSize: 10 },
+      splitLine: { lineStyle: { color: t.line } },
+      axisLabel: { color: t.sub, fontSize: 10 },
     },
     series: [{
       type: 'bar', data: rows.map(r => r.count), barWidth: '46%',
       itemStyle: {
         borderRadius: [4, 4, 0, 0],
         color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-          { offset: 0, color: '#8b7cff' }, { offset: 1, color: '#5b8def' },
+          { offset: 0, color: t.primaryLight }, { offset: 1, color: t.primary },
         ]),
       },
     }],
-  })
+  }, true)
 }
 
 function renderAll() { renderMap(); renderPie(); renderTrend() }
@@ -172,6 +196,8 @@ onBeforeUnmount(() => {
   charts.map?.dispose(); charts.pie?.dispose(); charts.trend?.dispose()
 })
 watch(data, () => renderAll())
+// 主题切换：CSS 变量更新后重新着色图表
+watch(themeKey, () => nextTick(renderAll))
 </script>
 
 <template>
@@ -279,13 +305,14 @@ watch(data, () => renderAll())
 </template>
 
 <style scoped>
-/* 始终深色「大数据看板」皮肤，独立于全局主题 */
+/* 看板配色跟随全局主题（浅色/深色/晨曦/松韵/墨夜均自动适配） */
 .board {
-  --bd-bg: #0e1330; --bd-card: #161c40; --bd-card2: #1b2249;
-  --bd-line: rgba(255, 255, 255, .07); --bd-text: #e7e9f5; --bd-sub: #8b93b8;
-  --bd-primary: #7c83ff;
-  background: radial-gradient(1200px 600px at 80% -10%, #1a2150 0%, var(--bd-bg) 60%);
-  margin: -18px; padding: 18px; min-height: calc(100vh - 58px); color: var(--bd-text);
+  --bd-card: var(--el-bg-color);
+  --bd-line: var(--el-border-color-lighter);
+  --bd-text: var(--el-text-color-primary);
+  --bd-sub: var(--el-text-color-secondary);
+  --bd-primary: var(--brand-primary);
+  color: var(--bd-text);
 }
 
 .board__warn { margin-bottom: 14px; }
@@ -332,7 +359,7 @@ watch(data, () => renderAll())
 .panel__head { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .panel__tag {
   font-size: 11px; font-weight: 500; color: var(--bd-primary);
-  background: rgba(124, 131, 255, .14); border-radius: 6px; padding: 2px 8px;
+  background: var(--el-color-primary-light-9); border-radius: 6px; padding: 2px 8px;
 }
 .grid { display: grid; gap: 16px; }
 .grid--2 { grid-template-columns: 1.4fr 1fr; }
@@ -346,8 +373,8 @@ watch(data, () => renderAll())
 .ages { display: flex; flex-direction: column; gap: 16px; padding: 8px 2px; }
 .age { display: flex; align-items: center; gap: 12px; }
 .age__label { width: 64px; font-size: 12px; color: var(--bd-sub); flex: none; }
-.age__track { flex: 1; height: 8px; border-radius: 6px; background: rgba(255, 255, 255, .07); overflow: hidden; }
-.age__bar { height: 100%; border-radius: 6px; background: linear-gradient(90deg, #5b8def, #8b7cff); }
+.age__track { flex: 1; height: 8px; border-radius: 6px; background: var(--el-fill-color); overflow: hidden; }
+.age__bar { height: 100%; border-radius: 6px; background: linear-gradient(90deg, var(--el-color-primary-light-3), var(--brand-primary)); }
 .age__pct { width: 40px; text-align: right; font-size: 12px; font-weight: 700; flex: none; }
 
 /* 系统动态消息 */
@@ -363,13 +390,13 @@ watch(data, () => renderAll())
 .feed__icon {
   width: 30px; height: 30px; flex: none; border-radius: 8px; font-size: 15px;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(124, 131, 255, .14);
+  background: var(--el-color-primary-light-9);
 }
 .feed__body { flex: 1; min-width: 0; }
 .feed__text { font-size: 13px; color: var(--bd-text); }
-.feed__text b { color: #fff; }
+.feed__text b { color: var(--bd-text); }
 .feed__detail { font-size: 12px; color: var(--bd-sub); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.feed__time { font-size: 11px; color: #6b7298; margin-top: 3px; }
+.feed__time { font-size: 11px; color: var(--el-text-color-placeholder); margin-top: 3px; }
 
 .board__empty { color: var(--bd-sub); padding: 20px 0; text-align: center; font-size: 13px; }
 
