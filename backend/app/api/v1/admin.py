@@ -1,5 +1,5 @@
 """运营总管理后台接口（PRD 子系统3，M8）。需 admin 角色。"""
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from sqlalchemy import func, select
@@ -30,8 +30,21 @@ ORDER_STATUS_TEXT = {
 }
 
 
+# 数据库统一存 naive UTC；运营后台展示与「今日/月份」边界均按北京时间。
+# 中国全境固定 UTC+8（无夏令时），用固定偏移避免依赖系统 tzdata。
+CN_TZ = timezone(timedelta(hours=8))
+
+
 def _fmt(dt) -> str:
-    return dt.strftime("%Y-%m-%d %H:%M") if dt else ""
+    """naive UTC → 北京时间字符串。"""
+    if not dt:
+        return ""
+    return dt.replace(tzinfo=timezone.utc).astimezone(CN_TZ).strftime("%Y-%m-%d %H:%M")
+
+
+def _cn_midnight_utc(d: date) -> datetime:
+    """某个北京日期的 00:00，转成 naive UTC（用于和库里 UTC 时间比较）。"""
+    return datetime(d.year, d.month, d.day, tzinfo=CN_TZ).astimezone(timezone.utc).replace(tzinfo=None)
 
 
 def _safe_decrypt(enc):
@@ -345,7 +358,8 @@ async def gov_report_retry(rid: int, user=Depends(_admin), db: AsyncSession = De
 # —— 运营数据大盘 ——
 @router.get("/overview")
 async def overview(user=Depends(_admin), db: AsyncSession = Depends(get_db)):
-    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    now_cn = datetime.now(CN_TZ)
+    today = _cn_midnight_utc(now_cn.date())  # 今日(北京) 0 点，UTC 表示
 
     async def _count(model, *where):
         q = select(func.count()).select_from(model)
@@ -377,18 +391,23 @@ async def overview(user=Depends(_admin), db: AsyncSession = Depends(get_db)):
     today_new_patients = await _count(Patient, Patient.created_at >= today)
     in_treatment = await _count(Order, Order.status.in_([OrderStatus.WAITING, OrderStatus.CONSULTING]))
 
-    # 就诊人增长趋势（近 12 个月，按建档月份计数）
-    first_month = (today.replace(day=1) - timedelta(days=334)).replace(day=1)
+    # 就诊人增长趋势（近 12 个月，按北京时间月份计数）
+    y, m = now_cn.year, now_cn.month
+    ym = []
+    for _ in range(12):
+        ym.append((y, m))
+        y, m = (y - 1, 12) if m == 1 else (y, m - 1)
+    ym.reverse()
     months = []
-    cur = first_month
-    while cur <= today:
-        nxt = (cur + timedelta(days=32)).replace(day=1)
-        cnt = await _count(Patient, Patient.created_at >= cur, Patient.created_at < nxt)
-        months.append({"month": cur.strftime("%Y-%m"), "count": cnt})
-        cur = nxt
+    for (yy, mm) in ym:
+        start = _cn_midnight_utc(date(yy, mm, 1))
+        nyy, nmm = (yy + 1, 1) if mm == 12 else (yy, mm + 1)
+        end = _cn_midnight_utc(date(nyy, nmm, 1))
+        cnt = await _count(Patient, Patient.created_at >= start, Patient.created_at < end)
+        months.append({"month": f"{yy:04d}-{mm:02d}", "count": cnt})
 
     # 全国患者分布 + 年龄分布（解析身份证：前2位省级码、7-14位出生日期）
-    today_d = date.today()
+    today_d = now_cn.date()
     geo: dict[str, int] = {}
     age_counts = {label: 0 for label, _, _ in demographics.AGE_BUCKETS}
     id_rows = await db.execute(select(Patient.id_card_enc).where(Patient.id_card_enc.isnot(None)))
