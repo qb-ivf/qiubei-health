@@ -65,9 +65,6 @@ function onCommand(cmd) {
 
 // 缺号源医生数 → 排班管理菜单红点角标（仅 admin；状态由 composables/alerts 共享，排班页改完会刷新）
 function itemBadge(path) { return path === '/doctor-schedule' ? noSlotCount.value : 0 }
-function groupHasAlert(n) {
-  return !!(n.children && n.children.some((c) => itemBadge(c.path) > 0))
-}
 onMounted(refreshAlerts)
 </script>
 
@@ -111,19 +108,16 @@ onMounted(refreshAlerts)
     <el-container class="app__body">
       <el-aside :width="isCollapse ? '64px' : '224px'" class="app-aside">
         <div v-show="!isCollapse" class="app-aside__label">主菜单</div>
-        <el-menu :default-active="route.path" :collapse="isCollapse" :collapse-transition="false" router unique-opened>
+        <el-menu :default-active="route.path" :collapse="isCollapse" :collapse-transition="false" router>
           <template v-for="n in nav" :key="n.path || n.title">
+            <!-- 顶级项 -->
             <el-menu-item v-if="!n.children" :index="n.path">
               <el-icon><component :is="n.icon" /></el-icon>
               <template #title>{{ n.title }}</template>
             </el-menu-item>
-            <el-sub-menu v-else :index="n.title">
-              <template #title>
-                <el-badge is-dot :hidden="!groupHasAlert(n)" class="nav-dot">
-                  <el-icon><component :is="n.icon" /></el-icon>
-                </el-badge>
-                <span>{{ n.title }}</span>
-              </template>
+            <!-- 分组：不可点击小标题 + 常驻展开的子项 -->
+            <template v-else>
+              <div v-show="!isCollapse" class="nav-group">{{ n.title }}</div>
               <el-menu-item v-for="c in n.children" :key="c.path" :index="c.path">
                 <el-icon><component :is="c.icon" /></el-icon>
                 <template #title>
@@ -131,7 +125,7 @@ onMounted(refreshAlerts)
                   <el-badge v-if="itemBadge(c.path)" :value="itemBadge(c.path)" :max="99" class="nav-badge" />
                 </template>
               </el-menu-item>
-            </el-sub-menu>
+            </template>
           </template>
         </el-menu>
         <div v-show="!isCollapse" class="app-aside__foot">
@@ -148,9 +142,12 @@ onMounted(refreshAlerts)
 .app { height: 100vh; }
 .app__body { height: calc(100vh - 58px); }
 
-/* 菜单角标：组图标右上红点（折叠时也可见）+ 排班管理项的数字角标 */
-:deep(.nav-dot) { vertical-align: middle; margin-right: 5px; }
-:deep(.nav-dot .el-icon) { margin-right: 0; }
+/* 扁平导航：分组小标题（不可点击）*/
+.nav-group {
+  padding: 14px 20px 6px; font-size: 12px; font-weight: 600; letter-spacing: 1px;
+  color: var(--el-text-color-placeholder); user-select: none;
+}
+/* 排班管理项的数字角标 */
 :deep(.nav-badge) { margin-left: 8px; vertical-align: middle; }
 :deep(.nav-badge .el-badge__content) { border: none; }
 </style>
