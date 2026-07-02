@@ -169,8 +169,8 @@ docker run --rm -v "${PWD}:/app" -v /app/node_modules -w /app node:20-alpine `
 ### 8.2 上传 + 落位（服务器）
 ```powershell
 # ⚠️ 必须先删临时目录，否则 scp -r 会套娃成 /tmp/admin-dist/dist
-ssh root@<服务器IP> "rm -rf /tmp/admin-dist"     # 确认无 Permission denied 才算删成功
-scp -r dist root@<服务器IP>:/tmp/admin-dist
+ssh root@120.27.157.116 "rm -rf /tmp/admin-dist"     # 确认无 Permission denied 才算删成功
+scp -r dist root@120.27.157.116:/tmp/admin-dist
 ```
 ```bash
 # 服务器：整目录替换
