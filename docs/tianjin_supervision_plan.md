@@ -193,23 +193,19 @@ gov_reports（升级：+method +payload +batch_date +msg_code +uniq(biz_type,biz
 
 **验收：** 新开一单完整走通后，该订单/处方/药品数据能满足第三节各接口的**必输（Y）字段**无一为空（写一个 `scripts/check_report_ready.py` 自检脚本逐字段核验）。
 
-### S3 · 上报映射与调度（研发 B，约 1 周）
+### S3 · 上报映射与调度（研发 B）——✅ 代码已完成，待测试环境联调
 
-- [ ] `gov_reports` 表升级：`+method`（X-Service-Method）、`+payload JSON`、`+batch_date`、`+msg_code`、`+resp_msg`、唯一索引 `(biz_type, biz_id)`。
-- [ ] 新增 `backend/app/services/tj_mappers.py`：每个接口一个 `build_xxx(entity) -> dict`，集中维护字段映射（organID/unitID/organName 统一注入；金额分→元两位小数；时间格式 `yyyy-MM-dd HH:mm:ss`；性别/证件/支付渠道等码值转换——paymentChannel 固定 `2` 微信）。
-- [ ] 每日采集器（`main.py` 新增 `_tj_daily_collect()`，每日 01:30 北京时间）：
-  - 咨询：昨日 `finished_at/cancelled` 终态的 text 订单 → `uploadConsultIndicators`；
-  - 复诊：昨日终态 video 订单 → `uploadReferralIndicators`；
-  - 电子病历：随复诊订单的处方 EMR → `uploadElectMedicalRecord`；
-  - 处方：昨日审方通过处方 → `uploadRecipeIndicators`；
-  - 核销：昨日药费支付成功/失效处方 → `uploadRecipeVerificationIndicators`（deliveryType 按实际：0 药房自取 / 1 物流配送）；
-  - 评价：昨日新增评价 → `uploadBusinessInfoAfter`；
-  - **不良事件：无论有无数据每日必发一次**（空数组签到）→ `pushMedicalDispute`。
-- [ ] 事件型上报：药品字典增改 → 即时 enqueue `uploadDrugCatalogue`；患者上传首诊材料 → 即时 `uploadFile` 换取附件 id 存 `orders.first_diagnosis_file_ids`。
-- [ ] worker 改造：`compliance_service.process_pending()` 去掉 random 模拟，按 `TJ_REPORT_ENABLED` 分流：关=保持模拟（开发环境），开=调 `tj_gateway.call()`；保留指数退避 `BACKOFF` 与死信；**List 接口整批失败时整批标记 failed 并记录 msg**。
-- [ ] 时区注意：服务器为 UTC，"前一天"按北京时间切日（沿用运营后台 UTC→北京时间的换算教训）。
+- [x] `gov_reports` 表升级：`+method`、`+payload JSON`（入队时快照，可审计可重报）、`+batch_date`、`+msg_code`、`+resp_msg`、`+next_retry_at`、复合索引 `(biz_type, biz_id)`（幂等由 `enqueue` 应用层保证，`refresh=True` 支持目录更新/签到覆盖）。
+- [x] `tj_mappers.py`：8 个接口的 `build_xxx(entity) -> dict` 纯函数映射（机构三要素统一注入；分→元；naive UTC→北京时间字符串；性别/证件/支付渠道码值转换；密文字段仅在 payload 中解密；缺数据字段输出空串由平台 -99 指认）。单测覆盖（tests/test_tj_mappers.py）。
+- [x] 每日采集器 `tj_collector.collect_daily()`（`main.py` `_tj_daily_collect()` 每日北京时间 01:30）：终态订单（图文→咨询 / 视频→复诊+电子病历，**未支付即取消的不上报**）、审方通过处方、药费核销、新增评价、**不良事件每日签到（空数组也发）**。北京时间切日。
+- [x] 事件型上报：admin 药品增/改/删 → 即时 enqueue `uploadDrugCatalogue`（删除→useFlag=2 取消）。
+- [ ] 患者上传首诊材料 → `uploadFile` 换附件 id 存 `orders.first_diagnosis_file_ids`（随患者端复诊声明页一起做）。
+- [x] worker 改造：去掉 random 模拟；`TJ_REPORT_ENABLED=false` 一律本地模拟成功（开发闭环不变），true 时走 `tj_gateway.tj_call()` 真实发送；网络/系统繁忙/40011 → 指数退避（5m/15m/1h/3h/6h）超限入死信；**数据错误（-99 等）直接入死信**待改数后手工重报（`POST /admin/gov-reports/{id}/retry`）。
+- [x] 手工按日补采：`POST /admin/gov-reports/collect {"day":"YYYY-MM-DD"}`（幂等，可回灌历史）。
+- [x] 审方链路补齐：审方通过时生成 `recipe_unique_id`、记录 `checked_at` 与审方药师 `audit_staff_id`。
+- [x] 旧占位 enqueue（接诊/审方即时入队）已移除，统一走 T+1 批量。
 
-**验收：** 测试环境连续 3 天自动推送成功；平台"接口对接数量"页面各必接接口计数增长；不良事件空签到每日可见。
+**验收（待 S0 密钥）：** 测试环境连续 3 天自动推送成功；平台"接口对接数量"页面各必接接口计数增长；不良事件空签到每日可见。
 
 ### S4 · 运营后台监控升级（研发 A，2–3 天）
 

@@ -33,6 +33,12 @@ class Patient(Base, TimestampMixin):
     verified: Mapped[bool] = mapped_column(Boolean, default=False)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # —— 天津监管字段（S2/S3）：证件类型字典 3.8（1 身份证）；<6 岁复诊监护人必填 ——
+    cert_type: Mapped[str] = mapped_column(String(10), default="1")
+    guardian_name: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    guardian_cert_enc: Mapped[str | None] = mapped_column(String(255), nullable=True)  # 监护人身份证(密文)
+    guardian_mobile: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
 
 class Doctor(Base, TimestampMixin):
     """医生资质（白名单来源，PRD §2.4 / §4.1）。"""
@@ -49,6 +55,12 @@ class Doctor(Base, TimestampMixin):
     register_fee_fen: Mapped[int] = mapped_column(Integer, default=5000)  # 挂号费(分)
     good_at: Mapped[str | None] = mapped_column(String(255), nullable=True)
     years: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # —— 天津监管字段（S2/S3，admin 资质页补录）——
+    id_card_enc: Mapped[str | None] = mapped_column(String(255), nullable=True)   # 医师身份证(密文，→ doctorCertID)
+    subject_code: Mapped[str | None] = mapped_column(String(10), nullable=True)   # 国家诊疗科目编码（字典 3.1）
+    subject_name: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    dept_code: Mapped[str | None] = mapped_column(String(10), nullable=True)      # 科室类别编码（字典 3.2）
 
 
 class Consent(Base, TimestampMixin):

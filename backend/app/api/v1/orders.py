@@ -16,7 +16,7 @@ from ...models.order import Order
 from ...models.user import Doctor, Patient, User
 from ...schemas.evaluation import EvaluationCreate, EvaluationOut
 from ...schemas.order import ActiveOrderOut, OrderOut, PrepayOut, RegisterOrderCreate
-from ...services import compliance_service, evaluation_service, order_service, pay_service, prescription_service
+from ...services import evaluation_service, order_service, pay_service, prescription_service
 from ...ws import manager, rooms
 from ..deps import get_current_user_id, require_approved_doctor
 
@@ -235,7 +235,7 @@ async def accept(order_id: int, user=Depends(require_approved_doctor), db: Async
         )
         room_id = f"room_{order_id}"
         order.room_id = room_id
-        await compliance_service.enqueue(db, "consultation", order.id)  # 接诊上报卫健委
+        # 监管上报：改为终态后 T+1 每日批量采集（tj_collector），不再接诊时即时入队
         await db.commit()
     except order_service.StateError as e:
         await db.rollback()

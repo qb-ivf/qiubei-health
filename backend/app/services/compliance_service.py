@@ -1,50 +1,125 @@
-"""合规网关服务（PRD §5，M9 占位实现）。
+"""合规网关服务（天津监管 S3 + 处方 PDF）。
 
-卫健委上报：本地异步队列（GovReport 表）+ 后台 sweeper 模拟上报 + 重试/死信。
-生产改用 Celery Worker（见 workers/compliance.py 骨架）+ AES/SM4 加密 + 动态 Sign。
-CA 加签为占位；处方 PDF 用 reportlab 真实生成（红章占位）。
+上报队列：业务侧 enqueue（幂等，payload 入队时快照）→ 后台 sweeper 消费：
+  - TJ_REPORT_ENABLED=true 且网关配置齐 → tj_gateway 真实发送（SM4/SM3）；
+  - 否则本地模拟成功（开发环境闭环不变）。
+失败分类：网络/系统繁忙/请求过期 → 指数退避自动重试，超限入死信；
+数据错误（-99 等）→ 直接入死信，改数后在后台手工重报。
+CA 加签仍为占位（M9）；处方 PDF 用 reportlab 真实生成（红章占位）。
 """
 import io
-import random
+import logging
+import time as _time
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..core.config import settings
 from ..models.gov_report import GovReport
 
-# 指数退避（生产用；本地 sweeper 演示忽略时间间隔）
+logger = logging.getLogger(__name__)
+
+# 指数退避（秒）：5min / 15min / 1h / 3h / 6h
 BACKOFF = [300, 900, 3600, 10800, 21600]
 MAX_RETRY = len(BACKOFF)
 
 
-async def enqueue(db: AsyncSession, biz_type: str, biz_id: int):
-    db.add(GovReport(biz_type=biz_type, biz_id=biz_id, status="pending"))
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+async def enqueue(
+    db: AsyncSession,
+    biz_type: str,
+    biz_id: int,
+    method: str | None = None,
+    payload: list | None = None,
+    batch_date: date | None = None,
+    refresh: bool = False,
+) -> GovReport:
+    """幂等入队：(biz_type, biz_id) 已存在则跳过；refresh=True 时刷新 payload 并重置重发
+    （用于药品目录更新、不良事件当日签到等需覆盖旧任务的场景）。"""
+    res = await db.execute(
+        select(GovReport).where(GovReport.biz_type == biz_type, GovReport.biz_id == biz_id)
+    )
+    existing = res.scalars().first()
+    if existing:
+        if refresh:
+            existing.method = method or existing.method
+            if payload is not None:
+                existing.payload = payload
+            existing.batch_date = batch_date or existing.batch_date
+            existing.status = "pending"
+            existing.retries = 0
+            existing.next_retry_at = None
+            await db.flush()
+        return existing
+    r = GovReport(
+        biz_type=biz_type, biz_id=biz_id, method=method, payload=payload,
+        batch_date=batch_date, status="pending",
+    )
+    db.add(r)
     await db.flush()
+    return r
+
+
+def _gateway_ready() -> bool:
+    return bool(settings.TJ_REPORT_ENABLED and settings.TJ_GATEWAY_URL and settings.TJ_APP_KEY)
 
 
 async def process_pending(db: AsyncSession) -> int:
-    """后台扫描：模拟向卫健委上报（AES/SM4+Sign），失败重试，超限入死信。"""
+    """后台扫描：发送 pending 与到达退避时间的 failed 任务。"""
+    now = _utcnow()
     res = await db.execute(
-        select(GovReport).where(GovReport.status.in_(["pending", "failed"])).limit(50)
+        select(GovReport)
+        .where(
+            (GovReport.status == "pending")
+            | ((GovReport.status == "failed") & ((GovReport.next_retry_at.is_(None)) | (GovReport.next_retry_at <= now)))
+        )
+        .order_by(GovReport.id.asc())
+        .limit(20)
     )
     reports = list(res.scalars().all())
     for r in reports:
-        ok = random.random() > 0.2  # 模拟 80% 成功
-        r.latency_ms = random.randint(80, 500)
-        if ok:
-            r.status = "success"
-            r.last_error = None
-        else:
-            r.retries += 1
-            if r.retries >= MAX_RETRY:
-                r.status = "dead"
-                r.last_error = "卫健委网关多次失败，已入死信队列"
-            else:
-                r.status = "failed"
-                r.last_error = "卫健委网关 502 / 响应超时"
+        await _send_one(r)
     if reports:
         await db.commit()
     return len(reports)
+
+
+async def _send_one(r: GovReport) -> None:
+    if not r.method or r.payload is None:
+        # 无 payload 的历史/占位任务：直接标记成功，不再模拟随机失败
+        r.status, r.msg_code, r.resp_msg = "success", None, "占位任务（无 payload，未发送）"
+        return
+
+    if not _gateway_ready():
+        r.status, r.msg_code, r.latency_ms = "success", 200, 0
+        r.resp_msg = "本地模拟成功（TJ_REPORT_ENABLED=false）"
+        return
+
+    from . import tj_gateway  # 局部导入避免循环
+    t0 = _time.monotonic()
+    result = await tj_gateway.tj_call(r.method, r.payload)
+    r.latency_ms = int((_time.monotonic() - t0) * 1000)
+    r.msg_code = result.msg_code
+    r.resp_msg = (result.msg or "")[:500]
+    if result.ok:
+        r.status, r.last_error, r.next_retry_at = "success", None, None
+    elif result.retryable:
+        r.retries += 1
+        if r.retries >= MAX_RETRY:
+            r.status = "dead"
+            r.last_error = f"重试 {MAX_RETRY} 次仍失败：{result.msg}"[:255]
+        else:
+            r.status = "failed"
+            r.next_retry_at = _utcnow() + timedelta(seconds=BACKOFF[r.retries - 1])
+            r.last_error = f"可重试失败（第{r.retries}次）：{result.msg}"[:255]
+    else:
+        # 数据错误（-99 字段缺失等）：自动重试无意义，入死信待人工改数后重报
+        r.status = "dead"
+        r.last_error = f"数据错误：{result.msg}"[:255]
 
 
 async def stats(db: AsyncSession) -> dict:
@@ -69,6 +144,7 @@ async def retry(db: AsyncSession, rid: int):
     if r:
         r.status = "pending"
         r.retries = 0
+        r.next_retry_at = None
         await db.commit()
     return r
 

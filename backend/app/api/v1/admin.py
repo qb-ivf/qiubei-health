@@ -18,7 +18,10 @@ from ...models.staff import Staff
 from ...models.user import Doctor, Patient, User
 from ...models.withdrawal import Withdrawal
 from ...schemas.doctor import SlotQuotaIn, SlotsCreate
-from ...services import audit_service, compliance_service, demographics, doctor_service, finance_service, staff_service
+from ...services import (
+    audit_service, compliance_service, demographics, doctor_service, finance_service,
+    staff_service, tj_collector, tj_mappers,
+)
 from ..deps import require_role
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -171,15 +174,27 @@ async def audit_doctor(doctor_id: int, request: Request, approve: bool = Body(em
     return {"id": d.id, "audit_status": d.audit_status}
 
 
-# —— 药品字典（§4.2）——
+# —— 药品字典（§4.2；增改删触发监管药品目录即时上报 2.1.1）——
+async def _enqueue_drug_catalogue(db, drug, use_flag: str | None = None):
+    await compliance_service.enqueue(
+        db, "drug", drug.id, "uploadDrugCatalogue",
+        [tj_mappers.build_drug(drug, use_flag)], refresh=True,
+    )
+
+
 @router.get("/drugs")
 async def list_drugs(user=Depends(_admin), db: AsyncSession = Depends(get_db)):
     res = await db.execute(select(Drug).order_by(Drug.id.asc()))
     return [
         {"id": x.id, "name": x.name, "spec": x.spec, "price": x.price_fen / 100,
-         "category": x.category, "restricted": x.restricted}
+         "category": x.category, "restricted": x.restricted,
+         "drug_class": x.drug_class, "countrydrcode": x.countrydrcode,
+         "packing": x.packing, "manufacturer": x.manufacturer}
         for x in res.scalars().all()
     ]
+
+
+_DRUG_TJ_FIELDS = ("drug_class", "countrydrcode", "packing", "manufacturer")
 
 
 @router.post("/drugs")
@@ -189,9 +204,11 @@ async def add_drug(request: Request, body: dict = Body(...), user=Depends(_admin
         price_fen=int(round(float(body.get("price", 0)) * 100)),
         category=body.get("category", "处方药"),
         restricted=bool(body.get("restricted", False)),
+        **{f: body.get(f) for f in _DRUG_TJ_FIELDS},
     )
     db.add(drug)
     await db.flush()
+    await _enqueue_drug_catalogue(db, drug)
     await audit_service.record(db, user, request, "新增药品", "drug", drug.id, drug.name)
     await db.commit()
     return {"id": drug.id}
@@ -212,6 +229,10 @@ async def update_drug(drug_id: int, request: Request, body: dict = Body(...), us
         drug.category = body["category"]
     if "restricted" in body:
         drug.restricted = bool(body["restricted"])
+    for f in _DRUG_TJ_FIELDS:
+        if f in body:
+            setattr(drug, f, body.get(f))
+    await _enqueue_drug_catalogue(db, drug)
     await audit_service.record(db, user, request, "编辑药品", "drug", drug_id, drug.name)
     await db.commit()
     return {"id": drug.id}
@@ -223,6 +244,7 @@ async def delete_drug(drug_id: int, request: Request, user=Depends(_admin), db: 
     if not drug:
         raise HTTPException(status_code=404, detail="药品不存在")
     name = drug.name
+    await _enqueue_drug_catalogue(db, drug, use_flag="2")  # 监管目录置为「取消」
     await db.delete(drug)
     await audit_service.record(db, user, request, "删除药品", "drug", drug_id, name)
     await db.commit()
@@ -343,7 +365,9 @@ async def gov_report_failed(user=Depends(_admin), db: AsyncSession = Depends(get
     items = await compliance_service.list_failed(db)
     return [
         {"id": r.id, "type": r.biz_type, "biz_id": r.biz_id, "status": r.status,
-         "retries": r.retries, "err": r.last_error}
+         "method": r.method, "batch_date": str(r.batch_date) if r.batch_date else None,
+         "msg_code": r.msg_code, "retries": r.retries,
+         "err": r.last_error or r.resp_msg, "payload": r.payload}
         for r in items
     ]
 
@@ -354,6 +378,19 @@ async def gov_report_retry(rid: int, user=Depends(_admin), db: AsyncSession = De
     if not r:
         raise HTTPException(status_code=404, detail="上报任务不存在")
     return {"id": r.id, "status": r.status}
+
+
+@router.post("/gov-reports/collect")
+async def gov_report_collect(request: Request, body: dict = Body(...), user=Depends(_admin), db: AsyncSession = Depends(get_db)):
+    """手工按日补采（S4）：body={"day":"YYYY-MM-DD"}（北京时间日期）。幂等，可重复执行。"""
+    try:
+        day = date.fromisoformat(str(body.get("day", "")))
+    except ValueError:
+        raise HTTPException(status_code=422, detail="day 格式应为 YYYY-MM-DD")
+    counts = await tj_collector.collect_daily(db, day)
+    await audit_service.record(db, user, request, "手工补采监管数据", "gov_report", 0, str(day))
+    await db.commit()
+    return {"day": str(day), "counts": counts}
 
 
 # —— 患者评价（监管 2.4.1 数据源，只读） ——

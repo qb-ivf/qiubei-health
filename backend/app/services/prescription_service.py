@@ -66,8 +66,11 @@ async def list_pending(db: AsyncSession) -> list[Prescription]:
     return list(res.scalars().all())
 
 
-async def approve(db: AsyncSession, rx_id: int) -> Prescription:
-    """药师审核通过：订单 3→5 + CA 加签（占位，M9 接真实 SM2）。"""
+async def approve(db: AsyncSession, rx_id: int, staff_id: int | None = None) -> Prescription:
+    """药师审核通过：订单 3→5 + CA 加签（占位，M9 接真实 SM2）+ 监管字段落库。"""
+    import uuid
+    from datetime import datetime, timezone
+
     rx = await db.get(Prescription, rx_id)
     if rx is None or rx.audit_status != "pending":
         raise RxError("处方不存在或已处理")
@@ -75,6 +78,10 @@ async def approve(db: AsyncSession, rx_id: int) -> Prescription:
     rx.audit_status = "approved"
     rx.ca_sign = "CA_MOCK_SIGN"               # TODO(M9): 调 CA 云端 SM2 加签
     rx.pdf_url = f"/rx/{rx.order_id}.pdf"      # TODO(M9): reportlab 生成盖章 PDF → OSS
+    # 天津监管（S3）：处方唯一号（对外备查/核销）+ 审方时间 + 审方药师
+    rx.recipe_unique_id = rx.recipe_unique_id or uuid.uuid4().hex
+    rx.checked_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    rx.audit_staff_id = staff_id
 
     # 审核通过后计算药费，落到订单（M6 药费支付用）
     order = await db.get(Order, rx.order_id)

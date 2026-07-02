@@ -18,3 +18,4 @@ class Staff(Base, TimestampMixin):
     role: Mapped[str] = mapped_column(String(16), default=Role.PHARMACIST)  # admin/pharmacist/finance
     name: Mapped[str | None] = mapped_column(String(64), nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+    id_card_enc: Mapped[str | None] = mapped_column(String(255), nullable=True)  # 药师身份证(密文，监管处方接口 auditDoctorCertID)

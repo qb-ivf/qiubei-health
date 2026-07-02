@@ -6,6 +6,7 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -16,7 +17,7 @@ from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal, engine
 from app.models import Base  # noqa: F401  导入以填充 metadata
-from app.services import compliance_service, doctor_service, order_service
+from app.services import compliance_service, doctor_service, order_service, tj_collector
 
 logger = logging.getLogger("startup")
 
@@ -35,7 +36,7 @@ async def _expiry_sweep():
 
 
 async def _gov_report_sweep():
-    """后台任务：每 15s 处理卫健委上报队列（模拟上报+重试，M9）。"""
+    """后台任务：每 15s 处理监管上报队列（TJ_REPORT_ENABLED 时真实发送，否则模拟）。"""
     while True:
         await asyncio.sleep(15)
         try:
@@ -43,6 +44,23 @@ async def _gov_report_sweep():
                 await compliance_service.process_pending(db)
         except Exception as e:  # noqa: BLE001
             logger.warning("监管上报扫描失败: %s", e)
+
+
+async def _tj_daily_collect():
+    """后台任务：每日北京时间 01:30 采集前一日终态数据入上报队列（含不良事件空签到）。"""
+    while True:
+        now_cn = datetime.now(tj_collector.CN_TZ)
+        target = now_cn.replace(hour=1, minute=30, second=0, microsecond=0)
+        if target <= now_cn:
+            target += timedelta(days=1)
+        await asyncio.sleep((target - now_cn).total_seconds())
+        day = (datetime.now(tj_collector.CN_TZ) - timedelta(days=1)).date()
+        try:
+            async with AsyncSessionLocal() as db:
+                counts = await tj_collector.collect_daily(db, day)
+                logger.info("天津监管每日采集完成 %s: %s", day, counts)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("天津监管每日采集失败: %s", e)
 
 
 @asynccontextmanager
@@ -60,9 +78,11 @@ async def lifespan(app: FastAPI):
 
     t1 = asyncio.create_task(_expiry_sweep())
     t2 = asyncio.create_task(_gov_report_sweep())
+    t3 = asyncio.create_task(_tj_daily_collect())
     yield
     t1.cancel()
     t2.cancel()
+    t3.cancel()
 
 
 app = FastAPI(title=settings.APP_NAME, debug=settings.DEBUG, lifespan=lifespan)

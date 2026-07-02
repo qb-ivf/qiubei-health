@@ -7,7 +7,6 @@ from ..models.evaluation import Evaluation
 from ..models.order import Order
 from ..models.user import Patient
 from ..schemas.evaluation import EvaluationCreate
-from . import compliance_service
 
 # 允许评价的终态：完成 / 已退款（退款单的差评同样是监管关心的数据）
 _EVALUABLE = {int(OrderStatus.FINISHED), int(OrderStatus.REFUNDED)}
@@ -40,7 +39,7 @@ async def create(db: AsyncSession, uid: int, order_id: int, data: EvaluationCrea
     )
     db.add(ev)
     await db.flush()
-    await compliance_service.enqueue(db, "evaluation", ev.id)  # 评价上报监管平台（S3 映射发送）
+    # 监管上报：由 tj_collector 每日批量采集（uploadBusinessInfoAfter），无需即时入队
     return ev
 
 

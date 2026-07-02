@@ -49,8 +49,8 @@ async def pending(user=Depends(require_role("pharmacist", "admin")), db: AsyncSe
 @router.post("/{rx_id}/approve", response_model=PrescriptionOut)
 async def approve(rx_id: int, request: Request, user=Depends(require_role("pharmacist", "admin")), db: AsyncSession = Depends(get_db)):
     try:
-        rx = await rx_service.approve(db, rx_id)
-        await compliance_service.enqueue(db, "prescription", rx.order_id)  # 开药明细上报卫健委
+        # 监管上报改为审方通过后 T+1 每日批量采集（tj_collector）；此处记录审方药师
+        rx = await rx_service.approve(db, rx_id, staff_id=int(user["sub"]))
         await audit_service.record(db, user, request, "审方通过", "prescription", rx_id, f"订单{rx.order_id}")
         await db.commit()
     except rx_service.RxError as e:
