@@ -1,8 +1,9 @@
 """导入国家临床版 2.0 ICD-10 编码表到 icd10_codes（天津监管 S2）。重复执行安全（按 code 幂等）。
 
-数据源（已随仓库归档）：
-  docs/specs/tianjin/国家临床版2.0疾病诊断编码（ICD-10）.xlsx        → catalog=west
-  docs/specs/tianjin/国家临床版2.0中医疾病诊断编码（ICD-10-中医）.xlsx → catalog=tcm
+数据源（两处兜底：容器内只挂载 backend/，故 backend/data/tj_dicts 为主；docs 归档为备）：
+  backend/data/tj_dicts/*.xlsx  或  docs/specs/tianjin/*.xlsx
+  国家临床版2.0疾病诊断编码（ICD-10）.xlsx        → catalog=west
+  国家临床版2.0中医疾病诊断编码（ICD-10-中医）.xlsx → catalog=tcm
 
 用法（backend 目录）：
   pip install openpyxl
@@ -21,10 +22,16 @@ from sqlalchemy import delete, func, insert, select
 from app.core.database import engine
 from app.models.icd10 import Icd10Code
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+BACKEND_ROOT = Path(__file__).resolve().parent.parent          # backend/（容器内 /app）
+REPO_ROOT = BACKEND_ROOT.parent
+_FILES = [
+    ("国家临床版2.0疾病诊断编码（ICD-10）.xlsx", "west"),
+    ("国家临床版2.0中医疾病诊断编码（ICD-10-中医）.xlsx", "tcm"),
+]
+_DIRS = [BACKEND_ROOT / "data/tj_dicts", REPO_ROOT / "docs/specs/tianjin"]
 SOURCES = [
-    (REPO_ROOT / "docs/specs/tianjin/国家临床版2.0疾病诊断编码（ICD-10）.xlsx", "west"),
-    (REPO_ROOT / "docs/specs/tianjin/国家临床版2.0中医疾病诊断编码（ICD-10-中医）.xlsx", "tcm"),
+    (next((d / name for d in _DIRS if (d / name).exists()), _DIRS[0] / name), catalog)
+    for name, catalog in _FILES
 ]
 BATCH = 2000
 
