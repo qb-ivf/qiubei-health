@@ -134,7 +134,9 @@ def build_referral(order, patient, doctor, rx=None) -> dict:
         **_base(),
         "bussID": order.order_no,
         **_doctor_fields(doctor),
-        "firstDiagnosis": order.first_diagnosis_file_ids or "",
+        # 本地路径（/uploads/…）说明尚未换取监管附件 id（采集器在网关可用时转换），不外发
+        "firstDiagnosis": ("" if "/uploads/" in (order.first_diagnosis_file_ids or "")
+                           else order.first_diagnosis_file_ids or ""),
         **_patient_fields(patient),
         "guardianCertID": _dec(getattr(patient, "guardian_cert_enc", None)) if patient else "",
         "guardianName": (getattr(patient, "guardian_name", None) or "") if patient else "",
@@ -201,7 +203,7 @@ def build_recipe(order, patient, doctor, rx, pharmacist=None) -> dict:
             "dosage": str(it.get("dosage") or "1"),
             "drunit": it.get("drunit") or "",
             "dosageTotal": it.get("qty", 1),
-            "doseUnit": it.get("doseUnit") or "盒",
+            "doseUnit": it.get("dose_unit") or "盒",
             "useDays": it.get("use_days") or 3,
             "otcFlag": "0",
         })

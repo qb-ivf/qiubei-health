@@ -12,3 +12,9 @@
 .ol-item__bot { display: flex; justify-content: space-between; align-items: center; border-top: 1rpx solid #f0f0f0; padding-top: 16rpx; }
 .ol-item__fee { font-size: 26rpx; color: #606266; }
 .ol-item__go { font-size: 26rpx; color: #909399; }
+
+/* 评价入口（完成/退款单） */
+.ol-item__eval {
+  color: var(--primary); font-size: 26rpx; font-weight: 600;
+  padding: 8rpx 28rpx; border: 2rpx solid var(--primary); border-radius: 9999rpx;
+}

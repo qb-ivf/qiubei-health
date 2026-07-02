@@ -9,6 +9,9 @@ class RegisterOrderCreate(BaseModel):
     slot_id: int
     patient_id: int
     consult_type: str = "video"   # video 视频 / text 图文
+    # 复诊合规声明（视频问诊必填，天津监管 referralFlag/originalDiagnosis）
+    referral_flag: bool | None = None
+    original_diagnosis: str | None = None
 
 
 class OrderOut(BaseModel):

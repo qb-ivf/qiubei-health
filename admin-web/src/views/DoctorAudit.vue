@@ -10,10 +10,13 @@ const loading = ref(false)
 const drawer = ref(false)
 const current = ref({})
 
-// —— 编辑医生信息 ——
+// —— 编辑医生信息（含天津监管补录：科目/科室编码、身份证）——
 const editVisible = ref(false)
 const editId = ref(null)
-const editForm = reactive({ name: '', dept: '', title: '', license_no: '', practice_no: '', good_at: '', years: null, register_fee: 0 })
+const editForm = reactive({
+  name: '', dept: '', title: '', license_no: '', practice_no: '', good_at: '', years: null, register_fee: 0,
+  subject_code: '', subject_name: '', dept_code: '', id_card: '',
+})
 
 const TABS = [
   { k: 'pending', t: '待审核' },
@@ -36,7 +39,8 @@ async function load() {
       id: d.id, name: d.name || '(未填)', dept: d.dept || '—', title: d.title || '—',
       license: d.license_no || '—', practice: d.practice_no || '—',
       phone: d.phone || '—', goodAt: d.good_at || '—', years: d.years, fee: d.register_fee,
-      status: d.audit_status, time: d.created_at, raw: d
+      status: d.audit_status, time: d.created_at,
+      tjReady: Boolean(d.subject_code && d.dept_code && d.id_card_filled), raw: d
     }))
   } finally {
     loading.value = false
@@ -54,12 +58,16 @@ function edit(row) {
     name: d.name || '', dept: d.dept || '', title: d.title || '',
     license_no: d.license_no || '', practice_no: d.practice_no || '',
     good_at: d.good_at || '', years: d.years ?? null, register_fee: d.register_fee ?? 0,
+    subject_code: d.subject_code || '', subject_name: d.subject_name || '',
+    dept_code: d.dept_code || '', id_card: '',   // 身份证不回显，留空=不修改
   })
   editVisible.value = true
 }
 async function saveEdit() {
   try {
-    await request.put(`/admin/doctors/${editId.value}`, { ...editForm })
+    const payload = { ...editForm }
+    if (!payload.id_card) delete payload.id_card  // 未填写则不覆盖
+    await request.put(`/admin/doctors/${editId.value}`, payload)
     ElMessage.success('已保存'); editVisible.value = false; load()
   } catch (e) { /* 拦截器已提示 */ }
 }
@@ -94,6 +102,12 @@ async function deny(row) {
       <el-table-column label="状态" width="100">
         <template #default="{ row }">
           <el-tag :type="(STATUS[row.status] || {}).type">{{ (STATUS[row.status] || {}).t || row.status }}</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="监管备案" width="100">
+        <template #default="{ row }">
+          <el-tag v-if="row.tjReady" type="success">已补录</el-tag>
+          <el-tag v-else type="warning">待补录</el-tag>
         </template>
       </el-table-column>
       <el-table-column label="操作" width="320">
@@ -141,6 +155,13 @@ async function deny(row) {
       <el-form-item label="擅长"><el-input v-model="editForm.good_at" type="textarea" :rows="2" /></el-form-item>
       <el-form-item label="执业年限"><el-input-number v-model="editForm.years" :min="0" :max="60" /></el-form-item>
       <el-form-item label="挂号费(元)"><el-input-number v-model="editForm.register_fee" :min="0" :precision="2" :step="1" /></el-form-item>
+      <el-divider content-position="left">天津监管补录（上报必填）</el-divider>
+      <el-form-item label="诊疗科目编码"><el-input v-model="editForm.subject_code" placeholder="国家诊疗科目字典，如 03.01" /></el-form-item>
+      <el-form-item label="诊疗科目名称"><el-input v-model="editForm.subject_name" placeholder="如 呼吸内科专业" /></el-form-item>
+      <el-form-item label="科室类别编码"><el-input v-model="editForm.dept_code" placeholder="科室类别字典，如 03（内科）" /></el-form-item>
+      <el-form-item label="身份证号">
+        <el-input v-model="editForm.id_card" maxlength="18" placeholder="加密存储不回显；留空表示不修改" />
+      </el-form-item>
     </el-form>
     <template #footer>
       <el-button @click="editVisible = false">取消</el-button>

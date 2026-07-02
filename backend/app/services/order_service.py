@@ -38,12 +38,19 @@ def _stamp(order: Order, to: OrderStatus) -> None:
 
 
 async def create_register_order(
-    db: AsyncSession, user_id: int, doctor_id: int, slot_id: int, patient_id: int, consult_type: str = "video"
+    db: AsyncSession, user_id: int, doctor_id: int, slot_id: int, patient_id: int,
+    consult_type: str = "video",
+    referral_flag: bool | None = None, original_diagnosis: str | None = None,
 ) -> Order:
-    """创建挂号订单：Redis 号源锁（DECR 防超卖）+ PENDING。"""
+    """创建挂号订单：Redis 号源锁（DECR 防超卖）+ PENDING。
+
+    复诊合规（天津监管）：视频问诊必须声明"已在实体医院确诊"（referral_flag）。
+    """
     doctor = await db.get(Doctor, doctor_id)
     if doctor is None:
         raise StateError("医生不存在")
+    if consult_type == "video" and referral_flag is False:
+        raise StateError("互联网医院仅提供复诊服务，请先在实体医院完成首诊")
 
     # 号源锁：DECR < 0 则回补并报无号
     left = await redis_client.decr(_slot_key(slot_id))
@@ -56,6 +63,8 @@ async def create_register_order(
         user_id=user_id, patient_id=patient_id, doctor_id=doctor_id, slot_id=slot_id,
         register_fee_fen=doctor.register_fee_fen, status=int(OrderStatus.PENDING),
         consult_type=consult_type if consult_type in ("video", "text") else "video",
+        referral_flag=referral_flag,
+        original_diagnosis=(original_diagnosis or "").strip()[:255] or None,
     )
     db.add(order)
     await db.flush()

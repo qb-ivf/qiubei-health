@@ -1,0 +1,25 @@
+.ev { padding-top: 32rpx; }
+.ev-card { padding: 32rpx; }
+
+.ev-stars { display: flex; justify-content: center; gap: 16rpx; margin: 32rpx 0 12rpx; }
+.ev-stars--ro { justify-content: flex-start; margin: 24rpx 0; }
+.ev-star { font-size: 64rpx; color: var(--outline-variant); }
+.ev-star--on { color: #f7ba2a; }
+
+.ev-score { display: flex; align-items: center; margin: 32rpx 0 8rpx; }
+
+.ev-textarea {
+  width: 100%; box-sizing: border-box; min-height: 200rpx; margin-top: 24rpx;
+  padding: 24rpx; border-radius: 16rpx; background: var(--sc-low);
+  border: 1rpx solid var(--outline-variant); font-size: 28rpx;
+}
+.ev-textarea--sm { min-height: 120rpx; }
+
+.ev-row { display: flex; gap: 16rpx; margin-top: 20rpx; }
+
+.ev-submit {
+  margin-top: 48rpx; height: 96rpx; background: var(--primary); color: #fff;
+  border-radius: 9999rpx; font-size: 32rpx; font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 6rpx 16rpx rgba(0, 0, 0, .12);
+}

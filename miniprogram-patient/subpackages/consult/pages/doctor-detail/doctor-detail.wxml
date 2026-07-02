@@ -75,6 +75,37 @@
     </view>
   </view>
 
+  <!-- 复诊合规声明（仅视频问诊，天津监管 referralFlag/首诊材料） -->
+  <view wx:if="{{service==='video'}}" class="px-margin-x" style="margin-top:32rpx;">
+    <view class="card" style="padding:32rpx;">
+      <text class="text-label-lg" style="display:block;padding-bottom:16rpx;border-bottom:1rpx solid var(--outline-variant);">复诊声明</text>
+      <view class="dd-policy" style="padding:24rpx 0 8rpx;" bindtap="toggleReferral">
+        <view class="dd-check {{referralAgreed ? 'dd-check--on' : ''}}">
+          <text wx:if="{{referralAgreed}}" class="material-symbols-outlined" style="font-size:28rpx;color:#fff;">check</text>
+        </view>
+        <text class="text-caption text-on-surface-variant">本人确认已在实体医疗机构就同一疾病完成首诊，本次为<text class="text-primary">复诊</text>（互联网医院仅提供复诊服务）</text>
+      </view>
+      <view class="dd-fd-field">
+        <text class="text-body-sm text-on-surface-variant">首诊诊断（选填）</text>
+        <input class="dd-fd-input" placeholder="如：急性支气管炎（实体医院诊断）" value="{{originalDiagnosis}}" bindinput="onOrigDiag" />
+      </view>
+      <view class="dd-fd-field">
+        <text class="text-body-sm text-on-surface-variant">首诊材料（选填，病历/处方/检查单照片，最多4张）</text>
+        <view class="dd-fd-grid">
+          <view class="dd-fd-item" wx:for="{{fdImages}}" wx:key="*this">
+            <image class="dd-fd-img" src="{{item}}" mode="aspectFill" bindtap="previewFd" data-src="{{item}}" />
+            <view class="dd-fd-del" catchtap="removeFd" data-i="{{index}}">
+              <text class="material-symbols-outlined" style="font-size:26rpx;color:#fff;">close</text>
+            </view>
+          </view>
+          <view wx:if="{{fdImages.length < 4}}" class="dd-fd-add" bindtap="chooseFd">
+            <text class="material-symbols-outlined" style="font-size:48rpx;color:var(--outline);">add_a_photo</text>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+
   <!-- 协议勾选 -->
   <view class="px-margin-x dd-policy" bindtap="togglePolicy">
     <view class="dd-check {{agreed ? 'dd-check--on' : ''}}">

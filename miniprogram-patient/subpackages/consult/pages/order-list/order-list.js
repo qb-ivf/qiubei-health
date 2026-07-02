@@ -24,10 +24,18 @@ Page({
           statusText: TEXT[o.status] || '',
           typeText: o.consult_type === 'text' ? '图文' : '视频',
           feeYuan: (o.register_fee_fen / 100).toFixed(2),
-          timeText: fmtTime(o.created_at)
+          timeText: fmtTime(o.created_at),
+          canEvaluate: o.status === 6 || o.status === 7   // 完成/退款后可评价（监管 2.4.1）
         }))
       });
     }).catch(() => {});
+  },
+
+  // 去评价（catchtap 防止触发卡片 open）
+  goEvaluate(e) {
+    const o = this.data.list[+e.currentTarget.dataset.i];
+    if (!o) return;
+    wx.navigateTo({ url: `/subpackages/consult/pages/evaluate/evaluate?orderId=${o.id}&doctor=${o.doctor_name || ''}` });
   },
 
   open(e) {

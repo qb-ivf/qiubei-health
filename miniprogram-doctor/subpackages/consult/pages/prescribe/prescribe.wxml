@@ -59,13 +59,45 @@
 
       <!-- 书写病历 -->
       <view wx:if="{{tab==='record'}}" class="pr-view">
+        <!-- 患者复诊声明与首诊材料（下单时填写） -->
+        <view wx:if="{{referral}}" class="pr-referral">
+          <view class="flex items-center gap-1">
+            <text class="material-symbols-outlined text-primary" style="font-size:32rpx;">verified</text>
+            <text class="text-label-md text-on-surface">患者复诊声明：{{referral.flag === false ? '未声明' : '已确认实体医院首诊'}}</text>
+          </view>
+          <text wx:if="{{referral.original}}" class="text-body-sm text-on-surface-variant" style="display:block;margin-top:8rpx;">首诊诊断：{{referral.original}}</text>
+          <view wx:if="{{referral.images.length}}" class="pr-referral__imgs">
+            <image wx:for="{{referral.images}}" wx:key="*this" class="pr-referral__img" src="{{item}}" mode="aspectFill"
+              bindtap="previewReferral" data-src="{{item}}" />
+          </view>
+        </view>
+
         <view class="pr-field">
           <text class="text-label-md text-on-surface-variant">现病史</text>
           <textarea class="pr-textarea" placeholder="详细记录症状演变过程、伴随症状等..." value="{{form.present_illness}}" data-f="present_illness" bindinput="onField" adjust-position="{{false}}" cursor-spacing="20" bindfocus="onFocus" bindblur="onBlur"></textarea>
         </view>
         <view class="pr-field">
-          <text class="text-label-md text-on-surface-variant">初步诊断</text>
-          <textarea class="pr-textarea" placeholder="请输入诊断结果..." value="{{form.diagnosis}}" data-f="diagnosis" bindinput="onField" adjust-position="{{false}}" cursor-spacing="20" bindfocus="onFocus" bindblur="onBlur"></textarea>
+          <text class="text-label-md text-on-surface-variant">诊断（ICD-10，可多选，监管必填）</text>
+          <view class="pr-search" style="margin-top:12rpx;">
+            <text class="material-symbols-outlined text-outline">search</text>
+            <input class="flex-1 text-body-md" placeholder="搜索疾病名称或编码，如：支气管炎 / J20" value="{{icdKw}}" bindinput="onIcdInput" adjust-position="{{false}}" cursor-spacing="20" bindfocus="onFocus" bindblur="onBlur" />
+          </view>
+          <view wx:if="{{icdSuggestions.length}}" class="pr-sugg">
+            <view class="pr-sugg__item" wx:for="{{icdSuggestions}}" wx:key="code" bindtap="addIcd" data-i="{{index}}">
+              <view><text class="text-body-md text-on-surface">{{item.name}}</text><text class="text-caption text-on-surface-variant" style="display:block;">{{item.code}}</text></view>
+              <text class="material-symbols-outlined text-primary">add_circle</text>
+            </view>
+          </view>
+          <view wx:if="{{icdList.length}}" class="pr-icd-chips">
+            <view class="pr-icd-chip" wx:for="{{icdList}}" wx:key="code">
+              <text>{{item.code}} {{item.name}}</text>
+              <text class="material-symbols-outlined" style="font-size:28rpx;" bindtap="delIcd" data-i="{{index}}">close</text>
+            </view>
+          </view>
+        </view>
+        <view class="pr-field">
+          <text class="text-label-md text-on-surface-variant">初步诊断（文字）</text>
+          <textarea class="pr-textarea" placeholder="选择 ICD 后自动填入，可补充修改..." value="{{form.diagnosis}}" data-f="diagnosis" bindinput="onField" adjust-position="{{false}}" cursor-spacing="20" bindfocus="onFocus" bindblur="onBlur"></textarea>
         </view>
         <view class="pr-field">
           <text class="text-label-md text-on-surface-variant">医嘱</text>
@@ -84,7 +116,10 @@
         </view>
         <view wx:if="{{suggestions.length}}" class="pr-sugg">
           <view class="pr-sugg__item" wx:for="{{suggestions}}" wx:key="name" bindtap="addDrug" data-i="{{index}}">
-            <text class="text-body-md text-on-surface">{{item.name}}</text>
+            <view>
+              <text class="text-body-md text-on-surface">{{item.name}}</text>
+              <text class="text-caption text-on-surface-variant" style="display:block;">{{item.spec || ''}} ¥{{item.price}}{{item.restricted ? '（限售，不可开具）' : ''}}</text>
+            </view>
             <text class="material-symbols-outlined text-primary">add_circle</text>
           </view>
         </view>
@@ -105,6 +140,14 @@
               <view class="pr-usage">{{usageOptions[item.usageIdx]}}</view>
             </picker>
             <view class="text-error" bindtap="delDrug" data-i="{{index}}"><text class="material-symbols-outlined">delete</text></view>
+          </view>
+          <view class="flex items-center justify-between" style="margin-top:12rpx;">
+            <text class="text-caption text-on-surface-variant">用药天数（监管上报）</text>
+            <view class="pr-stepper">
+              <view class="pr-stepper__btn" bindtap="decDays" data-i="{{index}}"><text class="material-symbols-outlined" style="font-size:32rpx;">remove</text></view>
+              <text class="pr-stepper__num">{{item.useDays}}天</text>
+              <view class="pr-stepper__btn" bindtap="incDays" data-i="{{index}}"><text class="material-symbols-outlined" style="font-size:32rpx;">add</text></view>
+            </view>
           </view>
         </view>
         <view wx:if="{{!drugs.length}}" class="stub">尚未添加药品，请搜索院内药品</view>

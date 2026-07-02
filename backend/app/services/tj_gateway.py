@@ -33,6 +33,7 @@ class TjResult:
     msg_code: int | None
     msg: str
     raw: str = ""
+    data: list | None = None   # 平台返回 data（如 uploadFile 的附件 id 集合）
 
 
 def _classify(code: int, msg_code: int | None, msg: str, raw: str) -> TjResult:
@@ -89,11 +90,13 @@ async def _post(url: str, content: str, headers: dict, method: str) -> TjResult:
             body = body[0] if body else {}
         msg_code = int(body.get("msgCode")) if body.get("msgCode") is not None else None
         msg = str(body.get("msg", ""))
+        resp_data = data.get("data") if isinstance(data.get("data"), list) else None
     except (ValueError, TypeError, json.JSONDecodeError):
         logger.warning("监管平台响应解析失败 method=%s: %s", method, raw[:200])
         return TjResult(False, True, -1000, None, "响应解析失败", raw)
 
     result = _classify(code, msg_code, msg, raw)
+    result.data = resp_data
     if not result.ok:
         logger.warning(
             "监管平台上报失败 method=%s code=%s msgCode=%s msg=%s retryable=%s",

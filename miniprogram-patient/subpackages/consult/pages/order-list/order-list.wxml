@@ -12,7 +12,10 @@
     <view wx:if="{{item.timeText}}" class="ol-item__time" style="color:#9aa3ab;font-size:24rpx;margin-top:6rpx;">{{item.timeText}}</view>
     <view class="ol-item__bot">
       <text class="ol-item__fee">挂号费 ¥{{item.feeYuan}}</text>
-      <text class="ol-item__go">查看 ›</text>
+      <view class="flex items-center" style="gap:24rpx;">
+        <text wx:if="{{item.canEvaluate}}" class="ol-item__eval" catchtap="goEvaluate" data-i="{{index}}">评价</text>
+        <text class="ol-item__go">查看 ›</text>
+      </view>
     </view>
   </view>
 </view>

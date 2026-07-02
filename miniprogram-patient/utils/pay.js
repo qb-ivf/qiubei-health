@@ -6,12 +6,17 @@ const { request } = require('./request.js');
  * 测试号无商户号时 requestPayment 会 fail，自动降级开发 mock 支付。
  * @returns {Promise<{ok:boolean, orderId?:number, mock?:boolean, cancelled?:boolean}>}
  */
-async function payRegister({ doctorId, slotId, patientId, consultType }) {
+async function payRegister({ doctorId, slotId, patientId, consultType, referralFlag, originalDiagnosis }) {
   let order;
   try {
     order = await request('/orders/register', {
       method: 'POST',
-      data: { doctor_id: doctorId, slot_id: slotId, patient_id: patientId, consult_type: consultType || 'video' }
+      data: {
+        doctor_id: doctorId, slot_id: slotId, patient_id: patientId, consult_type: consultType || 'video',
+        // 复诊合规声明（天津监管 referralFlag/originalDiagnosis，视频问诊必填）
+        referral_flag: referralFlag === undefined ? null : referralFlag,
+        original_diagnosis: originalDiagnosis || null
+      }
     });
   } catch (e) {
     return { ok: false, detail: (e && e.detail) || '下单失败' };

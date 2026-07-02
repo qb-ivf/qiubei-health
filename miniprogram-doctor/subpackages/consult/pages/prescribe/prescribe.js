@@ -5,13 +5,6 @@ const { request } = require('../../../../utils/request.js');
 const _trtc = require('../../../../utils/trtc-wx.js');
 const TRTC = (_trtc && _trtc.default) ? _trtc.default : _trtc;
 
-const DRUG_DB = [
-  { name: '阿莫西林胶囊 (Amoxicillin)', spec: '0.25g*24粒/盒', price: '18.50' },
-  { name: '布洛芬缓释胶囊 (Ibuprofen)', spec: '0.3g*22粒/盒', price: '21.00' },
-  { name: '连花清瘟胶囊', spec: '0.35g*24粒/盒', price: '16.80' },
-  { name: '蒙脱石散', spec: '3g*10袋/盒', price: '12.30' }
-];
-
 Page({
   data: {
     statusBar: 20,
@@ -24,13 +17,17 @@ Page({
     playerList: [],         // 远端拉流（患者，取 [0]）
     timeText: '00:00', seconds: 0,
     drugKw: '',
-    suggestions: [],
+    suggestions: [],        // 院内药品搜索结果（后端 /drugs）
     phrases: [],   // 常用语（一键填入医嘱）
     usageOptions: ['一日三次，一次一粒', '一日两次，一次一粒', '一日三次，一次两粒', '睡前服用一次'],
-    drugs: [
-      { name: '阿莫西林胶囊 (Amoxicillin)', spec: '0.25g*24粒/盒', price: '18.50', qty: 1, usageIdx: 0 }
-    ],
-    form: { present_illness: '', diagnosis: '急性上呼吸道感染', advice: '' }
+    drugs: [],
+    form: { present_illness: '', diagnosis: '', advice: '' },
+    // ICD-10 诊断编码（天津监管必输；搜索选择，可多选）
+    icdKw: '',
+    icdSuggestions: [],
+    icdList: [],
+    // 患者复诊声明（下单时填写，医生接诊查看）
+    referral: null
   },
 
   onField(e) {
@@ -39,6 +36,53 @@ Page({
 
   loadPhrases() {
     request('/doctors/phrases').then((l) => this.setData({ phrases: Array.isArray(l) ? l : [] })).catch(() => {});
+  },
+
+  // 患者复诊声明与首诊材料（下单时填写；图片经 /uploads 静态托管）
+  loadReferralInfo() {
+    if (!this.orderId) return;
+    const base = app.globalData.baseUrl.replace(/\/$/, '');
+    request(`/orders/${this.orderId}/referral-info`).then((r) => {
+      if (!r) return;
+      this.setData({
+        referral: {
+          flag: r.referral_flag,
+          original: r.original_diagnosis || '',
+          images: (r.images || []).map((p) => base + p)
+        }
+      });
+    }).catch(() => {});
+  },
+  previewReferral(e) {
+    const r = this.data.referral;
+    if (r && r.images.length) wx.previewImage({ current: e.currentTarget.dataset.src, urls: r.images });
+  },
+
+  // —— ICD-10 诊断编码搜索选择（天津监管必输）——
+  onIcdInput(e) {
+    const kw = e.detail.value;
+    this.setData({ icdKw: kw });
+    clearTimeout(this._icdTimer);
+    if (!kw.trim()) { this.setData({ icdSuggestions: [] }); return; }
+    this._icdTimer = setTimeout(() => {
+      request(`/icd10?q=${encodeURIComponent(kw.trim())}`)
+        .then((l) => this.setData({ icdSuggestions: Array.isArray(l) ? l : [] }))
+        .catch(() => {});
+    }, 300);
+  },
+  addIcd(e) {
+    const it = this.data.icdSuggestions[+e.currentTarget.dataset.i];
+    if (!it || this.data.icdList.some((x) => x.code === it.code)) {
+      this.setData({ icdKw: '', icdSuggestions: [] });
+      return;
+    }
+    const icdList = [...this.data.icdList, it];
+    // 诊断文本自动同步为已选 ICD 名称（医生仍可手改）
+    this.setData({ icdList, icdKw: '', icdSuggestions: [], 'form.diagnosis': icdList.map((x) => x.name).join('；') });
+  },
+  delIcd(e) {
+    const icdList = this.data.icdList.filter((_, idx) => idx !== +e.currentTarget.dataset.i);
+    this.setData({ icdList, 'form.diagnosis': icdList.map((x) => x.name).join('；') });
   },
 
   // 点常用语 → 追加到医嘱
@@ -57,6 +101,7 @@ Page({
     this.orderId = (query.room || '').replace('room_', '') || query.order || '';
     this.fetchRtc();
     this.loadPhrases();
+    this.loadReferralInfo();
     // 监听患者挂断：结束视频但不离页，医生继续写病历/开处方
     signaling.connect();
     signaling.on(signaling.SIGNAL.CALL_FINISHED, (m) => this.onPeerFinished(m));
@@ -178,31 +223,54 @@ Page({
     });
   },
 
+  // 院内药品搜索（后端 /drugs 字典，含 drug_id 供监管处方明细关联目录）
   onDrugInput(e) {
     const kw = e.detail.value;
-    const suggestions = kw ? DRUG_DB.filter(d => d.name.includes(kw)) : [];
-    this.setData({ drugKw: kw, suggestions });
+    this.setData({ drugKw: kw });
+    clearTimeout(this._drugTimer);
+    if (!kw.trim()) { this.setData({ suggestions: [] }); return; }
+    this._drugTimer = setTimeout(() => {
+      request(`/drugs?q=${encodeURIComponent(kw.trim())}`).then((l) => {
+        const suggestions = (Array.isArray(l) ? l : []).map((d) => ({
+          ...d, price: (d.price_fen / 100).toFixed(2)
+        }));
+        this.setData({ suggestions });
+      }).catch(() => {});
+    }, 300);
   },
   addDrug(e) {
     const d = this.data.suggestions[+e.currentTarget.dataset.i];
+    if (!d) return;
+    if (d.restricted) { wx.showToast({ title: '特殊管理药品，互联网医院不可开具', icon: 'none' }); return; }
     if (this.data.drugs.some(x => x.name === d.name)) return;
-    this.setData({ drugs: [...this.data.drugs, { ...d, qty: 1, usageIdx: 0 }], drugKw: '', suggestions: [] });
+    this.setData({
+      drugs: [...this.data.drugs, { ...d, qty: 1, usageIdx: 0, useDays: 3 }],
+      drugKw: '', suggestions: []
+    });
   },
   inc(e) { const i = +e.currentTarget.dataset.i; const drugs = this.data.drugs; drugs[i].qty++; this.setData({ drugs }); },
   dec(e) { const i = +e.currentTarget.dataset.i; const drugs = this.data.drugs; if (drugs[i].qty > 1) drugs[i].qty--; this.setData({ drugs }); },
+  incDays(e) { const i = +e.currentTarget.dataset.i; const drugs = this.data.drugs; drugs[i].useDays = Math.min((drugs[i].useDays || 3) + 1, 30); this.setData({ drugs }); },
+  decDays(e) { const i = +e.currentTarget.dataset.i; const drugs = this.data.drugs; if ((drugs[i].useDays || 3) > 1) { drugs[i].useDays--; this.setData({ drugs }); } },
   onUsage(e) { const i = +e.currentTarget.dataset.i; const drugs = this.data.drugs; drugs[i].usageIdx = +e.detail.value; this.setData({ drugs }); },
   delDrug(e) { const drugs = this.data.drugs.filter((_, idx) => idx !== +e.currentTarget.dataset.i); this.setData({ drugs }); },
 
   // 数字签名并发送处方 → CA 签名 loading → 订单 AUDITING → 通知患者结束 → 退回 D1
   submit() {
     if (!this.data.drugs.length) { wx.showToast({ title: '请先开具药品', icon: 'none' }); return; }
+    if (!this.data.icdList.length) { wx.showToast({ title: '请选择 ICD-10 诊断（监管必填）', icon: 'none' }); return; }
     if (!this.data.form.diagnosis) { wx.showToast({ title: '请填写初步诊断', icon: 'none' }); return; }
     if (!this.orderId) { wx.showToast({ title: '缺少订单信息', icon: 'none' }); return; }
 
     const items = this.data.drugs.map((d) => ({
       name: d.name, spec: d.spec, qty: d.qty,
       usage: this.data.usageOptions[d.usageIdx],
-      price_fen: Math.round(parseFloat(d.price || 0) * 100)
+      price_fen: d.price_fen != null ? d.price_fen : Math.round(parseFloat(d.price || 0) * 100),
+      // 天津监管处方明细字段
+      drug_id: d.id || null,
+      frequency: this.data.usageOptions[d.usageIdx],
+      use_days: d.useDays || 3,
+      dose_unit: '盒'
     }));
 
     wx.showLoading({ title: 'CA 数字签名中...', mask: true });
@@ -213,6 +281,8 @@ Page({
         present_illness: this.data.form.present_illness,
         diagnosis: this.data.form.diagnosis,
         advice: this.data.form.advice,
+        icd_code: this.data.icdList.map((x) => x.code).join('|'),
+        icd_name: this.data.icdList.map((x) => x.name).join('|'),
         items
       }
     }).then(() => {

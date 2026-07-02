@@ -77,6 +77,9 @@ async def list_doctors(status: str | None = None, user=Depends(_admin), db: Asyn
             "register_fee": d.register_fee_fen / 100,
             "phone": mask_phone(_safe_decrypt(u.phone_enc)) if u and u.phone_enc else None,
             "audit_status": d.audit_status, "created_at": _fmt(d.created_at),
+            # 天津监管补录字段（身份证只回填"是否已录"，不回显明文）
+            "subject_code": d.subject_code, "subject_name": d.subject_name,
+            "dept_code": d.dept_code, "id_card_filled": bool(d.id_card_enc),
         })
     return out
 
@@ -155,6 +158,16 @@ async def update_doctor(doctor_id: int, request: Request, body: dict = Body(...)
         if fee < 0:
             raise HTTPException(status_code=400, detail="挂号费不能为负")
         d.register_fee_fen = int(round(fee * 100))
+    # —— 天津监管补录字段（S0 T6 字典对照后录入）——
+    if "subject_code" in body:
+        d.subject_code = (body.get("subject_code") or "").strip() or None
+    if "subject_name" in body:
+        d.subject_name = (body.get("subject_name") or "").strip() or None
+    if "dept_code" in body:
+        d.dept_code = (body.get("dept_code") or "").strip() or None
+    if body.get("id_card"):  # 身份证明文入参 → 加密落库，不回显
+        from ...core.crypto import encrypt
+        d.id_card_enc = encrypt(str(body["id_card"]).strip())
     await audit_service.record(db, user, request, "编辑医生信息", "doctor", doctor_id, d.name or str(doctor_id))
     await db.commit()
     return {"id": d.id}

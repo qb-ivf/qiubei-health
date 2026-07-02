@@ -1,8 +1,10 @@
 """订单接口（M2：挂号下单 + 支付 + 排队条）。"""
 import json
 import logging
+import uuid as _uuid
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,20 +20,24 @@ from ...schemas.evaluation import EvaluationCreate, EvaluationOut
 from ...schemas.order import ActiveOrderOut, OrderOut, PrepayOut, RegisterOrderCreate
 from ...services import evaluation_service, order_service, pay_service, prescription_service
 from ...ws import manager, rooms
-from ..deps import get_current_user_id, require_approved_doctor
+from ..deps import get_current_user, get_current_user_id, require_approved_doctor
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 logger = logging.getLogger("orders")
+
+_UPLOAD_DIR = Path(__file__).resolve().parents[3] / "uploads"  # backend/uploads（与聊天图片同目录，经 /uploads 托管）
+_IMG_EXT = {"jpg", "jpeg", "png", "webp"}
 
 
 @router.post("/register", response_model=OrderOut)
 async def create_register_order(
     body: RegisterOrderCreate, uid: int = Depends(get_current_user_id), db: AsyncSession = Depends(get_db)
 ):
-    """挂号下单（号源锁，PENDING）。"""
+    """挂号下单（号源锁，PENDING）。视频问诊须携带复诊声明（referral_flag）。"""
     try:
         order = await order_service.create_register_order(
-            db, uid, body.doctor_id, body.slot_id, body.patient_id, body.consult_type
+            db, uid, body.doctor_id, body.slot_id, body.patient_id, body.consult_type,
+            referral_flag=body.referral_flag, original_diagnosis=body.original_diagnosis,
         )
         await db.commit()
         await db.refresh(order)
@@ -169,6 +175,53 @@ async def logistics(order_id: int, uid: int = Depends(get_current_user_id), db: 
     rx = await prescription_service.get_by_order(db, order_id)
     drugs = [{"name": it.get("name"), "qty": it.get("qty", 1)} for it in (rx.items if rx else [])]
     return {"paid": paid, "timeline": timeline, "drugs": drugs}
+
+
+@router.post("/{order_id}/first-diagnosis")
+async def upload_first_diagnosis(
+    order_id: int, file: UploadFile = File(...), uid: int = Depends(get_current_user_id), db: AsyncSession = Depends(get_db)
+):
+    """上传首诊材料图片（复诊合规，最多 4 张）。本地存储；上报时由采集器换取监管附件 id。"""
+    order = await db.get(Order, order_id)
+    if not order or order.user_id != uid:
+        raise HTTPException(status_code=404, detail="订单不存在")
+    existing = [p for p in (order.first_diagnosis_file_ids or "").split(",") if p]
+    if len(existing) >= 4:
+        raise HTTPException(status_code=409, detail="首诊材料最多上传 4 张")
+    ext = (file.filename or "").rsplit(".", 1)[-1].lower() if "." in (file.filename or "") else "jpg"
+    if ext not in _IMG_EXT:
+        ext = "jpg"
+    data = await file.read()
+    if len(data) > 8 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="图片不能超过 8MB")
+    _UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    name = f"fd_{_uuid.uuid4().hex}.{ext}"
+    (_UPLOAD_DIR / name).write_bytes(data)
+    existing.append(f"/uploads/{name}")
+    order.first_diagnosis_file_ids = ",".join(existing)[:300]
+    await db.commit()
+    return {"images": existing}
+
+
+@router.get("/{order_id}/referral-info")
+async def referral_info(order_id: int, user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """复诊声明信息（患者本人或接诊医生可看：声明标志/原诊断/首诊材料图）。"""
+    order = await db.get(Order, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="订单不存在")
+    uid = int(user["sub"])
+    if user.get("role") == "doctor":
+        did = await db.scalar(select(Doctor.id).where(Doctor.user_id == uid))
+        if did != order.doctor_id:
+            raise HTTPException(status_code=403, detail="无权查看")
+    elif order.user_id != uid:
+        raise HTTPException(status_code=403, detail="无权查看")
+    images = [p for p in (order.first_diagnosis_file_ids or "").split(",") if p.startswith("/uploads/")]
+    return {
+        "referral_flag": order.referral_flag,
+        "original_diagnosis": order.original_diagnosis,
+        "images": images,
+    }
 
 
 @router.post("/{order_id}/evaluation", response_model=EvaluationOut)

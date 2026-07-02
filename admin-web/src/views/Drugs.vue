@@ -9,14 +9,19 @@ const loading = ref(false)
 const dialog = ref(false)
 const editing = ref(null)   // null=新增，否则=药品id
 const CATEGORIES = ['处方药', '非处方药', '特殊限售药']
-const form = reactive({ name: '', spec: '', price: 0, category: '处方药', restricted: false })
+const form = reactive({
+  name: '', spec: '', price: 0, category: '处方药', restricted: false,
+  drug_class: '', countrydrcode: '', packing: '', manufacturer: '',
+})
 
 async function load() {
   loading.value = true
   try {
     const data = await request.get('/admin/drugs')
     list.value = (data || []).map((d) => ({
-      id: d.id, name: d.name, spec: d.spec, category: d.category, price: d.price, restricted: d.restricted
+      id: d.id, name: d.name, spec: d.spec, category: d.category, price: d.price, restricted: d.restricted,
+      drug_class: d.drug_class, countrydrcode: d.countrydrcode, packing: d.packing, manufacturer: d.manufacturer,
+      tjReady: Boolean(d.drug_class && (d.packing || d.spec) && d.manufacturer),
     }))
   } finally {
     loading.value = false
@@ -30,12 +35,19 @@ function tagType(t) {
 
 function openAdd() {
   editing.value = null
-  Object.assign(form, { name: '', spec: '', price: 0, category: '处方药', restricted: false })
+  Object.assign(form, {
+    name: '', spec: '', price: 0, category: '处方药', restricted: false,
+    drug_class: '', countrydrcode: '', packing: '', manufacturer: '',
+  })
   dialog.value = true
 }
 function openEdit(row) {
   editing.value = row.id
-  Object.assign(form, { name: row.name, spec: row.spec || '', price: row.price, category: row.category, restricted: row.restricted })
+  Object.assign(form, {
+    name: row.name, spec: row.spec || '', price: row.price, category: row.category, restricted: row.restricted,
+    drug_class: row.drug_class || '', countrydrcode: row.countrydrcode || '',
+    packing: row.packing || '', manufacturer: row.manufacturer || '',
+  })
   dialog.value = true
 }
 
@@ -44,7 +56,10 @@ function onCategory(v) { if (v === '特殊限售药') form.restricted = true }
 
 async function save() {
   if (!form.name) { ElMessage.warning('请输入药品名称'); return }
-  const payload = { name: form.name, spec: form.spec, price: Number(form.price), category: form.category, restricted: form.restricted }
+  const payload = {
+    name: form.name, spec: form.spec, price: Number(form.price), category: form.category, restricted: form.restricted,
+    drug_class: form.drug_class, countrydrcode: form.countrydrcode, packing: form.packing, manufacturer: form.manufacturer,
+  }
   if (editing.value) {
     await request.put(`/admin/drugs/${editing.value}`, payload)
     ElMessage.success('已更新')
@@ -86,6 +101,12 @@ function remove(row) {
           <span v-else class="muted">—</span>
         </template>
       </el-table-column>
+      <el-table-column label="监管备案" width="100">
+        <template #default="{ row }">
+          <el-tag v-if="row.tjReady" type="success">已补录</el-tag>
+          <el-tag v-else type="warning">待补录</el-tag>
+        </template>
+      </el-table-column>
       <el-table-column label="操作" width="160">
         <template #default="{ row }">
           <el-button size="small" type="primary" @click="openEdit(row)">编辑</el-button>
@@ -109,6 +130,11 @@ function remove(row) {
         <el-switch v-model="form.restricted" />
         <span class="hint">开启后，医生开方搜索该药将被后端直接拦截</span>
       </el-form-item>
+      <el-divider content-position="left">天津监管备案（目录上报必填）</el-divider>
+      <el-form-item label="监管分类码"><el-input v-model="form.drug_class" placeholder="药品分类代码字典 3.10，如 010101" /></el-form-item>
+      <el-form-item label="国家药品编码"><el-input v-model="form.countrydrcode" placeholder="countrydrcode（药房从说明书/医保库查）" /></el-form-item>
+      <el-form-item label="包装规格"><el-input v-model="form.packing" placeholder="如 0.25g*24粒；留空取规格" /></el-form-item>
+      <el-form-item label="产地/生产商"><el-input v-model="form.manufacturer" placeholder="生产商或品牌名称" /></el-form-item>
     </el-form>
     <template #footer>
       <el-button @click="dialog = false">取消</el-button>

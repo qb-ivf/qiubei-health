@@ -129,7 +129,32 @@ async def stats(db: AsyncSession) -> dict:
         select(func.count(GovReport.id)).where(GovReport.status.in_(["failed", "dead"]))
     ) or 0
     avg = await db.scalar(select(func.coalesce(func.avg(GovReport.latency_ms), 0))) or 0
-    return {"total": int(total), "success": int(success), "failed": int(failed), "avg_ms": int(avg)}
+
+    # 按接口方法维度的统计（S4 面板）
+    res = await db.execute(
+        select(GovReport.method, GovReport.status, func.count(GovReport.id))
+        .where(GovReport.method.is_not(None))
+        .group_by(GovReport.method, GovReport.status)
+    )
+    by_method: dict[str, dict] = {}
+    for method, status, cnt in res.all():
+        m = by_method.setdefault(method, {"method": method, "total": 0, "success": 0, "failed": 0, "dead": 0, "pending": 0})
+        m["total"] += int(cnt)
+        if status in m:
+            m[status] += int(cnt)
+
+    # 最近一次不良事件签到（每日强制）
+    res = await db.execute(
+        select(GovReport).where(GovReport.biz_type == "dispute_signin").order_by(GovReport.id.desc()).limit(1)
+    )
+    signin = res.scalars().first()
+    return {
+        "total": int(total), "success": int(success), "failed": int(failed), "avg_ms": int(avg),
+        "enabled": _gateway_ready(),
+        "by_method": sorted(by_method.values(), key=lambda x: x["method"]),
+        "signin": {"batch_date": str(signin.batch_date) if signin.batch_date else None,
+                   "status": signin.status} if signin else None,
+    }
 
 
 async def list_failed(db: AsyncSession) -> list[GovReport]:

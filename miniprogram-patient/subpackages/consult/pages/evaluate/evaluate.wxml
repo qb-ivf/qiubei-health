@@ -1,0 +1,39 @@
+<view class="ev px-margin-x">
+  <!-- 已评价：只读展示 -->
+  <view wx:if="{{done}}" class="card ev-card">
+    <text class="text-label-lg text-on-surface">我的评价</text>
+    <view class="ev-stars ev-stars--ro">
+      <text wx:for="{{[1,2,3,4,5]}}" wx:key="*this"
+        class="material-symbols-outlined ev-star {{done.satisfaction >= item ? 'ev-star--on' : ''}}">star</text>
+      <text class="text-body-sm text-on-surface-variant" style="margin-left:12rpx;">{{done.satText}}</text>
+    </view>
+    <view class="ev-row"><text class="text-body-sm text-on-surface-variant">评分</text><text class="text-label-md text-primary">{{done.scoring}} / 10 分</text></view>
+    <view class="ev-row"><text class="text-body-sm text-on-surface-variant">内容</text><text class="text-body-md text-on-surface flex-1">{{done.content}}</text></view>
+    <view wx:if="{{done.complaints}}" class="ev-row"><text class="text-body-sm text-on-surface-variant">建议</text><text class="text-body-md text-on-surface flex-1">{{done.complaints}}</text></view>
+  </view>
+
+  <!-- 未评价：表单 -->
+  <block wx:else>
+    <view class="card ev-card">
+      <text class="text-label-lg text-on-surface">本次问诊满意吗？</text>
+      <view class="ev-stars">
+        <text wx:for="{{[1,2,3,4,5]}}" wx:key="*this"
+          class="material-symbols-outlined ev-star {{satisfaction >= item ? 'ev-star--on' : ''}}"
+          bindtap="pickStar" data-v="{{item}}">star</text>
+      </view>
+      <text class="text-body-sm text-primary" style="display:block;text-align:center;">{{satText}}</text>
+
+      <view class="ev-score">
+        <text class="text-body-sm text-on-surface-variant">综合评分</text>
+        <slider min="0" max="10" step="1" value="{{scoring}}" show-value activeColor="#0056c4" bindchange="onScore" style="flex:1;margin:0 16rpx;" />
+      </view>
+
+      <textarea class="ev-textarea" placeholder="医生的诊疗过程、沟通态度如何？（必填）" value="{{content}}"
+        maxlength="300" bindinput="onContent" adjust-position="{{false}}" cursor-spacing="20"></textarea>
+      <textarea class="ev-textarea ev-textarea--sm" placeholder="投诉与建议（选填）" value="{{complaints}}"
+        maxlength="500" bindinput="onComplaints" adjust-position="{{false}}" cursor-spacing="20"></textarea>
+    </view>
+
+    <view class="ev-submit" bindtap="submit">提交评价</view>
+  </block>
+</view>

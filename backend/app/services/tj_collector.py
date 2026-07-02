@@ -4,8 +4,10 @@
 幂等：enqueue 以 (biz_type, biz_id) 去重，重复采集同一天不会产生重复任务；
       不良事件签到（dispute_signin）按日 refresh，当日无事件也发空数组（规范强制）。
 """
+import base64
 import logging
 from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +22,8 @@ from ..models.user import Doctor, Patient
 from . import compliance_service, tj_mappers
 
 logger = logging.getLogger(__name__)
+
+_UPLOAD_ROOT = Path(__file__).resolve().parents[2] / "uploads"  # backend/uploads
 
 CN_TZ = timezone(timedelta(hours=8))
 _TERMINAL = (int(OrderStatus.FINISHED), int(OrderStatus.REFUNDED), int(OrderStatus.CANCELLED))
@@ -38,6 +42,34 @@ async def _order_ctx(db: AsyncSession, order: Order):
     res = await db.execute(select(Prescription).where(Prescription.order_id == order.id))
     rx = res.scalars().first()
     return patient, doctor, rx
+
+
+async def _resolve_first_diagnosis(order: Order) -> None:
+    """首诊材料本地文件 → 监管附件 id（uploadFile）。网关未启用时保持本地路径（映射层会置空外发）。"""
+    from . import tj_gateway
+    value = order.first_diagnosis_file_ids or ""
+    if "/uploads/" not in value or not compliance_service._gateway_ready():
+        return
+    ids: list[str] = []
+    for p in value.split(","):
+        p = p.strip()
+        if not p.startswith("/uploads/"):
+            ids.append(p)  # 已是附件 id
+            continue
+        f = _UPLOAD_ROOT / p.removeprefix("/uploads/")
+        if not f.exists():
+            logger.warning("首诊材料文件缺失 order=%s path=%s", order.id, p)
+            continue
+        content = f.read_bytes()
+        result = await tj_gateway.tj_upload_file(
+            f.name, base64.b64encode(content).decode(), str(len(content)), f.suffix.lstrip(".") or "jpg"
+        )
+        if result.ok and result.data:
+            ids.extend(str(x) for x in result.data)
+        else:
+            logger.warning("首诊材料上传失败 order=%s: %s", order.id, result.msg)
+            return  # 保留本地路径，下个批次重试
+    order.first_diagnosis_file_ids = ",".join(ids)[:300]
 
 
 async def collect_daily(db: AsyncSession, day_cn: date) -> dict:
@@ -63,6 +95,7 @@ async def collect_daily(db: AsyncSession, day_cn: date) -> dict:
             )
             counts["consult"] += 1
         else:
+            await _resolve_first_diagnosis(order)  # 首诊材料换监管附件 id（网关可用时）
             await compliance_service.enqueue(
                 db, "referral", order.id, "uploadReferralIndicators",
                 [tj_mappers.build_referral(order, patient, doctor, rx)], day_cn,

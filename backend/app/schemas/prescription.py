@@ -10,6 +10,13 @@ class DrugItem(BaseModel):
     qty: int = 1
     usage: str | None = None
     price_fen: int = 0
+    # —— 天津监管处方明细字段（S3，医生端开方表单回传）——
+    drug_id: int | None = None        # 药品字典 id（→ drcode）
+    frequency: str | None = None      # 使用频度，如 每日3次
+    dosage: str | None = None         # 每次剂量，如 1
+    drunit: str | None = None         # 剂量单位，如 粒
+    dose_unit: str | None = None      # 总量单位，如 盒
+    use_days: int | None = None       # 用药天数
 
 
 class PrescriptionCreate(BaseModel):
