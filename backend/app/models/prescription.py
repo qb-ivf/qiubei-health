@@ -19,6 +19,10 @@ class Prescription(Base, TimestampMixin):
     diagnosis: Mapped[str | None] = mapped_column(String(255), nullable=True) # 初步诊断
     advice: Mapped[str | None] = mapped_column(Text, nullable=True)           # 医嘱
 
+    # ICD-10 诊断编码（天津监管必输：mainDiagnoseCode/icdCode；多个用 | 分隔）
+    icd_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    icd_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
     # 处方药品：[{name, spec, qty, usage, price_fen}]
     items: Mapped[list] = mapped_column(JSON, default=list)
 

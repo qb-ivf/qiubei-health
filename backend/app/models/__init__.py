@@ -3,6 +3,7 @@ from .audit_log import AuditLog
 from .base import Base
 from .drug import Drug
 from .gov_report import GovReport
+from .icd10 import Icd10Code
 from .ledger import Ledger
 from .message import Message
 from .notification import Notification
@@ -17,4 +18,5 @@ from .withdrawal import Withdrawal
 __all__ = [
     "Base", "Order", "Slot", "Prescription", "Ledger", "Notification", "Drug", "Withdrawal",
     "GovReport", "User", "Patient", "Doctor", "Consent", "Staff", "Phrase", "Message", "AuditLog",
+    "Icd10Code",
 ]

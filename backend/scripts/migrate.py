@@ -13,6 +13,18 @@ from app.core.database import engine
 COLUMNS = [
     ("orders", "consult_type", "VARCHAR(8) NOT NULL DEFAULT 'video'"),
     ("patients", "phone_enc", "VARCHAR(255) NULL"),
+    # —— 天津监管上报字段（docs/tianjin_supervision_plan.md S2） ——
+    ("orders", "paid_at", "DATETIME NULL"),
+    ("orders", "accepted_at", "DATETIME NULL"),
+    ("orders", "finished_at", "DATETIME NULL"),
+    ("orders", "cancel_reason", "VARCHAR(64) NULL"),
+    ("orders", "wx_transaction_id", "VARCHAR(64) NULL"),
+    ("orders", "wx_drug_transaction_id", "VARCHAR(64) NULL"),
+    ("orders", "referral_flag", "TINYINT(1) NULL"),
+    ("orders", "original_diagnosis", "VARCHAR(255) NULL"),
+    ("orders", "first_diagnosis_file_ids", "VARCHAR(300) NULL"),
+    ("prescriptions", "icd_code", "VARCHAR(64) NULL"),
+    ("prescriptions", "icd_name", "VARCHAR(255) NULL"),
 ]
 
 

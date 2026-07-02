@@ -51,6 +51,8 @@ async def submit(db: AsyncSession, doctor_uid: int, data: PrescriptionCreate) ->
     rx.chief = data.chief
     rx.present_illness = data.present_illness
     rx.diagnosis = data.diagnosis
+    rx.icd_code = data.icd_code
+    rx.icd_name = data.icd_name
     rx.advice = data.advice
     rx.items = [it.model_dump() for it in data.items]
     rx.audit_status = "pending"

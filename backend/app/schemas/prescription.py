@@ -19,12 +19,17 @@ class PrescriptionCreate(BaseModel):
     diagnosis: str
     advice: str | None = None
     items: list[DrugItem] = []
+    # ICD-10 编码（医生端诊断选择器回传；多个用 | 分隔，与监管上报格式一致）
+    icd_code: str | None = None
+    icd_name: str | None = None
 
 
 class PrescriptionOut(BaseModel):
     id: int
     order_id: int
     diagnosis: str | None = None
+    icd_code: str | None = None
+    icd_name: str | None = None
     chief: str | None = None
     advice: str | None = None
     items: list = []

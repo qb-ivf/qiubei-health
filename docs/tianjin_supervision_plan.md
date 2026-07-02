@@ -175,11 +175,13 @@ gov_reports（升级：+method +payload +batch_date +msg_code +uniq(biz_type,biz
 
 后端（`scripts/migrate.py` 补列 + 模型修改）：
 
-- [ ] 按 4.2 表逐项加列：`doctors`（身份证/科目编码/科室编码）、`staff`（身份证）、`patients`（证件类型/监护人）、`orders`（paid_at/accepted_at/finished_at/wx_transaction_id/referral_flag/original_diagnosis/first_diagnosis_file_ids/cancel_reason）、`prescriptions`（recipe_unique_id/icd_code/icd_name/recipe_type/effective_period/checked_at/rational_flag 等）、`drugs`（drug_class/countrydrcode/packing/manufacturer/use_flag）。
-- [ ] 状态机埋时间戳：支付回调写 `paid_at` 与 `wx_transaction_id`；接诊 `1→2` 写 `accepted_at`；结束/药费完成写 `finished_at`；取消/退款写原因。
-- [ ] 新表：`evaluations`、`medical_disputes`、`icd10_codes`（含导入脚本 `scripts/import_icd10.py`、字典对照导入脚本）。
-- [ ] 评价 API：`POST /api/v1/orders/{id}/evaluation`、`GET`（患者端）；不良事件 CRUD（admin）。
-- [ ] 开方接口：items 结构扩展校验（用法/频度/剂量/天数必填）；诊断改为 `icd10_codes` 多选。
+- [x] `orders` 加列：paid_at/accepted_at/finished_at/cancel_reason/wx_transaction_id/**wx_drug_transaction_id**（挂号与药费流水分开存）/referral_flag/original_diagnosis/first_diagnosis_file_ids；`prescriptions` 加 icd_code/icd_name。migrate.py 已同步。
+- [ ] 其余表加列：`doctors`（身份证/科目编码/科室编码）、`staff`（身份证）、`patients`（证件类型/监护人）、`prescriptions`（recipe_unique_id/recipe_type/effective_period/checked_at/rational_flag 等）、`drugs`（drug_class/countrydrcode/packing/manufacturer/use_flag）——依赖 S0 T6 字典对照表与 admin 补录页，随其一起做。
+- [x] 状态机埋时间戳：支付回调写 `paid_at`+微信流水号（真实回调透传 `transaction_id`）；接诊 `1→2` 写 `accepted_at`；FINISHED/REFUNDED/CANCELLED 写 `finished_at`；超时取消/退款写 `cancel_reason`。集中在 `order_service._stamp()`，幂等只写首次。
+- [x] 新表 `icd10_codes`（west 35862 条 + tcm 1890 条）+ 导入脚本 `scripts/import_icd10.py`（幂等，`--force` 重导，直接读归档 xlsx）。
+- [ ] 新表：`evaluations`、`medical_disputes` + 评价 API、不良事件 CRUD（admin）。
+- [x] 开方接口：`PrescriptionCreate` 接受 `icd_code/icd_name`（多个 `|` 分隔）落库；搜索接口 `GET /api/v1/icd10?q=`（编码前缀/名称模糊，west/tcm/all）。
+- [ ] 开方 items 结构扩展校验（用法/频度/剂量/天数必填）——与医生端表单改版一起做。
 
 前端：
 

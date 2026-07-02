@@ -78,20 +78,24 @@ async def pay_callback(request: Request, db: AsyncSession = Depends(get_db)):
     """
     body = (await request.body()).decode()
     try:
+        transaction_id = None
         if pay_service.is_enabled():
             resource = await pay_service.verify_and_decrypt(request.headers, body)
             if resource.get("trade_state") != "SUCCESS":
                 return {"code": "SUCCESS", "message": "OK"}  # 非成功态：已接收，不处理
             out_trade_no = resource["out_trade_no"]
+            transaction_id = resource.get("transaction_id")  # 微信流水号（监管核销 tradeNo）
         else:
             out_trade_no = (json.loads(body) if body else {}).get("order_no")
             if not out_trade_no:
                 raise HTTPException(status_code=400, detail="缺少 order_no")
 
         if out_trade_no.endswith(pay_service.DRUG_SUFFIX):
-            await order_service.mark_drug_paid_by_no(db, out_trade_no[: -len(pay_service.DRUG_SUFFIX)])
+            await order_service.mark_drug_paid_by_no(
+                db, out_trade_no[: -len(pay_service.DRUG_SUFFIX)], transaction_id
+            )
         else:
-            await order_service.handle_pay_callback(db, out_trade_no)
+            await order_service.handle_pay_callback(db, out_trade_no, transaction_id)
         await db.commit()
     except pay_service.PayError as e:
         await db.rollback()
