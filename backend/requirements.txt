@@ -22,6 +22,7 @@ bcrypt==4.*
 
 # —— 处方 PDF / 合规 ——
 reportlab==4.2.*
+gmssl==3.2.*          # 国密 SM3/SM4（天津监管平台网关，docs/tianjin_gateway_protocol.md）
 
 # —— 测试 ——
 pytest==8.*

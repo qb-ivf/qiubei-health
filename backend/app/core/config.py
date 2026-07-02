@@ -60,9 +60,18 @@ class Settings(BaseSettings):
     TENCENT_SMS_REGION: str = "ap-guangzhou"
 
     # —— 合规网关（卫健委 / CA） ——
-    GOV_REPORT_URL: str = ""
+    GOV_REPORT_URL: str = ""     # （旧占位，待 TJ_* 全量接管后移除）
     GOV_APP_SECRET: str = ""
     CA_SIGN_URL: str = ""
+
+    # —— 天津监管平台（docs/tianjin_supervision_plan.md，密钥见平台"秘钥生成及管理"） ——
+    TJ_REPORT_ENABLED: bool = False  # False=保持本地模拟（开发）；True=真实上报
+    TJ_GATEWAY_URL: str = ""         # 形如 http://imssp.wsjk.tj.gov.cn/net-diag-service/test-openapi/api
+    TJ_APP_KEY: str = ""
+    TJ_APP_SECRET: str = ""          # 应为 32 位 hex（同时是 SM4 密钥）
+    TJ_UNIT_ID: str = ""             # 监管平台机构 ID
+    ORGAN_ID: str = ""               # 全国统一组织机构代码
+    ORGAN_NAME: str = ""             # 机构登记全称
 
     # —— 对象存储（资质/录制/处方 PDF，15 年归档） ——
     OSS_BUCKET: str = ""

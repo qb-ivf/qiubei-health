@@ -159,16 +159,17 @@ gov_reports（升级：+method +payload +batch_date +msg_code +uniq(biz_type,biz
 
 新增 `backend/app/services/tj_gateway.py` + `backend/app/utils/sm_crypto.py`，**实现细则与对拍向量见 [tianjin_gateway_protocol.md](tianjin_gateway_protocol.md)**（`tj_ping.py` 中的 `sm3_hex_upper/sm4_encrypt_hex/build_headers` 三个函数即为参考实现，搬入正式模块即可）：
 
-- [ ] `requirements.txt` 增加 `gmssl`。
-- [ ] `sm_crypto.py`：SM4-CBC（key=hex 解码的 appSecret，IV 固定 `abcd0863…`，PKCS7，输出小写 hex）；SM3（输出转大写）。
-- [ ] `tj_gateway.py`：
-  - `build_headers(method, encrypted_body)`：按协议文档第一节组装（requestBody 不进签名串，经 X-Content-MD5 间接绑定）；
-  - `call(method: str, payload: list) -> (msg_code, msg)`：POST 密文本体；`code=-1/40011/超时/5xx` 可重试，`-99/-98/40001/业务-1` 为数据错误（不自动重试，进失败列表待人工）；
-  - `upload_file(filename, content: bytes) -> list[str]`：走 `api/uploadFile`，**明文不加密**（executeNoEncode 路径），X-Content-MD5=SM3(明文)。
-- [ ] `config.py`/`.env` 新增：`TJ_GATEWAY_URL`、`TJ_APP_KEY`、`TJ_APP_SECRET`、`TJ_UNIT_ID`、`ORGAN_ID`、`ORGAN_NAME`、`TJ_REPORT_ENABLED`（开关，默认 false 保持现状占位）。
-- [ ] 单元测试 `tests/test_tj_gateway.py`：协议文档第二节黄金向量 V1–V7 全部断言。
+- [x] `requirements.txt` 增加 `gmssl`。
+- [x] `sm_crypto.py`：SM4-CBC（key=hex 解码的 appSecret，IV 固定 `abcd0863…`，**ISO7816-4 填充**——实测非 PKCS7，输出小写 hex）；SM3（输出转大写）。
+- [x] `tj_gateway.py`：
+  - `build_sign_headers(...)`：按协议文档第一节组装（requestBody 不进签名串，经 X-Content-MD5 间接绑定）；
+  - `tj_call(method, payload) -> TjResult`：POST 密文本体；`code=-1/40011/超时/5xx` 可重试，`-99/-98/40001/业务-1` 为数据错误（不自动重试，进失败列表待人工）；
+  - `tj_upload_file(...)`：走 `api/uploadFile`，**明文不加密**（executeNoEncode 路径），X-Content-MD5=SM3(明文)。
+- [x] `config.py`/`.env` 新增：`TJ_GATEWAY_URL`、`TJ_APP_KEY`、`TJ_APP_SECRET`、`TJ_UNIT_ID`、`ORGAN_ID`、`ORGAN_NAME`、`TJ_REPORT_ENABLED`（开关，默认 false 保持现状占位）。
+- [x] 单元测试 `tests/test_tj_gateway.py`：黄金向量 V1–V9 全部断言，**7 passed** ✅。
+- [ ] 待 S0 T3 拿到测试密钥：`tj_ping.py` 打真实网关，完成最终验收。
 
-**验收：** 单测 V1–V7 全绿；测试环境用真密钥调用 `uploadDrugCatalogue` 传 1 条演示药品，收到 `msgCode=200`。
+**验收：** ~~单测 V1–V9 全绿~~ ✅ 已达成；剩余：测试环境用真密钥调用 `uploadDrugCatalogue` 传 1 条演示药品，收到 `msgCode=200`。
 
 ### S2 · 数据模型与业务功能补齐（研发 B + A，约 1 周）
 

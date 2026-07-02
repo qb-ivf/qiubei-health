@@ -15,12 +15,18 @@
     body.msgCode=-99            → 链路已通，仅业务字段缺失（msg 会列字段名）
 """
 import json
+import sys
 import time
-import uuid
+from pathlib import Path
 
 import httpx
-from gmssl import func, sm3
-from gmssl.sm4 import SM4_ENCRYPT, CryptSM4
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # backend/
+from app.utils.sm_crypto import (  # noqa: E402
+    build_sign_headers,
+    sm3_hex_upper,
+    sm4_cbc_encrypt_hex,
+)
 
 # ======== 以下 5 项按平台"秘钥生成及管理"页填写 ========
 GATEWAY = "http://imssp.wsjk.tj.gov.cn/net-diag-service/test-openapi/api"  # 测试网关，以平台页面为准
@@ -31,66 +37,36 @@ ORGAN_ID = "<全国统一组织机构代码>"
 ORGAN_NAME = "天津逑贝互联网医院"
 # =====================================================
 
-IV_HEX = "abcd0863ef9087ced675985321bedf67"  # SDK 硬编码固定 IV
-
-
-def sm3_hex_upper(s: str) -> str:
-    return sm3.sm3_hash(func.bytes_to_list(s.encode("utf-8"))).upper()
-
-
-def sm4_encrypt_hex(plaintext: str, key_hex: str) -> str:
-    c = CryptSM4()
-    c.set_key(bytes.fromhex(key_hex), SM4_ENCRYPT)
-    return c.crypt_cbc(bytes.fromhex(IV_HEX), plaintext.encode("utf-8")).hex()
-
-
-def build_headers(method: str, encrypted_body: str, app_key: str) -> dict:
-    headers = {
-        "X-Service-Id": "his.provinceDataUploadService",
-        "X-Service-Method": method,
-        "X-Ca-Key": app_key,
-        "X-Ca-Nonce": str(uuid.uuid4()),
-        "X-Ca-Timestamp": str(int(time.time() * 1000)),
-        "X-Content-MD5": sm3_hex_upper(encrypted_body),
-    }
-    items = sorted((k.lower(), v) for k, v in headers.items())
-    sign_str = "&".join(f"{k}:{v}" for k, v in items)
-    headers["X-Ca-Signature"] = sm3_hex_upper(sign_str)
-    headers["X-Ca-Signature-Headers"] = ",".join(k for k, _ in items)
-    headers["Content-Type"] = "application/json"
-    return headers
-
 
 def call(method: str, payload) -> None:
     body = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-    enc = sm4_encrypt_hex(body, APP_SECRET)
-    headers = build_headers(method, enc, APP_KEY)
+    enc = sm4_cbc_encrypt_hex(body, APP_SECRET)
+    headers = build_sign_headers(method, sm3_hex_upper(enc), APP_KEY)
     print(f"→ POST {GATEWAY}  method={method}")
     r = httpx.post(GATEWAY, content=enc, headers=headers, timeout=30)
     print(f"← HTTP {r.status_code}: {r.text}")
 
 
 def self_check() -> None:
-    """黄金向量对拍（来源：官方 jar，docs/tianjin_gateway_protocol.md 第二节）。"""
+    """黄金向量对拍（来源：官方 jar，docs/tianjin_gateway_protocol.md 第二节）。
+
+    完整向量断言见 tests/test_tj_gateway.py；此处抽 3 条关键向量做发送前自检。
+    """
     demo_secret = "bbf1dd188b8b4629853f06f118d11e4a"
     assert sm3_hex_upper("abc") == (
         "66C7F0F462EEEDD9D1F2D46BDC10E4E24167C4875CF2F7A2297DA02B8F4BA8E0"
     ), "SM3 与国标不符"
-    assert sm4_encrypt_hex("[1]", demo_secret) == (
+    assert sm4_cbc_encrypt_hex("[1]", demo_secret) == (
         "49a9a1cb6403aa7ca5d7be3287b0dc6b"
-    ), "SM4-CBC 与 SDK 不符（检查 gmssl 填充模式是否 PKCS7）"
-    md5 = "F7DCA75A3D6083A0E4FD0BA219FFE8AC10E35AE45FD8A91F90A9CDAB5A0ED056"
-    h = {
-        "X-Service-Id": "his.provinceDataUploadService",
-        "X-Service-Method": "uploadDrugCatalogue",
-        "X-Ca-Key": "ngari5fd5ad2196834aa7",
-        "X-Ca-Nonce": "8d708068-0a36-47d3-8ff4-011fdace7d63",
-        "X-Ca-Timestamp": "1718185594026",
-        "X-Content-MD5": md5,
-    }
-    items = sorted((k.lower(), v) for k, v in h.items())
-    sign_str = "&".join(f"{k}:{v}" for k, v in items)
-    assert sm3_hex_upper(sign_str) == (
+    ), "SM4-CBC 与 SDK 不符（填充应为 ISO7816-4，非 PKCS7）"
+    headers = build_sign_headers(
+        "uploadDrugCatalogue",
+        "F7DCA75A3D6083A0E4FD0BA219FFE8AC10E35AE45FD8A91F90A9CDAB5A0ED056",
+        "ngari5fd5ad2196834aa7",
+        nonce="8d708068-0a36-47d3-8ff4-011fdace7d63",
+        timestamp_ms="1718185594026",
+    )
+    assert headers["X-Ca-Signature"] == (
         "A07C0B67CE2996DF9416A5BE7EB7F4E8EAF40F31D46423A1FA9ECEA188C7627A"
     ), "签名串组装与 SDK 不符"
     print("本地国密自检通过（SM3/SM4/签名 与官方 SDK 一致）")
