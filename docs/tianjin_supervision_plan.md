@@ -179,15 +179,17 @@ gov_reports（升级：+method +payload +batch_date +msg_code +uniq(biz_type,biz
 - [ ] 其余表加列：`doctors`（身份证/科目编码/科室编码）、`staff`（身份证）、`patients`（证件类型/监护人）、`prescriptions`（recipe_unique_id/recipe_type/effective_period/checked_at/rational_flag 等）、`drugs`（drug_class/countrydrcode/packing/manufacturer/use_flag）——依赖 S0 T6 字典对照表与 admin 补录页，随其一起做。
 - [x] 状态机埋时间戳：支付回调写 `paid_at`+微信流水号（真实回调透传 `transaction_id`）；接诊 `1→2` 写 `accepted_at`；FINISHED/REFUNDED/CANCELLED 写 `finished_at`；超时取消/退款写 `cancel_reason`。集中在 `order_service._stamp()`，幂等只写首次。
 - [x] 新表 `icd10_codes`（west 35862 条 + tcm 1890 条）+ 导入脚本 `scripts/import_icd10.py`（幂等，`--force` 重导，直接读归档 xlsx）。
-- [ ] 新表：`evaluations`、`medical_disputes` + 评价 API、不良事件 CRUD（admin）。
+- [x] 新表 `evaluations`（一单一评，含满意度 1-5/评分 0-10/内容/投诉建议）+ 患者端 API `POST/GET /orders/{id}/evaluation`（完成或退款后可评，创建即入监管上报队列）+ admin 只读列表。
+- [x] 新表 `medical_disputes` + admin 登记/编辑接口（合规记录不提供删除）+ admin-web「不良事件登记」「患者评价」页面（监管合规菜单组，构建通过）。
 - [x] 开方接口：`PrescriptionCreate` 接受 `icd_code/icd_name`（多个 `|` 分隔）落库；搜索接口 `GET /api/v1/icd10?q=`（编码前缀/名称模糊，west/tcm/all）。
 - [ ] 开方 items 结构扩展校验（用法/频度/剂量/天数必填）——与医生端表单改版一起做。
 
 前端：
 
-- [ ] **患者端小程序**：视频挂号流程加"复诊声明"页（referralFlag 勾选 + 原诊断填写 + 首诊材料拍照上传）；订单完成后评价页（星级 1–5 + 0–10 分 + 文本）。
-- [ ] **医生端小程序**：开方页诊断改 ICD-10 搜索选择；处方明细补用法/频度/剂量/天数表单；接诊页展示患者首诊材料。
-- [ ] **admin-web**：医生资质页补录身份证/科目/科室编码；药品字典页补监管字段；新增"不良事件登记"页（menu：合规管理）。
+- [ ] **患者端小程序**：视频挂号流程加"复诊声明"页（referralFlag 勾选 + 原诊断填写 + 首诊材料拍照上传）；订单完成后评价页（星级 1–5 + 0–10 分 + 文本）——**后端接口已就绪**（评价 API + orders 复诊字段）。
+- [ ] **医生端小程序**：开方页诊断改 ICD-10 搜索选择（**后端 `GET /icd10?q=` 已就绪**）；处方明细补用法/频度/剂量/天数表单；接诊页展示患者首诊材料。
+- [x] **admin-web**：新增「不良事件登记」（全字段表单 + 编辑）与「患者评价」（只读）页面，挂在"监管合规"菜单组。
+- [ ] **admin-web**：医生资质页补录身份证/科目/科室编码；药品字典页补监管字段（随 S0 T6 字典对照表一起做）。
 
 **验收：** 新开一单完整走通后，该订单/处方/药品数据能满足第三节各接口的**必输（Y）字段**无一为空（写一个 `scripts/check_report_ready.py` 自检脚本逐字段核验）。
 

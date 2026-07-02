@@ -10,6 +10,8 @@ from ...core.crypto import decrypt
 from ...core.database import get_db
 from ...core.security import mask_name, mask_phone
 from ...models.drug import Drug
+from ...models.evaluation import Evaluation
+from ...models.medical_dispute import MedicalDispute
 from ...models.order import Order
 from ...models.prescription import Prescription
 from ...models.staff import Staff
@@ -352,6 +354,96 @@ async def gov_report_retry(rid: int, user=Depends(_admin), db: AsyncSession = De
     if not r:
         raise HTTPException(status_code=404, detail="上报任务不存在")
     return {"id": r.id, "status": r.status}
+
+
+# —— 患者评价（监管 2.4.1 数据源，只读） ——
+@router.get("/evaluations")
+async def list_evaluations(user=Depends(_admin), db: AsyncSession = Depends(get_db)):
+    res = await db.execute(select(Evaluation).order_by(Evaluation.id.desc()).limit(500))
+    out = []
+    for ev in res.scalars().all():
+        order = await db.get(Order, ev.order_id)
+        doctor = await db.get(Doctor, ev.doctor_id)
+        out.append({
+            "id": ev.id, "order_no": order.order_no if order else None,
+            "consult_type": order.consult_type if order else None,
+            "doctor_name": doctor.name if doctor else None,
+            "satisfaction": ev.satisfaction, "scoring": ev.scoring,
+            "content": ev.content, "complaints": ev.complaints,
+            "evaluator": mask_name(ev.evaluator) if ev.evaluator else None,
+            "created_at": _fmt(ev.created_at),
+        })
+    return out
+
+
+# —— 医疗争议 / 不良事件登记（监管 2.4.2 每日签到数据源；合规记录不提供删除） ——
+_DISPUTE_FIELDS = (
+    "business_type", "patient_name", "mobile", "event_description", "event_reason",
+    "take_steps", "damage_degree", "improvements", "report_dept", "report_person",
+)
+
+
+@router.get("/disputes")
+async def list_disputes(user=Depends(_admin), db: AsyncSession = Depends(get_db)):
+    res = await db.execute(select(MedicalDispute).order_by(MedicalDispute.id.desc()).limit(500))
+    return [
+        {
+            "id": d.id, "order_id": d.order_id, "business_type": d.business_type,
+            "patient_name": d.patient_name, "mobile": d.mobile,
+            "event_description": d.event_description,
+            "event_date": _fmt(d.event_date), "event_reason": d.event_reason,
+            "take_steps": d.take_steps, "damage_degree": d.damage_degree,
+            "improvements": d.improvements, "report_dept": d.report_dept,
+            "report_person": d.report_person, "report_date": _fmt(d.report_date),
+        }
+        for d in res.scalars().all()
+    ]
+
+
+def _parse_cn_datetime(s: str) -> datetime:
+    """北京时间字符串 → naive UTC（与库内时间基准一致）。"""
+    dt = datetime.strptime(s, "%Y-%m-%d %H:%M")
+    return dt.replace(tzinfo=CN_TZ).astimezone(timezone.utc).replace(tzinfo=None)
+
+
+@router.post("/disputes")
+async def create_dispute(request: Request, body: dict = Body(...), user=Depends(_admin), db: AsyncSession = Depends(get_db)):
+    missing = [f for f in _DISPUTE_FIELDS if not str(body.get(f, "")).strip()]
+    if missing or not body.get("event_date"):
+        raise HTTPException(status_code=422, detail="必填项不完整")
+    try:
+        event_date = _parse_cn_datetime(body["event_date"])
+    except ValueError:
+        raise HTTPException(status_code=422, detail="事件发生时间格式应为 YYYY-MM-DD HH:MM")
+    d = MedicalDispute(
+        order_id=body.get("order_id"),
+        event_date=event_date,
+        report_date=datetime.now(timezone.utc).replace(tzinfo=None),
+        **{f: str(body[f]).strip() for f in _DISPUTE_FIELDS},
+    )
+    db.add(d)
+    await db.flush()
+    await audit_service.record(db, user, request, "登记不良事件", "dispute", d.id, d.event_description[:50])
+    await db.commit()
+    return {"id": d.id}
+
+
+@router.put("/disputes/{did}")
+async def update_dispute(did: int, request: Request, body: dict = Body(...), user=Depends(_admin), db: AsyncSession = Depends(get_db)):
+    d = await db.get(MedicalDispute, did)
+    if not d:
+        raise HTTPException(status_code=404, detail="记录不存在")
+    for f in _DISPUTE_FIELDS:
+        if body.get(f) is not None:
+            setattr(d, f, str(body[f]).strip())
+    if body.get("event_date"):
+        try:
+            d.event_date = _parse_cn_datetime(body["event_date"])
+        except ValueError:
+            raise HTTPException(status_code=422, detail="事件发生时间格式应为 YYYY-MM-DD HH:MM")
+    await audit_service.record(db, user, request, "修改不良事件", "dispute", did, "")
+    await db.commit()
+    return {"id": d.id}
 
 
 # —— 运营数据大盘 ——

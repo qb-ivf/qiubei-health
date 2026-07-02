@@ -14,8 +14,9 @@ from ...core.database import get_db
 from ...core.security import mask_name
 from ...models.order import Order
 from ...models.user import Doctor, Patient, User
+from ...schemas.evaluation import EvaluationCreate, EvaluationOut
 from ...schemas.order import ActiveOrderOut, OrderOut, PrepayOut, RegisterOrderCreate
-from ...services import compliance_service, order_service, pay_service, prescription_service
+from ...services import compliance_service, evaluation_service, order_service, pay_service, prescription_service
 from ...ws import manager, rooms
 from ..deps import get_current_user_id, require_approved_doctor
 
@@ -168,6 +169,30 @@ async def logistics(order_id: int, uid: int = Depends(get_current_user_id), db: 
     rx = await prescription_service.get_by_order(db, order_id)
     drugs = [{"name": it.get("name"), "qty": it.get("qty", 1)} for it in (rx.items if rx else [])]
     return {"paid": paid, "timeline": timeline, "drugs": drugs}
+
+
+@router.post("/{order_id}/evaluation", response_model=EvaluationOut)
+async def create_evaluation(
+    order_id: int, body: EvaluationCreate, uid: int = Depends(get_current_user_id), db: AsyncSession = Depends(get_db)
+):
+    """患者评价（订单完成/退款后，一单一评；数据用于监管 2.4.1 上报）。"""
+    try:
+        ev = await evaluation_service.create(db, uid, order_id, body)
+        await db.commit()
+        await db.refresh(ev)
+    except evaluation_service.EvalError as e:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail=str(e))
+    return ev
+
+
+@router.get("/{order_id}/evaluation", response_model=EvaluationOut | None)
+async def get_evaluation(order_id: int, uid: int = Depends(get_current_user_id), db: AsyncSession = Depends(get_db)):
+    """查询订单评价（小程序判断是否已评价，未评价返回 null）。"""
+    order = await db.get(Order, order_id)
+    if not order or order.user_id != uid:
+        raise HTTPException(status_code=404, detail="订单不存在")
+    return await evaluation_service.get_by_order(db, order_id)
 
 
 @router.get("/queue")
