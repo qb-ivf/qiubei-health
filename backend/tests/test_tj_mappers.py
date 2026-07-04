@@ -7,6 +7,7 @@ from app.services.tj_mappers import (
     _cn,
     _sex,
     _yuan,
+    build_appoint,
     build_consult,
     build_dispute,
     build_drug,
@@ -112,6 +113,21 @@ def test_build_dispute_spec_key_casing():
     assert p["Improvements"] == "增加重连机制"          # 规范原文首字母大写
     assert p["eventDate"] == "2026-07-01 10:00:00"
     assert p["reportDate"] == "2026-07-01 14:00:00"    # 缺省取 created_at
+
+
+def test_build_appoint():
+    o = _order(wx_transaction_id="4200009999")
+    slot = SimpleNamespace(day="2026-07-01", start_time="10:00", end_time="10:30")
+    p = build_appoint(o, _patient(), _doctor(), slot)
+    assert p["bussID"] == "REGABC123"
+    assert p["workDate"] == "2026-07-01 10:00-10:30"
+    assert p["startTime"] == "2026-07-01 10:00:00" and p["endTime"] == "2026-07-01 10:30:00"
+    assert p["price"] == 50.0 and p["paymentChannel"] == "2"
+    assert p["tradeNo"] == "4200009999"
+    assert p["cancelReason"] == ""
+    # 无排班信息时回退下单时间，不产生空必填
+    p2 = build_appoint(o, _patient(), _doctor(), None)
+    assert p2["startTime"] and p2["endTime"]
 
 
 def test_build_drug_use_flag_override():

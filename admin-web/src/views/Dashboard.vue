@@ -18,10 +18,11 @@ const METHOD_TEXT = {
   uploadElectMedicalRecord: '电子病历', uploadRecipeIndicators: '在线处方',
   uploadRecipeVerificationIndicators: '处方核销', uploadBusinessInfoAfter: '评价信息',
   pushMedicalDispute: '不良事件签到', uploadDrugCatalogue: '药品目录',
+  uploadAppointRecord: '预约挂号',
 }
 const TYPE_TEXT = { consult: '在线咨询', referral: '在线复诊', emr: '电子病历', recipe: '在线处方',
   verification: '处方核销', evaluation: '评价', dispute_signin: '不良事件签到', drug: '药品目录',
-  consultation: '问诊记录(旧)', prescription: '开药明细(旧)' }
+  appoint: '预约挂号', consultation: '问诊记录(旧)', prescription: '开药明细(旧)' }
 
 async function load() {
   const s = await request.get('/admin/gov-reports/stats')

@@ -304,6 +304,30 @@ def build_dispute(d) -> dict:
     }
 
 
+# ---------- 2.2.9 预约挂号 ----------
+def build_appoint(order, patient, doctor, slot=None) -> dict:
+    """挂号成功即一条预约记录（支付成功后上报；其后取消的带 cancelReason）。"""
+    work_date = f"{slot.day} {slot.start_time}-{slot.end_time}" if slot else ""
+    return {
+        **_base(),
+        "bussID": order.order_no,
+        "visitNo": order.order_no,
+        **_doctor_fields(doctor),
+        **_patient_fields(patient),
+        "guardianCertID": _dec(getattr(patient, "guardian_cert_enc", None)) if patient else "",
+        "guardianName": (getattr(patient, "guardian_name", None) or "") if patient else "",
+        "appointDate": _cn(order.created_at),
+        "workDate": work_date,
+        "startTime": f"{slot.day} {slot.start_time}:00" if slot else _cn(order.created_at),
+        "endTime": f"{slot.day} {slot.end_time}:00" if slot else _cn(order.created_at),
+        "price": _yuan(order.register_fee_fen),
+        "paymentChannel": PAYMENT_CHANNEL_WX,
+        "cancelReason": order.cancel_reason or "",
+        "tradeNo": order.wx_transaction_id or "",
+        "updateTime": _now_cn(),
+    }
+
+
 # ---------- 2.1.1 药品目录 ----------
 def build_drug(drug, use_flag: str | None = None) -> dict:
     return {

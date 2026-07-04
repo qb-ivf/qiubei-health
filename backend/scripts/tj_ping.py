@@ -2,7 +2,8 @@
 
 用法：
     pip install gmssl httpx
-    修改下方 GATEWAY / APP_KEY / APP_SECRET / UNIT_ID / ORGAN_ID 后：
+    配置优先从环境变量 / backend/.env 读取（TJ_GATEWAY_URL 等 6 项，密钥勿写进本文件），
+    也可临时修改下方常量兜底：
     python scripts/tj_ping.py
 
 流程：
@@ -15,6 +16,7 @@
     body.msgCode=-99            → 链路已通，仅业务字段缺失（msg 会列字段名）
 """
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -28,14 +30,30 @@ from app.utils.sm_crypto import (  # noqa: E402
     sm4_cbc_encrypt_hex,
 )
 
-# ======== 以下 5 项按平台"秘钥生成及管理"页填写 ========
-GATEWAY = "http://imssp.wsjk.tj.gov.cn/net-diag-service/test-openapi/api"  # 测试网关，以平台页面为准
-APP_KEY = "<测试环境appKey>"
-APP_SECRET = "<测试环境appSecret，应为32位hex>"
-UNIT_ID = "<监管平台机构ID>"
-ORGAN_ID = "<全国统一组织机构代码>"
-ORGAN_NAME = "天津逑贝互联网医院"
-# =====================================================
+
+def _load_dotenv() -> None:
+    """轻量读取 backend/.env（不引入依赖；已有环境变量优先）。"""
+    env = Path(__file__).resolve().parent.parent / ".env"
+    if not env.exists():
+        return
+    for line in env.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, _, v = line.partition("=")
+        os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+
+
+_load_dotenv()
+
+# ======== 配置：环境变量 / backend/.env 优先（TJ_*），常量仅作兜底 ========
+GATEWAY = os.environ.get("TJ_GATEWAY_URL") or "https://imssp.wsjk.tj.gov.cn/net-diag-service/test-openapi/api"
+APP_KEY = os.environ.get("TJ_APP_KEY") or "<测试环境appKey>"
+APP_SECRET = os.environ.get("TJ_APP_SECRET") or "<测试环境appSecret，应为32位hex>"
+UNIT_ID = os.environ.get("TJ_UNIT_ID") or "<监管平台机构ID>"
+ORGAN_ID = os.environ.get("ORGAN_ID") or "<全国统一组织机构代码>"
+ORGAN_NAME = os.environ.get("ORGAN_NAME") or "天津逑贝互联网医院"
+# ========================================================================
 
 
 def call(method: str, payload) -> None:

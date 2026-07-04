@@ -17,6 +17,7 @@ from ..models.evaluation import Evaluation
 from ..models.medical_dispute import MedicalDispute
 from ..models.order import Order
 from ..models.prescription import Prescription
+from ..models.schedule import Slot
 from ..models.staff import Staff
 from ..models.user import Doctor, Patient
 from . import compliance_service, tj_mappers
@@ -76,7 +77,7 @@ async def collect_daily(db: AsyncSession, day_cn: date) -> dict:
     """采集北京时间 day_cn 当日到达终态的数据，入队。返回各类计数。"""
     start, end = _window(day_cn)
     counts = {"consult": 0, "referral": 0, "emr": 0, "recipe": 0, "verification": 0,
-              "evaluation": 0, "dispute": 0}
+              "evaluation": 0, "dispute": 0, "appoint": 0}
 
     # 1) 终态订单：图文 → 在线咨询；视频 → 在线复诊 + 电子病历
     res = await db.execute(
@@ -159,7 +160,21 @@ async def collect_daily(db: AsyncSession, day_cn: date) -> dict:
         )
         counts["evaluation"] += 1
 
-    # 5) 不良事件每日签到（强制：无事件也发空数组）
+    # 5) 预约挂号（2.2.9，平台反显页确认必接）：昨日支付成功的挂号单，一单一条
+    res = await db.execute(
+        select(Order).where(Order.paid_at >= start, Order.paid_at < end)
+    )
+    for order in res.scalars().all():
+        patient = await db.get(Patient, order.patient_id)
+        doctor = await db.get(Doctor, order.doctor_id)
+        slot = await db.get(Slot, order.slot_id) if order.slot_id else None
+        await compliance_service.enqueue(
+            db, "appoint", order.id, "uploadAppointRecord",
+            [tj_mappers.build_appoint(order, patient, doctor, slot)], day_cn,
+        )
+        counts["appoint"] += 1
+
+    # 6) 不良事件每日签到（强制：无事件也发空数组）
     res = await db.execute(
         select(MedicalDispute).where(
             MedicalDispute.created_at >= start, MedicalDispute.created_at < end
