@@ -40,18 +40,18 @@
 
 ### S5 启动指引（T4 打通后的第一步）
 
-已备好冒烟脚本 [backend/scripts/tj_smoke.py](../backend/scripts/tj_smoke.py)：9 个必接接口各推 1 条
-带测试标记的数据（患者"测试患者"、业务号 QBTEST 前缀），**payload 走生产映射层 tj_mappers 构建**，
-等于端到端验证真实上报代码：
+✅ **冒烟已通过（2026-07-04）**：[tj_smoke.py](../backend/scripts/tj_smoke.py)（payload 走生产映射层构建）
+对 9 个必接接口各推 1 条测试数据，**9/9 全部 `msgCode=200`，零字段错误**（批次 QBTEST0704034042）。
+我方上报代码与平台字段校验完全兼容，S5 联调核心完成。
 
-```bash
-dc exec api python scripts/tj_smoke.py --dry   # 先看 payload（不发送）
-dc exec api python scripts/tj_smoke.py         # 真实推送，逐接口打印 msgCode
-```
+剩余 S5 动作：
 
-- 9 个全 ✅ → 我方映射与平台字段校验兼容，联调核心完成；结合 T5 第 12 问答复决定是否需刷满达标量；
-- 出现 -99 → msg 会列出缺失字段名，修 tj_mappers 后重跑（每次运行业务号自动更新，可重复执行）；
-- 推送后到平台「测试接口双向反显 / 接口联调结果发布」里核对反显数据与我方一致。
+1. 平台「测试接口双向反显」核对 QBTEST 批次的反显数据与我方一致（截图归档）；
+2. 等 T5 第 12 问答复：达标量若需自建系统重刷 → `dc exec api python scripts/tj_smoke.py --count 50`
+   一条命令刷满（每轮 9 接口各 1 条，业务号自动唯一）；若沿用历史达标 → 直接进入下一步；
+3. 申请**正式环境密钥**（T5 第 5/11 问答复后）→ 服务器 `.env` 切正式网关与密钥 →
+   `TJ_REPORT_ENABLED=true` + `dc restart api` → 次日 admin 面板核验首个自动批次；
+4. ⚠️ 开正式前必须完成 **T6 补录**（医生科目/身份证、药品分类码）——真实数据缺这些字段会批量进死信。
 
 ---
 
