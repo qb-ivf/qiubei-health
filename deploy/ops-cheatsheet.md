@@ -250,9 +250,11 @@ TJ_UNIT_ID=<监管平台机构ID>
 ORGAN_ID=<统一组织机构代码>
 ORGAN_NAME=<机构登记全称>
 ```
-先跑连通性自检（黄金向量对拍 + 真实调用 1 条演示药品）：
+先跑连通性自检（黄金向量对拍 + 真实调用 1 条演示药品）。脚本自动读取 `.env` 的 TJ_* 配置，
+**无需改代码、无需在宿主机 pip install**（容器镜像已含 gmssl/httpx）：
 ```bash
-dc exec api python scripts/tj_ping.py     # 需先在脚本头部填好 5 个配置
+dc exec api python scripts/tj_ping.py
+# 若报 ModuleNotFoundError: gmssl → 镜像未重建：dc up -d --build 后重试
 ```
 
 ### 9.2 查看上报队列状态
