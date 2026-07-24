@@ -88,4 +88,4 @@ SDK 走 `Client.executeNoEncode`：**不做 SM4 加密**，body 为明文 JSON�
 - [x] 签名串组装：`sorted(headers)` + `f"{k.lower()}:{v}"` + `"&".join`，X-Ca-Signature-Headers 为小写键名逗号连接（V5/V7）。
 - [x] HTTP body 直接发 hex 密文字符串（`content=encrypted`），不要再 `json.dumps`。
 - [x] 单测：[backend/tests/test_tj_gateway.py](../backend/tests/test_tj_gateway.py)，V1–V9 全部断言（`pytest tests/test_tj_gateway.py`，7 passed）。
-- [ ] 待 S0 拿到测试密钥后：`scripts/tj_ping.py` 打真实网关完成 S1 最终验收。
+- [x] 2026-07-04：`scripts/tj_ping.py` 使用测试密钥调用真实测试网关，返回 `msgCode=200`，S1 最终验收通过。

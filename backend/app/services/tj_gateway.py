@@ -54,8 +54,10 @@ async def tj_call(method: str, payload: list) -> TjResult:
 async def tj_upload_file(file_name: str, content_base64: str, size: str, file_type: str) -> TjResult:
     """附件上传（api/uploadFile）：走明文路径（SDK executeNoEncode），不做 SM4 加密。
 
+    ⚠️ 当前无调用方——平台 T5 答复（2026-07-07，问题7）确认「无 uploadFile 附件上传接口」，
+    首诊材料附件路径已在 tj_collector 停用。此函数按规范 2.1.3.3 保留，待平台日后开放再启用。
+
     成功时监管平台附件 id 集合在响应 data 字段，调用方从 raw 解析。
-    路径拼接以联调实测为准（规范 2.1.3.3：接口地址为 api/uploadFile）。
     """
     body = json.dumps(
         [{"fileName": file_name, "contentBase64": content_base64, "size": size, "type": file_type}],

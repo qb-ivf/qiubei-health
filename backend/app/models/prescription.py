@@ -30,8 +30,12 @@ class Prescription(Base, TimestampMixin):
 
     audit_status: Mapped[str] = mapped_column(String(16), default="pending")  # pending/approved/rejected
     reject_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    ca_sign: Mapped[str | None] = mapped_column(String(255), nullable=True)   # CA 数字签名（M9 接真实）
+    # ca_sign 只允许保存真实文档签名结果/引用；不得再写 CA_MOCK_SIGN。
+    ca_sign: Mapped[str | None] = mapped_column(String(255), nullable=True)
     pdf_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # 高级证书双录只是签署前的身份/意愿凭据，不等同于 PDF 文档数字签名。
+    doctor_ca_order_no: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    pharmacist_ca_order_no: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     # —— 天津监管字段（S3）：审方通过时生成/记录 ——
     recipe_unique_id: Mapped[str | None] = mapped_column(String(64), nullable=True)  # 处方唯一号（对外备查/核销）

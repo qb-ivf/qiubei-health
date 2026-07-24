@@ -5,18 +5,20 @@
   - 否则本地模拟成功（开发环境闭环不变）。
 失败分类：网络/系统繁忙/请求过期 → 指数退避自动重试，超限入死信；
 数据错误（-99 等）→ 直接入死信，改数后在后台手工重报。
-CA 加签仍为占位（M9）；处方 PDF 用 reportlab 真实生成（红章占位）。
+CA 文档签署接口仍待供应商文档；处方 PDF 仅生成明确标识的未签名预览，
+不再绘制会被误认为有效电子签章的红章。
 """
 import io
 import logging
 import time as _time
 from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.config import settings
 from ..models.gov_report import GovReport
+from .tj_config import gateway_config_errors
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +55,10 @@ async def enqueue(
             existing.status = "pending"
             existing.retries = 0
             existing.next_retry_at = None
+            existing.latency_ms = 0
+            existing.msg_code = None
+            existing.resp_msg = None
+            existing.last_error = None
             await db.flush()
         return existing
     r = GovReport(
@@ -65,11 +71,18 @@ async def enqueue(
 
 
 def _gateway_ready() -> bool:
-    return bool(settings.TJ_REPORT_ENABLED and settings.TJ_GATEWAY_URL and settings.TJ_APP_KEY)
+    return bool(settings.TJ_REPORT_ENABLED and not gateway_config_errors(settings))
 
 
 async def process_pending(db: AsyncSession) -> int:
     """后台扫描：发送 pending 与到达退避时间的 failed 任务。"""
+    # 正式环境关停上报时必须保留队列，不能把待发数据伪装成“模拟成功”。
+    # DEBUG 开发环境继续维持原有模拟闭环；若显式打开了开关但配置不完整，也绝不模拟。
+    if not _gateway_ready() and (not settings.DEBUG or settings.TJ_REPORT_ENABLED):
+        if settings.TJ_REPORT_ENABLED:
+            logger.error("天津监管上报已开启但配置不完整：%s", "; ".join(gateway_config_errors(settings)))
+        return 0
+
     now = _utcnow()
     res = await db.execute(
         select(GovReport)
@@ -77,7 +90,8 @@ async def process_pending(db: AsyncSession) -> int:
             (GovReport.status == "pending")
             | ((GovReport.status == "failed") & ((GovReport.next_retry_at.is_(None)) | (GovReport.next_retry_at <= now)))
         )
-        .order_by(GovReport.id.asc())
+        # 平台要求药品基础目录先于处方等业务数据备案；正式首批也按此优先级发送。
+        .order_by(case((GovReport.biz_type == "drug", 0), else_=1), GovReport.id.asc())
         .limit(20)
     )
     reports = list(res.scalars().all())
@@ -94,9 +108,13 @@ async def _send_one(r: GovReport) -> None:
         r.status, r.msg_code, r.resp_msg = "success", None, "占位任务（无 payload，未发送）"
         return
 
-    if not _gateway_ready():
+    if not _gateway_ready() and settings.DEBUG and not settings.TJ_REPORT_ENABLED:
         r.status, r.msg_code, r.latency_ms = "success", 200, 0
         r.resp_msg = "本地模拟成功（TJ_REPORT_ENABLED=false）"
+        return
+    if not _gateway_ready():
+        # 双保险：配置异常时保持 pending，等待运维修正，不能吞掉任务。
+        r.last_error = "监管网关未启用或配置不完整，任务保持待发送"
         return
 
     from . import tj_gateway  # 局部导入避免循环
@@ -175,7 +193,10 @@ async def retry(db: AsyncSession, rid: int):
 
 
 def generate_prescription_pdf(rx, patient_name: str, doctor_name: str) -> bytes:
-    """reportlab 生成处方 PDF（中文用内置 STSong-Light；CA 红章为占位）。"""
+    """reportlab 生成处方 PDF。
+
+    ca_sign 为空时输出醒目的“未完成数字签名”提示，不得作为有效电子处方。
+    """
     from reportlab.lib.pagesizes import A4
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.cidfonts import UnicodeCIDFont
@@ -201,9 +222,11 @@ def generate_prescription_pdf(rx, patient_name: str, doctor_name: str) -> bytes:
 
     y -= 24
     c.drawString(50, y, f"开方医师：{doctor_name}        审核药师：（已审核）")
-    c.drawString(50, y - 20, f"数字签名：{rx.ca_sign or '已CA加签'}（占位，M9 接正式 SM2）")
-    c.setFillColorRGB(0.73, 0.1, 0.1)
-    c.drawString(360, y - 20, "【互联网医院处方专用章】")
+    if rx.ca_sign:
+        c.drawString(50, y - 20, f"数字签名：{rx.ca_sign}")
+    else:
+        c.setFillColorRGB(0.73, 0.1, 0.1)
+        c.drawString(50, y - 20, "未完成文档数字签名——仅供开发预览，不可作为有效电子处方")
     c.save()
     buf.seek(0)
     return buf.read()

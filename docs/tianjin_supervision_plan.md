@@ -7,6 +7,23 @@
 
 ---
 
+## 〇、进度快照（2026-07-22 更新）
+
+| 阶段 | 状态 | 说明 |
+| :-- | :-: | :-- |
+| **协议逆向** | ✅ 完成 | SM4-CBC/SM3/签名规则确认，黄金向量固化 |
+| **S1 国密网关客户端** | ✅ 完成 | `tj_gateway`/`sm_crypto`，单测 7 全绿 |
+| **S2 数据模型与业务补齐** | ✅ 完成 | 3 新表 + 全部补列 + 评价/不良事件/复诊声明/ICD/首诊材料，两端小程序改造完毕 |
+| **S3 上报映射与调度** | ✅ 完成 | 9 接口 mapper + 每日采集器 + 退避重试 + 按日补采 |
+| **S4 运营后台监控** | ✅ 基本完成 | 按接口统计/看报文/按日补采；仅"告警阈值"待联调后定 |
+| **S5 测试联调** | 🟡 待正式首批 | 测试冒烟 **9/9 msgCode=200**、反显及历史达标沿用均确认；正式密钥已发放并在本地安全暂存，余：T6 补录、生产预检/部署、首批核验 |
+| **代码整体** | ✅ 完成 | 27 tests passed；新增正式只读预检、目录初始化、生产防误写/防吞队列及药师备案入口 |
+
+> **一句话**：测试联调和正式密钥均已到位；现在只差在生产库完成 T6 人员/药品补录，通过
+> `tj_preflight.py` 后初始化真实药品目录并开启上报。远程会诊没有实际业务，仍不生成生产数据。
+
+---
+
 ## 一、对照 Roadmap 的未完成工作总览
 
 | 里程碑 | 状态 | 未完成项 |
@@ -14,9 +31,9 @@
 | M1–M6（MVP 闭环） | ✅ 基本完成 | 微信支付已上线（生产），无阻塞项 |
 | M7 履约与通知 | 🟡 80% | 物流时间轴为演示数据；订阅消息模板未接正式 |
 | M8 运营后台 | 🟡 95% | 提现"商家转账到零钱"打款未接真实；其余已完成 |
-| **M9 合规网关硬化** | 🔴 **30%** | **本文主题：天津监管上报（占位→真实）、CA 正式签章、15 年归档** |
+| **M9 合规网关硬化** | 🟢 **监管上报≈95%** | 代码、测试联调、正式密钥均完成；余 T6 补录与正式首批。另两项 CA 正式签章、15 年归档仍待办 |
 | M10 提审上线 | ⬜ 0% | 医生端正式 AppID 未申请；两端提审、等保自查 |
-| 并行轨道 | 🟡 | CA 合同、监管平台账号（unitId/appKey/appSecret）、医疗类目资质 |
+| 并行轨道 | 🟢 | 监管平台测试/正式密钥✅到手；CA 合同、医疗类目资质仍待办 |
 
 M9 内部三件事的优先级：**① 监管上报（本文，卡上线）→ ② CA 正式签章（处方合法性）→ ③ 音视频/处方 15 年归档**。
 
@@ -24,7 +41,7 @@ M9 内部三件事的优先级：**① 监管上报（本文，卡上线）→ �
 
 ## 二、规范要点速读（协议层）
 
-1. **准入**：向监管平台申请 `unitId`、`appKey`、`appSecret`，申请所需服务权限；调用方服务器出口 IP 需加入**白名单**（错误码 40007）。测试/正式环境地址与密钥在监管平台"申请子系统 → 技术对接 → 秘钥生成及管理"处查看。
+1. **准入**：向监管平台申请 `unitId`、`appKey`、`appSecret` 与服务权限。规范列有 40007（IP 非法），但平台 T5 书面确认当前测试/正式均**不设 IP 白名单**，以密钥验权。两套地址与密钥在"申请子系统 → 技术对接 → 秘钥生成及管理"查看。
 2. **传输**：`POST https://<域名>/openapi/api`，`Content-Type: application/json`。请求体 = 业务参数**数组** JSON → **SM4（CBC）** 对称加密后的密文串。
 3. **请求头**（全部必填）：
 
@@ -39,9 +56,9 @@ M9 内部三件事的优先级：**① 监管上报（本文，卡上线）→ �
    | `X-Ca-Signature-Headers` | 参与签名的头字段列表 |
    | `X-Ca-Signature` | 签名结果 |
 
-4. **签名**：`sign = SM3(拼接串)`。除 `X-Ca-Signature-Headers` 外的所有头 + `requestBody`（密文），按 **key 字典序**以 `k=v&k=v` 拼接后做 SM3。
+4. **签名**：`sign = SM3(拼接串)`。参与签名的头按 key 字典序，以 `小写头名:值` 和 `&` 拼接；密文不直接进入签名串，由 `X-Content-MD5=SM3(密文)` 间接绑定。
 5. **返回**：外层 `code`（HTTP 层：200 成功；40001 参数错、40004 密钥不匹配、40007 IP 非法、40010 签名不合法、40011 请求过期…），内层 `body.msgCode`（业务层：200 成功；-99 字段为空，msg 用 `|` 列出字段；-98 数据为空；-1 具体失败文案）。**List 型接口中途出错即整批返回错误**，需按批重报。
-6. **附件上传**：`api/uploadFile`（fileName/contentBase64/size/type），返回附件 id 集合；复诊接口的 `firstDiagnosis`（首诊材料）填多个附件 id 逗号分隔。
+6. **附件上传**：规范曾列 `api/uploadFile`，但平台 T5 书面确认当前**没有该接口**；我方不外发本地附件路径，`firstDiagnosis` 留空且测试已通过。
 7. **上报节奏**：
    - 正式环境：**每日夜间固定时间**推送**前一天达到终态**的诊疗数据（一个业务编号只在终态传一次）。
    - 测试环境：各接口数据量达标即可停发（平台可查对接数量）。
@@ -57,7 +74,7 @@ M9 内部三件事的优先级：**① 监管上报（本文，卡上线）→ �
 | # | 规范接口 | X-Service-Method | 适用 | 触发/我方数据源 |
 | :-: | :-- | :-- | :-: | :-- |
 | 1 | 2.1.1 药品目录备案 | `uploadDrugCatalogue` | ✅ 必接 | `drugs` 表；首次全量备案 + 增改即报 |
-| 2 | 2.1.3 附件上传 | `uploadFile`（`api/uploadFile`） | ✅ 必接 | 复诊首诊材料图片 |
+| 2 | 2.1.3 附件上传 | `uploadFile`（`api/uploadFile`） | ❌ 平台未开放 | T5 书面答复确认无该接口；首诊材料仍在院内留存，监管 `firstDiagnosis` 留空（测试已通过） |
 | 3 | 2.2.1 在线咨询 | `uploadConsultIndicators` | ✅ 必接 | `consult_type=text` 图文咨询订单（终态：完成/取消） |
 | 4 | 2.2.2 在线复诊 | `uploadReferralIndicators` | ✅ 必接 | `consult_type=video` 视频问诊订单（互联网医院只允许复诊，视频问诊按复诊上报） |
 | 5 | 2.2.10 电子病历 | `uploadElectMedicalRecord` | ✅ 必接 | `prescriptions` 表 EMR 部分，随复诊 |
@@ -68,13 +85,15 @@ M9 内部三件事的优先级：**① 监管上报（本文，卡上线）→ �
 | 10 | 2.2.9 预约挂号 | `uploadAppointRecord` | ✅ 必接（平台反显页确认，2026-07-03） | 支付成功的挂号单（含其后取消的），T+1 批量 |
 | 11 | 2.1.2 护理耗材目录 / 2.2.5–2.2.8 互联网护理 | — | ❌ 不适用 | 平台反显页标记"不需要对接"，与判断一致 |
 | 12 | 2.3.1/2.3.3–2.3.6 远程医疗（门诊/影像/心电/病理/转诊） | — | ❌ 不适用 | 平台反显页标记"不需要对接" |
-| 13 | 2.3.2 远程会诊 | `uploadMeetClinicIndicators` | ❗ 待澄清 | 平台标记"需要对接"但我院无此业务（疑外包商误勾）——S0 T5 第 13 问；不能调整则需开发 |
+| 13 | 2.3.2 远程会诊 | `uploadMeetClinicIndicators` | 🟡 保留但暂不上报 | 平台标记"需要对接"，我院无此业务（外包商误勾）。2026-07-04 决定保留勾选、暂不开发；真要报再补 mapper（半天）。详见 S0 手册 |
 
 ---
 
 ## 四、差距分析（现状 vs 规范）
 
-### 4.1 协议层（全部缺失）
+> ⚠️ **本节为立项时（未实现前）的基线诊断，仅作历史记录。** 下列缺口 S1–S3 已全部补齐（协议层、数据字段、业务功能均完成），当前实际状态以〇进度快照与六阶段计划的勾选为准。
+
+### 4.1 协议层（~~全部缺失~~ → ✅ 已补齐）
 - 无国密库（`gmssl` 未安装）；SM4-CBC 加密、SM3 签名、字典序拼串、X-Ca-* 请求头组装均未实现。
 - 无网关配置项（网关 URL、unitId、appKey、appSecret、organID、organName 均未配置）。
 - `compliance_service.process_pending()` 目前是 `random.random()` 模拟成功，未发真实请求。
@@ -112,7 +131,7 @@ M9 内部三件事的优先级：**① 监管上报（本文，卡上线）→ �
 业务事件（订单终态/审方通过/药费支付/评价/不良事件/药品变更）
         │  enqueue(biz_type, biz_id)          ← 已有，保留
         ▼
-gov_reports（升级：+method +payload +batch_date +msg_code +uniq(biz_type,biz_id)）
+gov_reports（升级：+method +payload +batch_date +msg_code；应用层按 biz_type/biz_id 幂等）
         ▲                                      │
 每日 01:30 采集器（collector）                 │ 后台 worker（沿用 asyncio sweeper，
   按接口扫描前一日终态数据 → 组包入队           │ 真实发送替换 random 模拟）
@@ -127,7 +146,7 @@ gov_reports（升级：+method +payload +batch_date +msg_code +uniq(biz_type,biz
 设计取舍：
 - **沿用现有 asyncio 后台任务**（`main.py` 的 sweep 模式）做 worker 与每日调度，不强行引入 Celery Beat——单机生产够用、改动最小；若后续多实例部署再迁 Celery（骨架已在 `workers/compliance.py`）。
 - **payload 在入队时快照**（JSON 落库），保证重报时数据与当日一致、可在后台查看审计。
-- 幂等：`(biz_type, biz_id)` 唯一索引；终态才入队，重复入队直接忽略。
+- 幂等：应用层按 `(biz_type, biz_id)` 查询复用，复合索引加速；终态才入队，重复入队直接忽略。
 
 ---
 
@@ -143,14 +162,15 @@ gov_reports（升级：+method +payload +batch_date +msg_code +uniq(biz_type,biz
 
 | # | 任务 | 状态 |
 | :-: | :-- | :-: |
-| T1 | 监管平台机构账号收权（入口 `imssp.wsjk.tj.gov.cn`），改密 | ☐ |
-| T2 | 摸底外包商存量上报现状（接口对接数量/不良事件签到是否断报/bussID 形态） | ☐ |
-| T3 | 测试环境密钥（unitId/appKey/appSecret）+ 9 个方法权限 + IP 白名单 | ☐ |
-| T4 | 首次连通性验证：跑 `backend/scripts/tj_ping.py`（内置黄金向量自检） | ☐ |
-| T5 | 10 项口径问题书面确认（复诊口径/预约挂号是否需要/达标标准/幂等等） | ☐ |
-| T6 | 四份字典对照表（医生科目/科室类别/药品分类+国家药品编码/ICD-10 源） | ☐ |
-| T7 | organID 核对 + 正式环境切换窗口方案（含外包商密钥重置时机与回退预案） | ☐ |
+| T1 | 监管平台机构账号收权（入口 `imssp.wsjk.tj.gov.cn`），改密 | 🟡 已可登录并操作；余：改密 |
+| T2 | 摸底外包商存量上报现状 | ✅ 关闭：正式环境零上报，外包商仅 2025-08 测试刷数达标，从零接入 |
+| T3 | 测试/正式密钥 + 方法权限 + IP 白名单 | ✅ 两套密钥均到手；实测无 40006/40007；正式凭据已在本地 `.env` 暂存且开关关闭 |
+| T4 | 首次连通性验证 `tj_ping.py` | ✅ 完成（2026-07-04 生产容器内）：`msgCode=200` |
+| T5 | 口径书面确认 | ✅ 2026-07-07 全部书面回签，见 [T5-口径确认函](specs/tianjin/T5-口径确认函-待发平台.md) |
+| T6 | 字典对照 + 名册录入 | 🟡 字典 CSV/模板全备、医生名册草稿已取得；余：admin 录入 10 人 + 药房填药品对照 |
+| T7 | organID 核对 + 上线方案 | 🟡 organID、正式凭据✅；余生产预检/首次目录/首批核验 |
 | — | ~~下载 Java SDK 并对拍加密/签名规则~~ | ✅ 已完成 |
+| — | 九接口联调冒烟 `tj_smoke.py` | ✅ **9/9 msgCode=200**（2026-07-04）+ 平台反显计数核对通过 |
 
 ✅ **协议已提前确认**：官方 jar 已到手并完成逆向对拍，SM4-CBC（appSecret 为 32 位 hex 密钥、固定 IV）、SM3 签名（TreeMap 字典序 + `小写头名:值` + `&` 连接）、X-Content-MD5 实为 SM3 等全部细节及**黄金测试向量**已固化在 **[tianjin_gateway_protocol.md](tianjin_gateway_protocol.md)**——S1 最大不确定项已消除。
 
@@ -165,48 +185,49 @@ gov_reports（升级：+method +payload +batch_date +msg_code +uniq(biz_type,biz
 - [x] `tj_gateway.py`：
   - `build_sign_headers(...)`：按协议文档第一节组装（requestBody 不进签名串，经 X-Content-MD5 间接绑定）；
   - `tj_call(method, payload) -> TjResult`：POST 密文本体；`code=-1/40011/超时/5xx` 可重试，`-99/-98/40001/业务-1` 为数据错误（不自动重试，进失败列表待人工）；
-  - `tj_upload_file(...)`：走 `api/uploadFile`，**明文不加密**（executeNoEncode 路径），X-Content-MD5=SM3(明文)。
+  - `tj_upload_file(...)`：按旧规范保留但无调用方；平台已确认当前未开放 uploadFile。
 - [x] `config.py`/`.env` 新增：`TJ_GATEWAY_URL`、`TJ_APP_KEY`、`TJ_APP_SECRET`、`TJ_UNIT_ID`、`ORGAN_ID`、`ORGAN_NAME`、`TJ_REPORT_ENABLED`（开关，默认 false 保持现状占位）。
 - [x] 单元测试 `tests/test_tj_gateway.py`：黄金向量 V1–V9 全部断言，**7 passed** ✅。
-- [ ] 待 S0 T3 拿到测试密钥：`tj_ping.py` 打真实网关，完成最终验收。
+- [x] 拿到测试密钥后 `tj_ping.py` 打真实网关：**`msgCode=200`（2026-07-04）** ✅。
 
-**验收：** ~~单测 V1–V9 全绿~~ ✅ 已达成；剩余：测试环境用真密钥调用 `uploadDrugCatalogue` 传 1 条演示药品，收到 `msgCode=200`。
+**验收：** ✅ **全部达成**——单测 V1–V9 全绿 + 测试环境真密钥调用 `uploadDrugCatalogue` 返回 `msgCode=200`。
 
 ### S2 · 数据模型与业务功能补齐（研发 B + A，约 1 周）
 
 后端（`scripts/migrate.py` 补列 + 模型修改）：
 
 - [x] `orders` 加列：paid_at/accepted_at/finished_at/cancel_reason/wx_transaction_id/**wx_drug_transaction_id**（挂号与药费流水分开存）/referral_flag/original_diagnosis/first_diagnosis_file_ids；`prescriptions` 加 icd_code/icd_name。migrate.py 已同步。
-- [ ] 其余表加列：`doctors`（身份证/科目编码/科室编码）、`staff`（身份证）、`patients`（证件类型/监护人）、`prescriptions`（recipe_unique_id/recipe_type/effective_period/checked_at/rational_flag 等）、`drugs`（drug_class/countrydrcode/packing/manufacturer/use_flag）——依赖 S0 T6 字典对照表与 admin 补录页，随其一起做。
+- [x] 其余表加列（migrate.py 已含全部）：`doctors`（id_card_enc/subject_code/subject_name/dept_code）、`staff`（id_card_enc）、`patients`（cert_type/guardian_*）、`prescriptions`（recipe_unique_id/checked_at/audit_staff_id）、`drugs`（drug_class/countrydrcode/packing/manufacturer/use_flag）。**列已建，字段值待 S0 T6 录入。**
 - [x] 状态机埋时间戳：支付回调写 `paid_at`+微信流水号（真实回调透传 `transaction_id`）；接诊 `1→2` 写 `accepted_at`；FINISHED/REFUNDED/CANCELLED 写 `finished_at`；超时取消/退款写 `cancel_reason`。集中在 `order_service._stamp()`，幂等只写首次。
 - [x] 新表 `icd10_codes`（west 35862 条 + tcm 1890 条）+ 导入脚本 `scripts/import_icd10.py`（幂等，`--force` 重导，直接读归档 xlsx）。
 - [x] 新表 `evaluations`（一单一评，含满意度 1-5/评分 0-10/内容/投诉建议）+ 患者端 API `POST/GET /orders/{id}/evaluation`（完成或退款后可评，创建即入监管上报队列）+ admin 只读列表。
 - [x] 新表 `medical_disputes` + admin 登记/编辑接口（合规记录不提供删除）+ admin-web「不良事件登记」「患者评价」页面（监管合规菜单组，构建通过）。
 - [x] 开方接口：`PrescriptionCreate` 接受 `icd_code/icd_name`（多个 `|` 分隔）落库；搜索接口 `GET /api/v1/icd10?q=`（编码前缀/名称模糊，west/tcm/all）。
-- [ ] 开方 items 结构扩展校验（用法/频度/剂量/天数必填）——与医生端表单改版一起做。
+- [x] 开方 items 扩展字段（drug_id/frequency/dosage/drunit/dose_unit/use_days）：schema 已加，医生端表单已收集用药天数/频度，mapper 对缺省有安全兜底（冒烟 9/9 验证）。
 
 前端：
 
 - [x] **患者端小程序**：医生详情页（视频问诊）新增"复诊声明"卡——声明勾选（不勾选不可支付）+ 首诊诊断填写 + 首诊材料拍照上传（≤4 张，支付成功后自动上传）；新增「问诊评价」页（星级 1–5 + 0–10 分滑条 + 内容/建议），订单列表完成/退款单显示"评价"入口，已评价只读回显。
 - [x] **医生端小程序**：开方页诊断改 **ICD-10 搜索多选**（chips，选中自动同步诊断文字，提交带 `icd_code/icd_name`）；药品搜索从内置演示库切换为**后端药品字典**（带 drug_id/限售拦截提示）；处方明细新增**用药天数**步进器；病历页顶部展示患者复诊声明 + 首诊材料图（可预览）。
 - [x] **admin-web**：新增「不良事件登记」（全字段表单 + 编辑）与「患者评价」（只读）页面，挂在"监管合规"菜单组。
-- [x] **admin-web**：医生资质页补录身份证（加密不回显）/诊疗科目/科室类别编码（列表带"监管备案"状态列）；药品字典页补监管分类码/国家药品编码/包装/产地（同状态列）。字典对照值本身仍待 S0 T6 产出后录入。
+- [x] **admin-web**：医生、药师身份证（加密不回显）及医生科目/科室编码、药品监管字段均有录入口与"监管备案"状态；未备案审方账号会被拦截。实际值仍待 S0 T6 录入。
 
-**验收：** 新开一单完整走通后，该订单/处方/药品数据能满足第三节各接口的**必输（Y）字段**无一为空（写一个 `scripts/check_report_ready.py` 自检脚本逐字段核验）。
+**验收：** ✅ 测试网关 `tj_smoke.py` **9/9 msgCode=200**；正式切换另由只读
+`scripts/tj_preflight.py` 校验生产库的人员、药品、密钥和队列状态。
 
-### S3 · 上报映射与调度（研发 B）——✅ 代码已完成，待测试环境联调
+### S3 · 上报映射与调度（研发 B）——✅ 代码完成，测试联调已通过
 
 - [x] `gov_reports` 表升级：`+method`、`+payload JSON`（入队时快照，可审计可重报）、`+batch_date`、`+msg_code`、`+resp_msg`、`+next_retry_at`、复合索引 `(biz_type, biz_id)`（幂等由 `enqueue` 应用层保证，`refresh=True` 支持目录更新/签到覆盖）。
 - [x] `tj_mappers.py`：8 个接口的 `build_xxx(entity) -> dict` 纯函数映射（机构三要素统一注入；分→元；naive UTC→北京时间字符串；性别/证件/支付渠道码值转换；密文字段仅在 payload 中解密；缺数据字段输出空串由平台 -99 指认）。单测覆盖（tests/test_tj_mappers.py）。
 - [x] 每日采集器 `tj_collector.collect_daily()`（`main.py` `_tj_daily_collect()` 每日北京时间 01:30）：终态订单（图文→咨询 / 视频→复诊+电子病历，**未支付即取消的不上报**）、审方通过处方、药费核销、新增评价、**不良事件每日签到（空数组也发）**。北京时间切日。
 - [x] 事件型上报：admin 药品增/改/删 → 即时 enqueue `uploadDrugCatalogue`（删除→useFlag=2 取消）。
-- [x] 患者上传首诊材料 → 本地存储（`/uploads/fd_*`），采集器在网关可用时自动调 `uploadFile` 换监管附件 id 回写；未转换前映射层不外发本地路径。
-- [x] worker 改造：去掉 random 模拟；`TJ_REPORT_ENABLED=false` 一律本地模拟成功（开发闭环不变），true 时走 `tj_gateway.tj_call()` 真实发送；网络/系统繁忙/40011 → 指数退避（5m/15m/1h/3h/6h）超限入死信；**数据错误（-99 等）直接入死信**待改数后手工重报（`POST /admin/gov-reports/{id}/retry`）。
+- [x] 患者上传首诊材料继续院内留存；平台确认没有 `uploadFile`，采集器不再尝试上传，本地路径绝不外发。
+- [x] worker：`DEBUG=true` 且开关关闭时保留本地模拟闭环；**生产开关关闭时任务保持 pending，不再伪装成功**。配置完整且开关开启才真实发送；药品目录优先于业务队列，网络错误退避重试、数据错误进死信。
 - [x] 手工按日补采：`POST /admin/gov-reports/collect {"day":"YYYY-MM-DD"}`（幂等，可回灌历史）。
 - [x] 审方链路补齐：审方通过时生成 `recipe_unique_id`、记录 `checked_at` 与审方药师 `audit_staff_id`。
 - [x] 旧占位 enqueue（接诊/审方即时入队）已移除，统一走 T+1 批量。
 
-**验收（待 S0 密钥）：** 测试环境连续 3 天自动推送成功；平台"接口对接数量"页面各必接接口计数增长；不良事件空签到每日可见。
+**验收：** ✅ 测试网关九接口冒烟 9/9 通过、平台"测试接口双向反显"计数精确 +1 核对一致（2026-07-04）。剩余"正式环境连续多日自动推送"随 S5 切正式后验证。
 
 ### S4 · 运营后台监控升级（研发 A）——✅ 基本完成
 
@@ -218,12 +239,13 @@ gov_reports（升级：+method +payload +batch_date +msg_code +uniq(biz_type,biz
 
 ### S5 · 测试达标与切正式（研发 B + C 角，随 M10）
 
-- [ ] 测试环境各必接接口数据量达标（以平台页面为准），通知平台核验。
-- [ ] 申请**正式环境**密钥与地址，`.env` 切换，正式环境 IP 白名单。
-- [ ] 上线 checklist：`TJ_REPORT_ENABLED=true`；密钥不入库不进 git；`gov_reports` 保留策略；每日 01:30 任务在生产验证一次。
+- [x] 九接口测试联调打通（tj_smoke 9/9 + 反显核对）——核心达标已过。
+- [x] 达标数量：T5 确认历史达标可沿用，无需重刷。
+- [x] 正式地址与 appKey/appSecret 已发放；本地 `.env` 已切正式凭据但保持 `TJ_REPORT_ENABLED=false`，凭据不入 git。
+- [ ] 生产上线：完成 T6 → `tj_preflight.py` 零 FAIL → `tj_bootstrap_drugs.py` 首次目录入队 → 开启上报并重启 → 核验目录及次日 01:30 批次。
 - [ ] 与 M9 其余两项衔接：CA 正式签章（处方 PDF 替换占位章）、OSS 归档 15 年（音视频录制 + 处方 PDF + 上报 payload）。
 
-**验收（= Roadmap M9 上报部分验收）：** 正式环境连续 7 天自动上报成功、失败可在后台重报、不良事件每日签到无遗漏。
+**验收（= Roadmap M9 上报部分验收）：** 正式环境连续多日自动上报成功、失败可在后台重报、不良事件每日签到无遗漏。
 
 ---
 
@@ -232,12 +254,13 @@ gov_reports（升级：+method +payload +batch_date +msg_code +uniq(biz_type,biz
 | 风险/决策 | 影响 | 应对 |
 | :-- | :-- | :-- |
 | ~~SM4 密钥/IV 派生规则规范未写明~~ | ~~S1~~ | ✅ **已消除**：jar 逆向完成，协议细节与黄金向量见 [tianjin_gateway_protocol.md](tianjin_gateway_protocol.md)（注意：规范 PDF 1.1 节文字描述与 SDK 实现不一致，以 SDK 为准） |
-| 外包商可能仍以我院 unitID 在正式环境上报；密钥重置时机不当会断报 | S0/S5 | S0 手册 T2 摸底 + T7 切换窗口方案（并行期不动正式密钥，切换日 D 重置，保留回退） |
+| ~~外包商可能仍在正式上报~~ | ~~S0/S5~~ | ✅ T2 已确认正式环境历史为零，不存在并行上报或切换断报 |
 | 视频问诊按"复诊"上报的口径未经平台确认 | S3 映射 | S0 书面确认；若平台认定为"咨询"则改走 2.2.1，映射层一处切换 |
 | 首诊材料/复诊声明改动患者端流程，可能影响转化 | S2 | 产品上做成挂号后补传亦可（复诊接口 firstDiagnosis 非必输），但 referralFlag 必输，声明勾选不可省 |
 | 医生/药师身份证等敏感字段收集 | S2 | 沿用 `*_enc` 加密存储与脱敏返回；上报时才解密 |
-| List 接口"中途错误整批拒绝" | S3 | 入队前跑 `check_report_ready` 校验必输字段；批量以小批（≤50）提交，失败批可整批重报 |
-| 历史存量数据（上线前订单）是否需要补报 | S5 | 与平台确认；如需，用"按日期手工补报"功能回灌 |
+| List 接口"中途错误整批拒绝" | S3 | 正式前跑 `tj_preflight.py`；运行期按单业务任务/小批发送，失败可独立重报 |
+| ~~历史存量数据是否需补报~~ | ~~S5~~ | ✅ **已释除**：我院从未实际开展互联网诊疗业务、正式环境零上报，无存量数据需补报（T5 Q12 改为陈述立场）。上线时"先开开关再放患者"即无缝 |
+| 外包商已刷测试达标、我方换自建平台，达标能否沿用 | S5 | T5 Q3 确认；不沿用则 `tj_smoke.py --count 50` 一键刷满 |
 
 ---
 
@@ -246,6 +269,8 @@ gov_reports（升级：+method +payload +batch_date +msg_code +uniq(biz_type,biz
 - [tianjin_supervision_s0_checklist.md](tianjin_supervision_s0_checklist.md)：S0 阶段详细操作手册（账号收权/摸底/密钥/口径确认/字典对照/切换窗口）。
 - [tianjin_gateway_protocol.md](tianjin_gateway_protocol.md)：网关协议实现细则（SDK 逆向确认版，含黄金测试向量），S1 开发与单测依据。
 - [backend/scripts/tj_ping.py](../backend/scripts/tj_ping.py)：连通性自检脚本（S0 T4 验收工具，亦是 S1 参考实现）。
+- [backend/scripts/tj_preflight.py](../backend/scripts/tj_preflight.py)：正式切换只读预检（不写库、不请求平台）。
+- [backend/scripts/tj_bootstrap_drugs.py](../backend/scripts/tj_bootstrap_drugs.py)：正式首次药品目录安全入队（默认仅预览）。
 - [system_roadmap.md](system_roadmap.md)：M9 的"卫健委实时上报"以本文为准（协议为 SM4/SM3；节奏为每日终态批量推送 + 不良事件每日签到，并非逐单实时）。
 - [backend_saas_prd.md](backend_saas_prd.md) §5.1：GovReport 设计沿用，按本文 S3 升级表结构。
 - 规范原文及配套资料已归档：[docs/specs/tianjin/](specs/tianjin/)——接口规范（PDF/docx）、官方 SDK jar、《互联网监管平台填报说明》（含机构填报端入口）、国家临床版 2.0 ICD-10 编码表（西医/中医）、中医病证分类与代码、互联网诊疗管理办法。

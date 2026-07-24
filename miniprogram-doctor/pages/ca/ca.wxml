@@ -1,0 +1,37 @@
+<view class="ca-page">
+  <view class="ca-card">
+    <view class="ca-icon ca-icon--{{tone}}">
+      <text class="material-symbols-outlined">verified_user</text>
+    </view>
+    <text class="ca-title">个人 CA 身份核验</text>
+    <text class="ca-status ca-status--{{tone}}">{{statusText}}</text>
+    <text class="ca-desc">
+      本流程由放心签提供。请本人阅读 CA 协议，并按页面提示完成人脸活体检测和意愿回答。
+    </text>
+
+    <view wx:if="{{enrollment}}" class="ca-meta">
+      <view><text>业务流水</text><text>{{enrollment.order_no}}</text></view>
+      <view wx:if="{{enrollment.occurred_at}}"><text>核验时间</text><text>{{enrollment.occurred_at}}</text></view>
+      <view wx:if="{{enrollment.similarity}}"><text>人脸相似度</text><text>{{enrollment.similarity}}</text></view>
+      <view wx:if="{{enrollment.provider_msg}}"><text>平台结果</text><text>{{enrollment.provider_msg}}</text></view>
+    </view>
+
+    <button
+      wx:if="{{!enrollment || enrollment.status==='failed' || enrollment.status==='expired'}}"
+      class="ca-btn"
+      loading="{{loading}}"
+      bindtap="start"
+    >{{enrollment ? '重新发起核验' : '开始 CA 核验'}}</button>
+    <button
+      wx:elif="{{enrollment.status==='pending'}}"
+      class="ca-btn"
+      loading="{{polling}}"
+      bindtap="refresh"
+    >查询核验结果</button>
+  </view>
+
+  <view class="ca-note">
+    <text class="material-symbols-outlined">shield_lock</text>
+    <text>身份证信息仅由后端加密读取并提交给放心签，小程序不接收或保存身份证号、刷脸照片和视频。</text>
+  </view>
+</view>

@@ -12,7 +12,7 @@ const ROLES = [
   { v: 'admin', t: '管理员' }, { v: 'pharmacist', t: '审方药师' }, { v: 'finance', t: '财务' }
 ]
 const ROLE_TEXT = { admin: '管理员', pharmacist: '审方药师', finance: '财务' }
-const form = reactive({ username: '', password: '', name: '', role: 'pharmacist' })
+const form = reactive({ username: '', password: '', name: '', role: 'pharmacist', id_card: '' })
 
 async function load() {
   loading.value = true
@@ -26,22 +26,27 @@ onMounted(load)
 
 function openAdd() {
   editing.value = null
-  Object.assign(form, { username: '', password: '', name: '', role: 'pharmacist' })
+  Object.assign(form, { username: '', password: '', name: '', role: 'pharmacist', id_card: '' })
   dialog.value = true
 }
 function openEdit(row) {
   editing.value = row.id
-  Object.assign(form, { username: row.username, password: '', name: row.name || '', role: row.role })
+  Object.assign(form, { username: row.username, password: '', name: row.name || '', role: row.role, id_card: '' })
   dialog.value = true
 }
 
 async function save() {
   if (!editing.value && (!form.username || !form.password)) { ElMessage.warning('请输入用户名和密码'); return }
   if (editing.value) {
-    await request.put(`/admin/staff/${editing.value}`, { name: form.name, role: form.role })
+    const payload = { name: form.name, role: form.role }
+    if (form.id_card) payload.id_card = form.id_card
+    await request.put(`/admin/staff/${editing.value}`, payload)
     ElMessage.success('已保存')
   } else {
-    await request.post('/admin/staff', { username: form.username, password: form.password, name: form.name, role: form.role })
+    await request.post('/admin/staff', {
+      username: form.username, password: form.password, name: form.name,
+      role: form.role, id_card: form.id_card || undefined
+    })
     ElMessage.success('已创建')
   }
   dialog.value = false
@@ -91,6 +96,14 @@ function remove(row) {
       <el-table-column label="状态" width="100">
         <template #default="{ row }"><el-tag :type="row.active ? 'success' : 'info'">{{ row.active ? '启用' : '停用' }}</el-tag></template>
       </el-table-column>
+      <el-table-column label="监管备案" width="100">
+        <template #default="{ row }">
+          <el-tag v-if="row.role === 'pharmacist'" :type="row.id_card_filled && row.name ? 'success' : 'danger'">
+            {{ row.id_card_filled && row.name ? '已补录' : '待补录' }}
+          </el-tag>
+          <span v-else>—</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="created_at" label="创建时间" width="150" />
       <el-table-column label="操作" width="300">
         <template #default="{ row }">
@@ -108,6 +121,9 @@ function remove(row) {
       <el-form-item label="用户名"><el-input v-model="form.username" :disabled="!!editing" placeholder="登录用户名" /></el-form-item>
       <el-form-item v-if="!editing" label="密码"><el-input v-model="form.password" type="password" placeholder="至少 6 位" /></el-form-item>
       <el-form-item label="姓名"><el-input v-model="form.name" placeholder="真实姓名（可选）" /></el-form-item>
+      <el-form-item v-if="form.role === 'pharmacist'" label="身份证号">
+        <el-input v-model="form.id_card" maxlength="18" placeholder="加密存储不回显；留空表示不修改" />
+      </el-form-item>
       <el-form-item label="角色">
         <el-select v-model="form.role">
           <el-option v-for="r in ROLES" :key="r.v" :label="r.t" :value="r.v" />

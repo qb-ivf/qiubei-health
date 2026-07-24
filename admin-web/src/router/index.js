@@ -13,6 +13,7 @@ const routes = [
       { path: 'overview', name: '运营概览', meta: { roles: ['admin'] }, component: () => import('@/views/Overview.vue') },
       { path: 'orders', name: '订单管理', meta: { roles: ['admin', 'finance'] }, component: () => import('@/views/Orders.vue') },
       { path: 'pharmacist', name: '药师审方', meta: { roles: ['admin', 'pharmacist'] }, component: () => import('@/views/PharmacistReview.vue') },
+      { path: 'ca-certificate', name: 'CA数字证书', meta: { roles: ['pharmacist'] }, component: () => import('@/views/CaCertificate.vue') },
       { path: 'doctor-audit', name: '医生资质终审', meta: { roles: ['admin'] }, component: () => import('@/views/DoctorAudit.vue') },
       { path: 'doctor-schedule', name: '医生排班管理', meta: { roles: ['admin'] }, component: () => import('@/views/DoctorSchedule.vue') },
       { path: 'drugs', name: '药品字典', meta: { roles: ['admin', 'pharmacist'] }, component: () => import('@/views/Drugs.vue') },

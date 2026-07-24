@@ -4,6 +4,8 @@
     "pages/workbench/workbench",
     "pages/login/login",
     "pages/qualification/qualification",
+    "pages/ca/ca",
+    "pages/ca-webview/ca-webview",
     "pages/schedule/schedule",
     "pages/phrases/phrases",
     "pages/finance/finance"

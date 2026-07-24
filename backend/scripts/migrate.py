@@ -49,11 +49,46 @@ COLUMNS = [
     ("drugs", "packing", "VARCHAR(30) NULL"),
     ("drugs", "manufacturer", "VARCHAR(60) NULL"),
     ("drugs", "use_flag", "VARCHAR(1) NOT NULL DEFAULT '1'"),
+    # —— 放心签双录与处方签章追踪 ——
+    ("prescriptions", "doctor_ca_order_no", "VARCHAR(64) NULL"),
+    ("prescriptions", "pharmacist_ca_order_no", "VARCHAR(64) NULL"),
+]
+
+TABLE_DDLS = [
+    """
+    CREATE TABLE IF NOT EXISTS ca_enrollments (
+        id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        subject_type VARCHAR(16) NOT NULL,
+        subject_id BIGINT NOT NULL,
+        provider_user_id VARCHAR(64) NOT NULL,
+        order_no VARCHAR(64) NOT NULL UNIQUE,
+        verify_id VARCHAR(64) NULL,
+        trade_no VARCHAR(64) NULL,
+        status VARCHAR(16) NOT NULL DEFAULT 'pending',
+        agreement_url_enc TEXT NULL,
+        provider_code VARCHAR(16) NULL,
+        face_code VARCHAR(16) NULL,
+        provider_msg VARCHAR(255) NULL,
+        live_rate VARCHAR(16) NULL,
+        similarity VARCHAR(16) NULL,
+        occurred_at DATETIME NULL,
+        last_checked_at DATETIME NULL,
+        completed_at DATETIME NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX ix_ca_enrollments_subject_type (subject_type),
+        INDEX ix_ca_enrollments_subject_id (subject_id),
+        INDEX ix_ca_enrollments_status (status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """,
 ]
 
 
 async def main() -> None:
     async with engine.begin() as conn:
+        for ddl in TABLE_DDLS:
+            await conn.execute(text(ddl))
+            print("ensured ca_enrollments")
         for table, col, ddl in COLUMNS:
             exists = await conn.scalar(
                 text(

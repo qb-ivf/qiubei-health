@@ -619,7 +619,7 @@ async def audit_logs(action: str | None = None, actor: str | None = None, user=D
 async def list_staff(user=Depends(_admin), db: AsyncSession = Depends(get_db)):
     return [
         {"id": s.id, "username": s.username, "name": s.name, "role": s.role,
-         "active": s.active, "created_at": _fmt(s.created_at)}
+         "active": s.active, "id_card_filled": bool(s.id_card_enc), "created_at": _fmt(s.created_at)}
         for s in await staff_service.list_staff(db)
     ]
 
@@ -631,6 +631,9 @@ async def create_staff(request: Request, body: dict = Body(...), user=Depends(_a
             db, body.get("username", "").strip(), body.get("password", ""),
             body.get("role", "pharmacist"), body.get("name"),
         )
+        if body.get("id_card"):
+            from ...core.crypto import encrypt
+            s.id_card_enc = encrypt(str(body["id_card"]).strip())
         await audit_service.record(db, user, request, "创建账号", "staff", s.id, f"{s.username}({s.role})")
         await db.commit()
     except staff_service.StaffError as e:
@@ -648,6 +651,9 @@ async def update_staff(staff_id: int, request: Request, body: dict = Body(...), 
         s = await staff_service.update_staff(
             db, staff_id, name=body.get("name"), role=body.get("role"), active=body.get("active"),
         )
+        if body.get("id_card"):
+            from ...core.crypto import encrypt
+            s.id_card_enc = encrypt(str(body["id_card"]).strip())
         await audit_service.record(db, user, request, "编辑账号", "staff", staff_id, f"{s.username}({s.role},{'启用' if s.active else '停用'})")
         await db.commit()
     except staff_service.StaffError as e:

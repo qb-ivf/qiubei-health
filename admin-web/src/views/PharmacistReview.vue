@@ -41,10 +41,10 @@ onMounted(load)
 function switchTab(k) { tab.value = k; load() }
 function detail(row) { current.value = row; drawer.value = true }
 
-// 通过 → 触发 CA 加签生效（AUDITING -> PRESCRIBED）
+// 通过审方（AUDITING -> PRESCRIBED）。CA 双录与 PDF 文档签署是两个独立步骤。
 async function approve(row) {
   await request.post(`/prescriptions/${row.id}/approve`)
-  ElMessage.success(`处方 ${row.id} 审核通过，已触发 CA 数字签名`)
+  ElMessage.success(`处方 ${row.id} 审核通过`)
   drawer.value = false
   load()
 }
@@ -127,7 +127,7 @@ function reject(row) {
     </el-table>
 
     <div v-if="current.status === 'pending'" class="drawer-foot">
-      <el-button type="success" @click="approve(current)">通过并 CA 加签</el-button>
+      <el-button type="success" @click="approve(current)">通过审方</el-button>
       <el-button type="danger" @click="reject(current)">驳回</el-button>
     </div>
   </el-drawer>

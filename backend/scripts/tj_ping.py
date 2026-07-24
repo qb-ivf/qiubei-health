@@ -4,7 +4,9 @@
     pip install gmssl httpx
     配置优先从环境变量 / backend/.env 读取（TJ_GATEWAY_URL 等 6 项，密钥勿写进本文件），
     也可临时修改下方常量兜底：
-    python scripts/tj_ping.py
+    python scripts/tj_ping.py --self-check-only
+    python scripts/tj_ping.py                         # 测试环境发送 1 条取消态目录数据
+    python scripts/tj_ping.py --allow-production-write  # 正式环境仅在明确批准后允许写入
 
 流程：
     1. 本地国密自检：与官方 SDK 生成的黄金向量对拍（见 docs/tianjin_gateway_protocol.md）
@@ -15,6 +17,7 @@
     code=40004 / 40010          → 密钥或签名问题（先确认 appSecret 是 32 位 hex）
     body.msgCode=-99            → 链路已通，仅业务字段缺失（msg 会列字段名）
 """
+import argparse
 import json
 import os
 import sys
@@ -29,6 +32,7 @@ from app.utils.sm_crypto import (  # noqa: E402
     sm3_hex_upper,
     sm4_cbc_encrypt_hex,
 )
+from app.services.tj_config import gateway_config_errors, is_production_gateway  # noqa: E402
 
 
 def _load_dotenv() -> None:
@@ -91,7 +95,34 @@ def self_check() -> None:
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="天津监管平台连通性自检")
+    parser.add_argument("--self-check-only", action="store_true", help="只做本地国密自检，不发网络请求")
+    parser.add_argument(
+        "--allow-production-write", action="store_true",
+        help="明确允许向正式网关写入一条取消态目录记录（通常应改用真实药品目录初始化）",
+    )
+    args = parser.parse_args()
     self_check()
+    if args.self_check_only:
+        print("已按 --self-check-only 停止，未发网络请求。")
+        raise SystemExit(0)
+    config = type("PingConfig", (), {
+        "TJ_GATEWAY_URL": GATEWAY,
+        "TJ_APP_KEY": APP_KEY,
+        "TJ_APP_SECRET": APP_SECRET,
+        "TJ_UNIT_ID": UNIT_ID,
+        "ORGAN_ID": ORGAN_ID,
+        "ORGAN_NAME": ORGAN_NAME,
+    })()
+    errors = gateway_config_errors(config)
+    if errors:
+        for error in errors:
+            print(f"配置错误：{error}")
+        raise SystemExit(2)
+    if is_production_gateway(GATEWAY) and not args.allow_production_write:
+        print("拒绝向正式网关写入演示药品。正式连通性请通过真实药品目录首批上报验证；")
+        print("如确需写入取消态探针，必须显式添加 --allow-production-write。")
+        raise SystemExit(2)
     call(
         "uploadDrugCatalogue",
         [

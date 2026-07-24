@@ -255,7 +255,8 @@ Page({
   onUsage(e) { const i = +e.currentTarget.dataset.i; const drugs = this.data.drugs; drugs[i].usageIdx = +e.detail.value; this.setData({ drugs }); },
   delDrug(e) { const drugs = this.data.drugs.filter((_, idx) => idx !== +e.currentTarget.dataset.i); this.setData({ drugs }); },
 
-  // 数字签名并发送处方 → CA 签名 loading → 订单 AUDITING → 通知患者结束 → 退回 D1
+  // 提交处方 → 订单 AUDITING → 通知患者结束 → 退回 D1。
+  // CA 双录由“CA数字证书”页完成；文档签署不能用前端 loading 冒充成功。
   submit() {
     if (!this.data.drugs.length) { wx.showToast({ title: '请先开具药品', icon: 'none' }); return; }
     if (!this.data.icdList.length) { wx.showToast({ title: '请选择 ICD-10 诊断（监管必填）', icon: 'none' }); return; }
@@ -273,7 +274,7 @@ Page({
       dose_unit: '盒'
     }));
 
-    wx.showLoading({ title: 'CA 数字签名中...', mask: true });
+    wx.showLoading({ title: '提交处方中...', mask: true });
     request('/prescriptions', {
       method: 'POST',
       data: {

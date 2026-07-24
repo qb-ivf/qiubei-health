@@ -43,6 +43,9 @@ class PrescriptionOut(BaseModel):
     audit_status: str
     reject_reason: str | None = None
     ca_sign: str | None = None
+    pdf_url: str | None = None
+    doctor_ca_order_no: str | None = None
+    pharmacist_ca_order_no: str | None = None
     doctor_name: str | None = None
     patient_name: str | None = None
     created_at: datetime | None = None

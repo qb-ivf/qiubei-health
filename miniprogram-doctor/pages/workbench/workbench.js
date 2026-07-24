@@ -11,7 +11,8 @@ Page({
       { t: '排班管理', icon: 'calendar_month', color: 'var(--primary)', bg: 'rgba(0,86,196,.1)' },
       { t: '诊金设置', icon: 'payments', color: 'var(--secondary)', bg: 'rgba(0,108,70,.1)' },
       { t: '常用语/快捷回复', icon: 'chat_bubble', color: 'var(--tertiary)', bg: 'rgba(137,77,0,.1)' },
-      { t: '我的资质', icon: 'badge', color: 'var(--on-surface-variant)', bg: 'var(--sc-highest)' }
+      { t: '我的资质', icon: 'badge', color: 'var(--on-surface-variant)', bg: 'var(--sc-highest)' },
+      { t: 'CA数字证书', icon: 'verified_user', color: 'var(--primary)', bg: 'rgba(0,86,196,.1)' }
     ]
   },
 
@@ -74,6 +75,8 @@ Page({
       this.editFee();
     } else if (t.indexOf('常用语') > -1) {
       wx.navigateTo({ url: '/pages/phrases/phrases' });
+    } else if (t.indexOf('CA') > -1) {
+      wx.navigateTo({ url: '/pages/ca/ca' });
     } else {
       wx.showToast({ title: t + '（建设中）', icon: 'none' });
     }

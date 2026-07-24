@@ -60,8 +60,8 @@ dc exec mysql mysql -uqiubei -pqiubei qiubei -e "SHOW TABLES LIKE 'medical_dispu
 **小程序**：后端新接口对旧版小程序完全向后兼容（旧版不传复诊声明/ICD 也能正常下单开方），
 可先上后端；两端小程序在微信开发者工具上传新版本、提审，审核期间线上旧版不受影响。
 
-**`.env` 无需新增配置**：天津监管上报默认关闭（`TJ_REPORT_ENABLED=false`，本地模拟成功），
-拿到监管平台测试密钥后再按第 9 节配置开启。
+**`.env` 无需在普通部署步骤中开启监管上报**：`TJ_REPORT_ENABLED=false` 时生产队列保持 pending；
+正式切换必须单独按第 9 节完成预检和目录初始化。
 
 **回滚**：`git log --oneline` 找上一版本 → `git checkout <hash>` → `dc up -d --build`。
 迁移只加表/加列不删改，旧代码跑在新表结构上无影响，**无需回滚数据库**。
@@ -237,13 +237,14 @@ ls /var/www/admin-web/assets/ | wc -l    # 资源齐全（构建时会打印总�
 ## 9. 天津监管上报运维（docs/tianjin_supervision_plan.md）
 
 后端每日**北京时间 01:30** 自动采集前一日终态数据入 `gov_reports` 队列，后台 worker 每 15s 消费。
-`TJ_REPORT_ENABLED=false`（默认）时本地模拟成功，不发真实请求——**拿到监管平台测试密钥前保持关闭**。
+`TJ_REPORT_ENABLED=false` 时：`DEBUG=true` 的开发环境模拟成功；`DEBUG=false` 的生产环境会把任务保持为
+`pending`，**不发送、也不会伪装成功吞掉队列**。
 
-### 9.1 开启真实上报（联调时，S0 拿到密钥后）
+### 9.1 测试环境联调
 编辑 `.env` 追加，然后 `dc restart api`：
 ```bash
 TJ_REPORT_ENABLED=true
-TJ_GATEWAY_URL=http://imssp.wsjk.tj.gov.cn/net-diag-service/test-openapi/api   # 以平台"秘钥生成及管理"页为准
+TJ_GATEWAY_URL=https://imssp.wsjk.tj.gov.cn/net-diag-service/test-openapi/api
 TJ_APP_KEY=<appKey>
 TJ_APP_SECRET=<appSecret，32位hex>
 TJ_UNIT_ID=<监管平台机构ID>
@@ -257,7 +258,31 @@ dc exec api python scripts/tj_ping.py
 # 若报 ModuleNotFoundError: gmssl → 镜像未重建：dc up -d --build 后重试
 ```
 
-### 9.2 查看上报队列状态
+`tj_smoke.py` 只允许测试网关；检测到正式网关会强制退出，避免合成患者/处方污染正式数据。
+
+### 9.2 正式环境首次切换（按顺序）
+
+1. 先写正式 URL/appKey/appSecret，但保持 `TJ_REPORT_ENABLED=false`；确认 `DEBUG=false`、
+   `ENCRYPTION_KEY` 与非默认 `JWT_SECRET` 均已配置。
+2. 只读预检（不写库、不请求平台），必须达到 **0 FAIL**：
+
+```bash
+dc exec api python scripts/tj_preflight.py
+```
+
+3. 预览并初始化全部真实在用药品目录任务（执行阶段只写本地队列，仍不请求平台）：
+
+```bash
+dc exec api python scripts/tj_bootstrap_drugs.py
+dc exec api python scripts/tj_bootstrap_drugs.py --apply --confirm-unit 20250813151647906
+```
+
+4. 将 `.env` 的 `TJ_REPORT_ENABLED` 改为 `true`，执行 `dc restart api`。worker 会优先发送药品目录，
+   再发送其他业务任务。先确认目录全部 success，次日再核验 01:30 批次和不良事件签到。
+
+> `tj_ping.py` 在正式网关默认拒绝写演示药品；正常正式验密由上述真实目录首批完成。
+
+### 9.3 查看上报队列状态
 ```bash
 # 按接口/状态统计（success/pending/failed/dead）
 dc exec mysql mysql -uqiubei -pqiubei qiubei \
@@ -273,10 +298,10 @@ dc exec mysql mysql -uqiubei -pqiubei qiubei \
 ```
 日常操作优先走 **admin-web「监管上报面板」**：按接口统计、签到状态、失败任务看报文/一键重报、按日补采（漏采某天时用）。
 
-### 9.3 注意
+### 9.4 注意
 - 一个业务终态只上报一次（`(biz_type,biz_id)` 幂等）；重复补采同一天不会产生重复任务。
 - `failed` 会按退避（5m→6h）自动重试；`dead` 不再自动重试，改完数据后在面板点"重新上报"。
-- 首诊材料图片在 `backend/uploads/fd_*`，采集器会在网关可用时自动换取监管附件 id，**别手动清理 uploads**。
+- 首诊材料图片在 `backend/uploads/fd_*` 院内留存；平台已书面确认没有 `uploadFile`，本地路径不会外发。
 
 ## 10. 数据库与文件备份（生产必备）
 

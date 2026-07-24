@@ -1,0 +1,18 @@
+.ca-page { min-height: 100vh; box-sizing: border-box; padding: 40rpx 32rpx; background: var(--surface); }
+.ca-card { padding: 48rpx 36rpx; border-radius: 28rpx; background: var(--surface-container-lowest); box-shadow: 0 8rpx 30rpx rgba(35,42,60,.08); text-align: center; }
+.ca-icon { width: 112rpx; height: 112rpx; margin: 0 auto 24rpx; border-radius: 999rpx; display: flex; align-items: center; justify-content: center; color: var(--on-surface-variant); background: var(--surface-container-high); }
+.ca-icon text { font-size: 58rpx; }
+.ca-icon--success { color: #006c46; background: #b9f4d5; }
+.ca-icon--pending { color: #7a5900; background: #ffdfa0; }
+.ca-icon--failed { color: #ba1a1a; background: #ffdad6; }
+.ca-title { display: block; font-size: 38rpx; font-weight: 700; color: var(--on-surface); }
+.ca-status { display: block; margin-top: 12rpx; font-size: 28rpx; color: var(--on-surface-variant); }
+.ca-status--success { color: #006c46; }
+.ca-status--failed { color: #ba1a1a; }
+.ca-desc { display: block; margin-top: 28rpx; color: var(--on-surface-variant); font-size: 27rpx; line-height: 1.7; text-align: left; }
+.ca-meta { margin-top: 32rpx; padding: 20rpx 24rpx; border-radius: 18rpx; background: var(--surface-container-low); text-align: left; }
+.ca-meta view { display: flex; justify-content: space-between; gap: 20rpx; padding: 10rpx 0; font-size: 25rpx; color: var(--on-surface-variant); }
+.ca-meta view text:last-child { max-width: 430rpx; text-align: right; word-break: break-all; color: var(--on-surface); }
+.ca-btn { margin-top: 36rpx; color: #fff; background: var(--primary); border-radius: 999rpx; font-weight: 700; }
+.ca-note { display: flex; gap: 16rpx; margin-top: 28rpx; padding: 24rpx; color: var(--on-surface-variant); font-size: 24rpx; line-height: 1.6; }
+.ca-note .material-symbols-outlined { flex: none; color: var(--primary); }

@@ -5,7 +5,7 @@
 
 用法（配置自动读 backend/.env，同 tj_ping）：
     python scripts/tj_smoke.py --dry     # 只打印各接口 payload，不发送（本地验证映射）
-    python scripts/tj_smoke.py           # 真实推送 9 个接口各 1 条到测试网关
+    python scripts/tj_smoke.py           # 真实推送 9 个接口各 1 条到测试网关（正式网关强制拒绝）
     服务器： dc exec api python scripts/tj_smoke.py
 
 判读：每行 [接口] msgCode=200 为通过；-99 时 msg 列出缺失字段名（逐个补齐即可）。
@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # backend/
 
 from scripts.tj_ping import APP_KEY, APP_SECRET, GATEWAY  # noqa: E402  复用 .env 配置加载
 from app.services import tj_mappers as m  # noqa: E402
+from app.services.tj_config import is_production_gateway  # noqa: E402
 from app.utils.sm_crypto import build_sign_headers, sm3_hex_upper, sm4_cbc_encrypt_hex  # noqa: E402
 
 NOW = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -143,6 +144,11 @@ if __name__ == "__main__":
             print(json.dumps(payload, ensure_ascii=False, indent=2))
         print("\n共 9 个接口 payload 构建成功（--dry 未发送）")
         sys.exit(0)
+
+    if is_production_gateway(GATEWAY):
+        print("拒绝向正式网关推送九接口合成测试数据。请切回测试网关运行 tj_smoke，")
+        print("正式环境使用 tj_preflight + tj_bootstrap_drugs，并由真实业务批次验证。")
+        sys.exit(2)
 
     base = time.strftime("%m%d%H%M%S")
     print(f"批次标识 QBTEST{base}xx → {GATEWAY}（{args.count} 轮）\n")

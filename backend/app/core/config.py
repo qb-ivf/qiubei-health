@@ -62,10 +62,24 @@ class Settings(BaseSettings):
     # —— 合规网关（卫健委 / CA） ——
     GOV_REPORT_URL: str = ""     # （旧占位，待 TJ_* 全量接管后移除）
     GOV_APP_SECRET: str = ""
-    CA_SIGN_URL: str = ""
+    CA_SIGN_URL: str = ""        # 旧占位：放心签文档签署接口到手后移除
+
+    # —— 放心签：高级证书协议 + 智能双录 ——
+    # ENABLED 仅控制是否调用放心签；REQUIRED 决定开方/审方是否必须已有成功双录记录。
+    FXQ_CA_ENABLED: bool = False
+    FXQ_CA_REQUIRED: bool = False
+    FXQ_APP_KEY: str = ""        # 开放平台应用的 AppKey/AppID（以控制台显示为准）
+    FXQ_APP_SECRET: str = ""     # 仅放部署环境变量，不入 git
+    FXQ_CA_REDIRECT_URL: str = ""  # 如 https://api.example.com/api/v1/ca/callback
+    FXQ_TOKEN_URL: str = "https://restapi.fangxinqian.cn/auth/v1/token"
+    FXQ_REQUEST_SIGN_URL: str = "https://identity.fangxinqian.cn/auth/v1/encrypt"
+    FXQ_CA_AGREEMENT_URL: str = "https://identity.fangxinqian.cn/face/v1/agreement/dualrecording/ca"
+    FXQ_CA_RESULT_URL: str = "https://identity.fangxinqian.cn/face/v1/dualrecording/result"
+    FXQ_HTTP_TIMEOUT_SECONDS: float = 15.0
 
     # —— 天津监管平台（docs/tianjin_supervision_plan.md，密钥见平台"秘钥生成及管理"） ——
-    TJ_REPORT_ENABLED: bool = False  # False=保持本地模拟（开发）；True=真实上报
+    # False：DEBUG=true 时本地模拟；DEBUG=false 时保留 pending 队列、不发送也不吞任务。
+    TJ_REPORT_ENABLED: bool = False
     TJ_GATEWAY_URL: str = ""         # 形如 http://imssp.wsjk.tj.gov.cn/net-diag-service/test-openapi/api
     TJ_APP_KEY: str = ""
     TJ_APP_SECRET: str = ""          # 应为 32 位 hex（同时是 SM4 密钥）

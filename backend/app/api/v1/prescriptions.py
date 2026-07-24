@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from ...core.security import mask_name
 from ...core.database import get_db
+from ...core.config import settings
 from ...models.order import Order
 from ...models.prescription import Prescription
 from ...models.user import Doctor, Patient
@@ -93,10 +94,12 @@ async def by_order(order_id: int, user=Depends(get_current_user), db: AsyncSessi
 
 @router.get("/{order_id}/pdf")
 async def pdf(order_id: int, user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    """处方 PDF（reportlab 生成，红章占位）。"""
+    """处方 PDF；生产要求 CA 时，未签名文件禁止下载。"""
     rx = await rx_service.get_by_order(db, order_id)
     if not rx:
         raise HTTPException(status_code=404, detail="暂无处方")
+    if settings.FXQ_CA_REQUIRED and not rx.ca_sign:
+        raise HTTPException(status_code=409, detail="处方尚未完成文档数字签名，不能作为有效处方下载")
     doctor = await db.get(Doctor, rx.doctor_id)
     patient = await db.get(Patient, rx.patient_id)
     data = compliance_service.generate_prescription_pdf(

@@ -29,6 +29,7 @@ def task_report_to_gov(self, payload: dict):
 
 @celery_app.task
 def task_ca_sign_prescription(prescription_id: int):
-    """CA 云端静默加签 + reportlab 生成处方 PDF（PRD §5.2）。"""
-    # TODO: 调 CA SM2 加签 → reportlab 生成 PDF → 盖章 → OSS 归档(Archive, 15年)
-    logger.info("CA 加签处方（占位）: %s", prescription_id)
+    """处方文档签名任务（供应商签署接口文档未到，禁止伪造成功）。"""
+    raise RuntimeError(
+        f"处方 {prescription_id} 未签名：当前文档仅覆盖 CA 协议双录，尚缺 PDF 签署/下载/验签接口"
+    )

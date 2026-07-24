@@ -36,6 +36,7 @@ const NAV = [
   {
     title: '监管合规', icon: 'DataLine', children: [
       { path: '/dashboard', title: '监管上报面板', icon: 'DataLine', roles: ['admin'] },
+      { path: '/ca-certificate', title: 'CA数字证书', icon: 'Stamp', roles: ['pharmacist'] },
       { path: '/disputes', title: '不良事件登记', icon: 'Warning', roles: ['admin'] },
       { path: '/evaluations', title: '患者评价', icon: 'ChatDotRound', roles: ['admin'] },
     ],
