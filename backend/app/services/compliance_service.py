@@ -5,8 +5,8 @@
   - 否则本地模拟成功（开发环境闭环不变）。
 失败分类：网络/系统繁忙/请求过期 → 指数退避自动重试，超限入死信；
 数据错误（-99 等）→ 直接入死信，改数后在后台手工重报。
-CA 文档签署接口仍待供应商文档；处方 PDF 仅生成明确标识的未签名预览，
-不再绘制会被误认为有效电子签章的红章。
+放心签文档签署启用前，处方 PDF 仅生成明确标识的未签名预览；
+启用后由 fxq_document_service 生成三方签名并验签，本文不绘制任何伪造红章。
 """
 import io
 import logging
@@ -192,10 +192,17 @@ async def retry(db: AsyncSession, rid: int):
     return r
 
 
-def generate_prescription_pdf(rx, patient_name: str, doctor_name: str) -> bytes:
+def generate_prescription_pdf(
+    rx,
+    patient_name: str,
+    doctor_name: str,
+    pharmacist_name: str | None = None,
+    *,
+    for_signing: bool = False,
+) -> bytes:
     """reportlab 生成处方 PDF。
 
-    ca_sign 为空时输出醒目的“未完成数字签名”提示，不得作为有效电子处方。
+    for_signing=True 时生成待放心签处理的固定原文；否则未签名预览必须带醒目标记。
     """
     from reportlab.lib.pagesizes import A4
     from reportlab.pdfbase import pdfmetrics
@@ -204,11 +211,15 @@ def generate_prescription_pdf(rx, patient_name: str, doctor_name: str) -> bytes:
 
     pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
     buf = io.BytesIO()
-    c = canvas.Canvas(buf, pagesize=A4)
+    # invariant=1 固定 PDF 元数据，确保相同处方原文可得到稳定 SHA-256。
+    c = canvas.Canvas(buf, pagesize=A4, invariant=1)
     w, h = A4
+    hospital_name = settings.FXQ_COMPANY_NAME.strip() or "天津逑贝互联网医院"
     c.setFont("STSong-Light", 18)
-    c.drawCentredString(w / 2, h - 60, "天津逑贝互联网医院电子处方笺")
+    c.drawCentredString(w / 2, h - 60, f"{hospital_name}电子处方笺")
     c.setFont("STSong-Light", 11)
+    if rx.recipe_unique_id:
+        c.drawString(50, h - 82, f"处方编号：{rx.recipe_unique_id}")
     c.drawString(50, h - 100, f"姓名：{patient_name}")
     c.drawString(320, h - 100, "科室：呼吸内科")
     c.drawString(50, h - 122, f"临床诊断：{rx.diagnosis or ''}")
@@ -220,13 +231,20 @@ def generate_prescription_pdf(rx, patient_name: str, doctor_name: str) -> bytes:
         c.drawString(70, y, f"{it.get('name')}  x{it.get('qty', 1)}   用法：{it.get('usage', '')}")
         y -= 18
 
-    y -= 24
-    c.drawString(50, y, f"开方医师：{doctor_name}        审核药师：（已审核）")
-    if rx.ca_sign:
-        c.drawString(50, y - 20, f"数字签名：{rx.ca_sign}")
+    y = min(y - 24, 205)
+    c.drawString(50, y, f"开方医师：{doctor_name}")
+    c.drawString(235, y, f"审核药师：{pharmacist_name or '待审核'}")
+    if rx.checked_at:
+        c.drawString(400, y, f"审方时间：{rx.checked_at:%Y-%m-%d}")
+
+    if for_signing:
+        c.setFillColorRGB(0.25, 0.25, 0.25)
+        c.drawString(78, 52, "医师数字签名")
+        c.drawString(245, 52, "药师数字签名")
+        c.drawString(420, 52, "医院电子签章")
     else:
         c.setFillColorRGB(0.73, 0.1, 0.1)
-        c.drawString(50, y - 20, "未完成文档数字签名——仅供开发预览，不可作为有效电子处方")
+        c.drawString(50, 90, "未完成文档数字签名——仅供开发预览，不可作为有效电子处方")
     c.save()
     buf.seek(0)
     return buf.read()

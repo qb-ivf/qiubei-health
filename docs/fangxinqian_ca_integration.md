@@ -7,13 +7,17 @@
 
 | 项目 | 状态 | 说明 |
 | :-- | :-- | :-- |
-| 放心签开放平台应用 | ✅ 已完成 | 应用已创建且状态正常，AppKey/AppSecret 已取得；密钥不得写入本文或 Git |
+| 放心签开放平台应用 | ✅ 已完成 | 账号主体迁移已完成，控制台显示天津逑贝互联网医院主体；AppID/AppSecret 已取得，密钥不得写入本文或 Git |
+| 已购服务权限 | ✅ 已确认 | 2026-07-23 控制台显示合同签署、核身图片查询、智能鉴证、签章生成、企业四要素、PDF 转图片共 6 项均已开通 |
+| 个人数字证书材料 | ✅ 已取得 | 最新回函共 10 人（6 名医师、4 名药师），北京数字认证股份有限公司出具，有效期 2026-03-08 至 2031-03-07 |
 | 高级证书接口文档 | ✅ 已取得 | 已覆盖 CA 协议阅读、智能双录发起和结果查询 |
 | 双录后端及前端实现 | ✅ 已完成 | 医师小程序、药师后台、回调、轮询、数据库迁移和预检脚本均已实现 |
-| 自动化验证 | ✅ 已完成 | 后端 32 项测试通过，运营后台生产构建及医生端新增 JS 检查通过 |
+| PDF 签署/验签接口与代码 | ✅ 已完成 | 已按官方标准 API 实现个人/企业签章生成、三方 PDF 区域签署、合同验签、摘要复核和受保护下载 |
+| 官方沙箱端到端 | ✅ 已通过 | 使用官方公开沙箱凭据和虚构主体完成 3 个签章生成 → 三方 PDF 签署 → 合同验签 → 下载，接口均返回 10000，摘要一致 |
+| 自动化验证 | ✅ 已完成 | 后端 39 项测试通过，含稳定原文、签章地址白名单、三方验签、摘要不一致拒绝及受保护存储测试 |
 | 服务器配置与真实 token 验证 | ⬜ 待执行 | 需要在受保护的生产环境配置密钥并运行预检 |
 | 医师/药师真实双录 | ⬜ 待执行 | 先各选 1 人试点，再完成 6 名医师和 4 名药师 |
-| 处方 PDF 正式数字签名 | 🔴 阻断 | 仍缺个人/企业证书、签章、签后下载和验签接口文档 |
+| 首份真实处方签署 | 🟡 待联调 | 代码与权限已具备；仍需安全配置密钥、持久卷并用 1 名医师 + 1 名药师完成真实签署验收 |
 
 ## 1. 已实现范围
 
@@ -28,30 +32,47 @@
 7. 保存业务流水、核验 ID、结果、得分和时间，不保存身份证明文、照片或视频；
 8. token 失效时自动刷新一次；所有供应商地址限制为放心签官方 HTTPS 域名。
 
+处方文档签署闭环：
+
+1. 用固定 PDF 元数据生成字节稳定的处方原文并计算 SHA-256；
+2. 为医师、审核药师生成个人签章，为医院生成“处方专用章”；
+3. 将三方主体和固定坐标一次提交至 PDF 区域签署接口；
+4. 对签后 URL 立即调用合同验签，逐一核对三方主体、证书有效期、签名和时间戳；
+5. 下载签后 PDF，复核其 SHA-256 与放心签验签摘要；
+6. 原子写入受保护持久目录；只有此后才把处方置为已审核并允许患者下载。
+
 相关代码：
 
 - `backend/app/services/fxq_ca.py`：token、请求签名、接口调用；
 - `backend/app/services/ca_service.py`：人员映射、双录状态机、隐私留存；
+- `backend/app/services/fxq_document_service.py`：三方签章、验签、摘要复核和签后文件存储；
+- `backend/app/services/prescription_service.py`：审方通过前执行真实签署，失败不改变处方状态；
 - `backend/app/api/v1/ca.py`：医生/药师接口及 H5 回调；
 - `backend/app/models/ca_enrollment.py`：双录记录；
 - `miniprogram-doctor/pages/ca/`：医师操作入口；
 - `admin-web/src/views/CaCertificate.vue`：药师操作入口。
 
-## 2. 重要边界
+## 2. 个人证书材料与文档签署边界
 
 “高级证书接口”完成的是 CA 协议确认、活体检测和签署意愿核验，**不等同于给处方 PDF 做数字签名**。
-所附文档没有以下接口，因此本次没有猜测或伪造实现：
+最新版《个人数字证书》PDF 是 CA 出具的**证书办理情况回函**，用于证明 10 名人员已获发数字证书；
+它不是 PFX/P12/X.509 导出文件，也没有放心签 `certId/sealId` 或可供程序直接读取的私钥。
 
-- 个人/企业证书查询及证书 ID；
-- 医师签名、药师签名或审核签名；
-- 医院企业电子印章；
-- PDF 上传、坐标/关键词签署、封存；
-- 签后文件下载、签名报告、验签和存证回调。
+放心签当前标准 API 不要求我方上传私钥或传入 `certId`。签署接口以签署人姓名/企业名称和
+身份证号/统一社会信用代码匹配已认证主体，携带 CA 证书完成 PDF 签署。实现已对齐以下官方文档：
 
-代码已经删除 `CA_MOCK_SIGN` 和红章占位。未签名 PDF 只显示“开发预览，不可作为有效电子处方”；
-当 `FXQ_CA_REQUIRED=true` 时，未完成真实文档签名的 PDF 会拒绝下载。
+- [单文档 PDF 区域签署](https://sign-online-group.oss-cn-hangzhou.aliyuncs.com/sign-open/documentPdf/41.md)；
+- [个人/企业签章生成](https://sign-online-group.oss-cn-hangzhou.aliyuncs.com/sign-open/documentPdf/61.md)；
+- [合同验签](https://sign-online-group.oss-cn-hangzhou.aliyuncs.com/sign-open/documentPdf/65.md)；
+- [获取 token](https://sign-online-group.oss-cn-hangzhou.aliyuncs.com/sign-open/documentPdf/9.md)；
+- [请求签名规则](https://sign-online-group.oss-cn-hangzhou.aliyuncs.com/sign-open/documentPdf/81.md)。
 
-要完成处方正式签章，仍需放心签补充上述文档及测试参数。
+系统在药师审方通过时对同一份固定原文一次性加入医师、药师、医院三方签名，随后立即验签；
+只有文件未篡改、三方签名及时间戳均有效、下载文件 SHA-256 与放心签验签摘要一致时才落库。
+验签记录不保存身份证号、印章图片、印章数据或签名值。
+
+代码已删除 `CA_MOCK_SIGN` 和红章占位。未签名 PDF 只显示“开发预览，不可作为有效电子处方”；
+当 `FXQ_CA_REQUIRED=true` 时，未通过真实验签的 PDF 会拒绝下载。
 
 ## 3. 环境变量
 
@@ -59,18 +80,26 @@
 
 ```dotenv
 FXQ_CA_ENABLED=true
+FXQ_DOCUMENT_SIGN_ENABLED=false
 FXQ_CA_REQUIRED=false
 FXQ_APP_KEY=<开放平台应用 AppKey/AppID>
 FXQ_APP_SECRET=<开放平台应用 AppSecret>
 FXQ_CA_REDIRECT_URL=https://api.example.com/api/v1/ca/callback
+FXQ_COMPANY_NAME=天津逑贝互联网医院有限公司
+FXQ_COMPANY_IDNO=<统一社会信用代码>
+FXQ_SIGNED_PDF_DIR=/app/storage/prescriptions
 ```
 
-四个供应商 URL 已在代码中使用官方默认值，通常不需要覆盖。
+供应商 URL 已在代码中使用官方默认值，通常不需要覆盖。
 
-- 第一阶段使用 `FXQ_CA_ENABLED=true`、`FXQ_CA_REQUIRED=false`，先让 6 名医师和 4 名药师完成双录。
-- 测试环境可以短暂设置 `FXQ_CA_REQUIRED=true` 验证开方/审方门禁；此时未完成双录的医师不能开方，未完成双录的药师不能审方，未完成真实文档签名的 PDF 也会拒绝下载。
-- **生产环境必须等 PDF 签署/签后下载/验签接口完成后，才能设置 `FXQ_CA_REQUIRED=true` 并正式启用电子处方。**
+- 第一阶段使用 `FXQ_CA_ENABLED=true`、`FXQ_DOCUMENT_SIGN_ENABLED=false`、
+  `FXQ_CA_REQUIRED=false`，先让 6 名医师和 4 名药师完成双录。
+- 首份处方联调时设置 `FXQ_DOCUMENT_SIGN_ENABLED=true`、`FXQ_CA_REQUIRED=false`；
+  此时审方会真实消耗 3 次签章生成和 1 次合同签署额度，失败则处方保持待审。
+- 首份三方签署、验签、下载及备份均验收后，生产设置 `FXQ_CA_REQUIRED=true`；
+  此时未完成双录的医师不能开方，未完成双录的药师不能审方，未通过验签的 PDF 不能下载。
 - AppSecret 只允许服务端读取，前端接口和日志均不得返回。
+- `FXQ_SIGNED_PDF_DIR` 必须放在持久卷并纳入加密备份；默认本地目录仅适用于开发联调。
 
 ## 4. 部署与联调
 
@@ -83,6 +112,10 @@ python -m scripts.fxq_ca_preflight --live
 
 `--live` 只验证 token，不创建双录订单，也不消耗核验次数。
 
+`backend/docker-compose.yml` 已把 `prescription_data` 持久卷挂到 `/app/storage/prescriptions`；
+非容器部署可改为 `/data/qiubei/prescriptions`。目录仅允许 API 运行账号读写，不得通过 Nginx 静态暴露。
+处方下载必须经过 `/api/v1/prescriptions/{order_id}/pdf` 的登录和归属校验。
+
 上线前还需要：
 
 1. 将服务器出口 IP 提交放心签白名单（若该应用启用了 IP 白名单）；
@@ -90,7 +123,8 @@ python -m scripts.fxq_ca_preflight --live
 3. 在微信公众平台把 `https://identity.fangxinqian.cn` 配为医生端小程序业务域名；
 4. 把 API 域名同时配置为小程序业务域名，使放心签回跳页面可以正常打开；
 5. 使用一名测试人员完成：发起 → H5 双录 → 回跳 → 查询结果；
-6. 确认数据库只出现元数据，没有身份证明文、照片 Base64 或视频 Base64。
+6. 确认数据库只出现脱敏证书元数据，没有身份证明文、照片/视频 Base64、印章图片或签名值；
+7. 使用脱敏测试处方完成三方签署，核对验签签名数为 3，篡改签后 PDF 后本地摘要校验必须拒绝下载。
 
 ## 5. 本系统接口
 
@@ -111,19 +145,26 @@ python -m scripts.fxq_ca_preflight --live
 
 ### A. 服务器配置与连通性
 
+- [x] A0. 放心签账号主体已由原主体迁移为天津逑贝互联网医院主体（2026-07-23/24 确认）；
 - [ ] A1. 在生产服务器环境变量或受保护的 `backend/.env` 配置：
-      `FXQ_APP_KEY`、`FXQ_APP_SECRET`、`FXQ_CA_REDIRECT_URL`；
-- [ ] A2. 设置 `FXQ_CA_ENABLED=true`，保持 `FXQ_CA_REQUIRED=false`；
+      `FXQ_APP_KEY`、`FXQ_APP_SECRET`、`FXQ_CA_REDIRECT_URL`、
+      `FXQ_COMPANY_NAME`、`FXQ_COMPANY_IDNO`、`FXQ_SIGNED_PDF_DIR`；
+- [ ] A2. 设置 `FXQ_CA_ENABLED=true`，先保持
+      `FXQ_DOCUMENT_SIGN_ENABLED=false`、`FXQ_CA_REQUIRED=false`；
 - [ ] A3. 确认 `FXQ_CA_REDIRECT_URL` 是公网可访问的 HTTPS 地址，路径为
       `/api/v1/ca/callback`；
-- [ ] A4. 向放心签确认应用已实际开通“高级证书/智能双录”和“查询核身结果”，
-      并确认服务器出口 IP 是否需要加入白名单；
+- [x] A4. 控制台已确认合同签署、核身图片查询、智能鉴证、签章生成、企业四要素、
+      PDF 转图片共 6 项服务已开通；
+- [ ] A4.1. 向放心签确认生产服务器出口 IP 是否需要加入白名单；
 - [ ] A5. 在生产容器执行 `python -m scripts.migrate`，确认
-      `ca_enrollments` 表及处方 CA 流水字段创建成功；
+      `ca_enrollments` 表及处方签署/验签字段创建成功；
 - [ ] A6. 执行 `python -m scripts.fxq_ca_preflight`，必须全部为 `OK`；
 - [ ] A7. 执行 `python -m scripts.fxq_ca_preflight --live`，必须显示
       “AppKey/AppSecret 换取 token 成功”，且输出中不得出现 token；
 - [ ] A8. 调用 `GET /api/v1/ca/config`，确认 `enabled=true`、`ready=true`、`errors=[]`。
+- [ ] A9. 确认 Compose `prescription_data`（或自建 `FXQ_SIGNED_PDF_DIR`）持久卷，
+      限制为 API 账号读写并验证备份/恢复，
+      禁止静态公开访问。
 
 ### B. 小程序与回调域名
 
@@ -154,17 +195,18 @@ python -m scripts.fxq_ca_preflight --live
 - [ ] D5. 测试环境可短暂设置 `FXQ_CA_REQUIRED=true`，验证未双录医师不能开方、
       未双录药师不能审方；验证后恢复为 `false`。
 
-### E. 向放心签补齐正式处方签章资料
+### E. 正式处方签章资料与权限
 
-- [ ] E1. 确认上海公司开放平台账号能否合法代表
-      “天津逑贝互联网医院有限公司”及其医师、药师调用签章接口，并取得书面答复；
-- [ ] E2. 确认现有北京数字认证股份有限公司个人证书能否绑定/导入放心签；
-- [ ] E3. 获取个人证书申请/查询接口及 `certId/userId` 字段说明；
-- [ ] E4. 获取医院企业证书和企业电子印章申请、查询及 `sealId` 接口；
-- [ ] E5. 获取处方 PDF 上传、坐标或关键词签署、多方签署、封存接口；
-- [ ] E6. 获取签署结果回调、回调验签、签后 PDF 下载接口；
-- [ ] E7. 获取合同验签、签署报告、可信时间戳、存证及证据下载接口；
-- [ ] E8. 获取测试环境地址、测试应用权限、错误码、幂等和限流说明及官方 SDK/示例。
+- [x] E1. 放心签开放平台账号主体迁移完成，控制台已显示天津逑贝互联网医院主体；
+- [x] E2. 取得北京数字认证股份有限公司最新个人数字证书办理回函：
+      6 名医师 + 4 名药师，有效期 2026-03-08 至 2031-03-07；
+- [x] E3. 确认当前标准签署 API 按姓名/证件号匹配认证主体，不要求我方传
+      `certId/userId` 或上传私钥；
+- [x] E4. 已取得个人/企业签章生成、PDF 区域签署、签后 URL 和合同验签官方接口文档；
+- [x] E5. 控制台已开通“合同签署”和“签章生成”正式服务额度；
+- [ ] E6. 向放心签确认医院企业 CA 证书及“处方专用章”是否已完成认证并可用于正式签署；
+- [ ] E7. 确认接口限流、请求超时后的计费/重试规则，以及重复请求是否提供幂等键；
+- [ ] E8. 确认签后文件/签署证据的法定保存方案和可选存证服务；当前应用未显示存证服务额度。
 
 建议向放心签明确说明目标顺序：
 
@@ -179,14 +221,19 @@ python -m scripts.fxq_ca_preflight --live
 
 ### F. 正式处方签章开发与上线
 
-- [ ] F1. 根据补充文档实现个人/企业证书与签章 ID 的安全映射；
-- [ ] F2. 实现原始处方 PDF 哈希固定、医师签名、药师签名/审核留痕和医院盖章；
-- [ ] F3. 实现回调验签、幂等、防重签、超时重试和签署失败死信；
-- [ ] F4. 下载签后 PDF 和签署报告，执行服务端验签后再标记处方生效；
-- [ ] F5. 将签后 PDF、签署报告、验签结果和业务流水归档至 OSS，并纳入长期保存策略；
-- [ ] F6. 完成篡改文件验签失败、重复回调、供应商超时、证书过期等异常测试；
+- [x] F1. 已实现姓名/身份证密文和企业主体的安全映射；身份证仅在调用时短暂解密；
+- [x] F2. 已实现原始处方 SHA-256、医师/药师/医院三方区域签署；
+- [ ] F3. 已用数据库行锁防止同一处方并发审方；仍需结合放心签答复补充供应商幂等键、
+      超时状态查询/人工补偿（标准签署接口为同步响应，无签署回调）；
+- [x] F4. 已实现签后 PDF 下载、三方证书/时间戳验签及下载文件摘要复核，
+      只有全部通过才标记 `verified`；
+- [ ] F5. 已实现受保护本地持久目录和登录归属校验下载；生产仍需挂载持久卷，
+      接入 OSS/对象锁与长期备份策略；
+- [ ] F6. 已完成摘要不一致、非官方地址、签名缺失和路径越界自动化测试；
+      真实环境还需补证书过期、供应商超时和余额不足演练；
 - [ ] F7. 医务、药事、法务共同验收一份完整样例处方；
-- [ ] F8. 生产环境设置 `FXQ_CA_REQUIRED=true`，确认未签名 PDF 返回 409，
+- [ ] F8. 首份真实联调设置 `FXQ_DOCUMENT_SIGN_ENABLED=true`；验收后生产再设置
+      `FXQ_CA_REQUIRED=true`，确认未签名 PDF 返回 409，
       只有验签成功的处方可以下载和流转；
 - [ ] F9. 连续观察至少 3 个工作日，无漏签、错签、重复签署及敏感信息泄漏后转入稳态。
 

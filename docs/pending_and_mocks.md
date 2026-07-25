@@ -12,7 +12,7 @@
 | 3 | ✅✅ **真实微信支付 V3 已上线并验证**（2026-06-24，生产 `https://api.qb-medical.cn` 实付 1 分闭环通过） | `backend/app/services/pay_service.py`、`api/v1/orders.py` `prepay`/`drug-prepay`/`pay/callback`、患者 `utils/pay.js` | 完成 | 凭据在 `backend/.env`（私钥 `backend/secrets/apiclient_key.pem`，gitignore）。`is_enabled()` 以 `WX_PAY_NOTIFY_URL` 为开关。挂号费用 `order_no`、药费用 `order_no-DRUG` 作 out_trade_no。`/pay/mock` 等 dev 接口保留。部署见 `deploy/DEPLOY-ubuntu.md` |
 | 4 | **实名认证**仅校验身份证格式，无三方核验                          | `backend/app/services/patient_service.py` `real_name_verify`                                       | 接公安二要素/三方                               |                                             |
 | 5 | ✅ **医生资质审核闭环已实现**（端到端验证通过）：login 放行未审医生、`POST /doctors/qualification` 提交、医生端资质页按状态路由、接诊/开方端点 `require_approved_doctor`。**生产可置 `DOCTOR_AUTO_APPROVE=false`** 走 admin 终审 | `auth_service.login_doctor`、`api/deps.py`、`api/v1/doctors.py`、`orders.py`、`prescriptions.py`、医生端 `pages/qualification/*`、`login.js` | 生产 .env 置 false 即生效 | 开发保留 true 便于联调；正式对外前在服务器置 false |
-| 6 | 🟡 **放心签 CA 协议双录已接入**：token、请求签名、医师/药师 H5、结果查询、生产强制门禁均已实现；原 `CA_MOCK_SIGN` 和红章占位已删除。**仍缺 PDF 文档签署/医院章/签后下载/验签接口文档** | `services/fxq_ca.py`、`ca_service.py`、`api/v1/ca.py`、医生端 `pages/ca`、后台 `CaCertificate.vue` | 取得放心签签署接口文档并完成真实签后 PDF | 详见 `docs/fangxinqian_ca_integration.md`；双录不等同于文档数字签名 |
+| 6 | 🟡 **放心签 CA 双录 + 真实 PDF 签署代码已接入**：医师/药师 H5 双录、三方签章生成、区域签署、验签、摘要复核和受保护下载均已实现；原 `CA_MOCK_SIGN` 和红章占位已删除。**待生产密钥配置、首份真实处方联调和长期归档验收** | `services/fxq_ca.py`、`ca_service.py`、`fxq_document_service.py`、`prescription_service.py`、`api/v1/ca.py`、`api/v1/prescriptions.py` | 首份真实三方签署验收 + 持久卷/OSS 长期归档 | 账号主体迁移完成，合同签署/签章生成等 6 项服务已开通；详见 `docs/fangxinqian_ca_integration.md` |
 | 7 | 卫健委上报 ✅ M9 异步队列+重试+死信骨架（mock 加密/接口）         | `services/compliance_service.py`、`workers/compliance.py`                                          | 待**卫健委规范**（AES/SM4+Sign）；生产换 Celery |                                             |
 | 8 | **敏感字段加密**用开发回退密钥（未设 `ENCRYPTION_KEY`）           | `backend/app/core/crypto.py`                                                                       | 正式对外前                                      | 待执行 `deploy/DEPLOY-ubuntu.md` 第 9 步生成 Fernet key。⚠️ 回退密钥派生自 `JWT_SECRET`，已有真实加密数据时换密钥需先做迁移 |
 | 9 | **JWT 密钥**为默认值                                              | `backend/.env` `JWT_SECRET`                                                                        | 正式对外前                                      | 同上，deploy 第 9 步换强密钥（换后旧 token 失效，需重登录）  |
@@ -30,7 +30,7 @@
 | 13 | **WebSocket** 用单进程内存连接管理                                      | `backend/app/ws.py`                                  | 多实例部署前                          |
 | 14 | **超时取消**用 asyncio 轮询（每 30s）                                   | `backend/main.py` `_expiry_sweep`                    | 可选优化                              |
 | 15 | ✅ **医生自助排班/诊金已实现**（建/查/删号源 + 改诊金，医生端「排班管理/诊金设置」页）；seed 仅本地 dev 用 | `api/v1/doctors.py` `slots`/`fee`/`my-schedule`、医生端 `pages/schedule`、`workbench` | 生产 seed 不跑（DEBUG=false）；示例医生用 `ops-cheatsheet` 4.6 清理 |
-| 16 | ~~EMR/开方/药师审方~~ ✅ M5 已实现（CA 双录已接、文档签章仍待见 #6）    | —                                                   | 完成                                  |
+| 16 | ~~EMR/开方/药师审方~~ ✅ M5 已实现（CA 双录与文档签章代码已接，真实首单见 #6） | — | 完成 |
 | 17 | ~~物流/退款/消息通知~~ ✅ M7 已实现（微信订阅消息下发仍占位）           | `notification_service`                               | 订阅消息下发待正式主体                |
 | 18 | PC 后台：资质终审/药品字典/财务提现 ✅ M8 接真；监管面板 ✅ M9 接真     | —                                                   | 完成                                  |
 | 19 | 🔨 **图文咨询后端已实现**（自建 WS：消息收发/图片上传/历史/WS 推送）；**待前端聊天页 + 入口路由 + 订单 consult_type** | `api/v1/chat.py`、`models/message.py`、`main.py`(/uploads 静态) | 前端聊天页 + consult_type（加列需 ALTER orders） |
@@ -55,5 +55,6 @@
 - [x]  腾讯云 TRTC 开通（SDKAppID 1600148306，密钥已配）；**仍待：小程序「实时音视频」类目审核 + 官方 trtc-wx SDK 覆盖占位桩**（解锁 #10）
 - [ ]  卫健委监管接口规范（解锁 #7）
 - [x]  放心签开放平台应用 + CA 高级证书双录接口文档（#6 前半段已实现）
-- [ ]  放心签 PDF 文档签署、医院电子章、签后下载、验签接口文档与测试权限（解锁 #6 剩余部分）
+- [x]  放心签 PDF 签署、个人/企业签章生成、签后下载、合同验签接口文档与正式服务权限（#6 代码已实现）
+- [ ]  放心签生产密钥安全配置、医院企业章可用性确认、首份三方签署验收及签后文件长期归档（完成 #6）
 - [ ]  等保三级云资源（ECS/RDS/Redis/OSS + VPC）

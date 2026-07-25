@@ -29,7 +29,7 @@ def task_report_to_gov(self, payload: dict):
 
 @celery_app.task
 def task_ca_sign_prescription(prescription_id: int):
-    """处方文档签名任务（供应商签署接口文档未到，禁止伪造成功）。"""
+    """防止旧调用方异步重复签署；真实签署已在药师审方事务中同步验签。"""
     raise RuntimeError(
-        f"处方 {prescription_id} 未签名：当前文档仅覆盖 CA 协议双录，尚缺 PDF 签署/下载/验签接口"
+        f"处方 {prescription_id} 禁止通过旧 Celery 任务重复签署；请使用药师审方接口"
     )

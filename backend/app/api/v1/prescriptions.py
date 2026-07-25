@@ -1,4 +1,5 @@
 """处方接口（M5）：医生开方 / 药师审方 / 患者查看。"""
+import hashlib
 import io
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -12,6 +13,7 @@ from ...core.database import get_db
 from ...core.config import settings
 from ...models.order import Order
 from ...models.prescription import Prescription
+from ...models.staff import Staff
 from ...models.user import Doctor, Patient
 from ...schemas.prescription import PrescriptionCreate, PrescriptionOut, RejectIn
 from ...services import audit_service, compliance_service
@@ -98,11 +100,50 @@ async def pdf(order_id: int, user=Depends(get_current_user), db: AsyncSession = 
     rx = await rx_service.get_by_order(db, order_id)
     if not rx:
         raise HTTPException(status_code=404, detail="暂无处方")
-    if settings.FXQ_CA_REQUIRED and not rx.ca_sign:
+    order = await db.get(Order, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="订单不存在")
+    role, uid = user.get("role"), int(user["sub"])
+    allowed = role in {"pharmacist", "admin"}
+    if role == "patient":
+        allowed = order.user_id == uid
+    elif role == "doctor":
+        res = await db.execute(select(Doctor).where(Doctor.user_id == uid))
+        doctor_user = res.scalar_one_or_none()
+        allowed = bool(doctor_user and doctor_user.id == order.doctor_id)
+    if not allowed:
+        raise HTTPException(status_code=403, detail="无权查看该处方")
+
+    if rx.ca_sign_status == "verified" and rx.pdf_url:
+        from ...services import fxq_document_service
+
+        try:
+            data = fxq_document_service.load_signed_pdf(rx.pdf_url)
+        except fxq_document_service.FxqDocumentError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        if rx.ca_file_digest and hashlib.sha256(data).hexdigest() != rx.ca_file_digest:
+            raise HTTPException(status_code=503, detail="签后 PDF 归档摘要校验失败，已拒绝下载")
+        return StreamingResponse(
+            io.BytesIO(data),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'inline; filename="prescription-{order_id}-signed.pdf"'},
+        )
+
+    if settings.FXQ_CA_REQUIRED or (
+        settings.FXQ_DOCUMENT_SIGN_ENABLED and rx.audit_status == "approved"
+    ):
         raise HTTPException(status_code=409, detail="处方尚未完成文档数字签名，不能作为有效处方下载")
     doctor = await db.get(Doctor, rx.doctor_id)
     patient = await db.get(Patient, rx.patient_id)
+    pharmacist = await db.get(Staff, rx.audit_staff_id) if rx.audit_staff_id else None
     data = compliance_service.generate_prescription_pdf(
-        rx, patient.name if patient else "患者", doctor.name if doctor else "医生"
+        rx,
+        patient.name if patient else "患者",
+        doctor.name if doctor else "医生",
+        pharmacist.name if pharmacist else None,
     )
-    return StreamingResponse(io.BytesIO(data), media_type="application/pdf")
+    return StreamingResponse(
+        io.BytesIO(data),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="prescription-{order_id}-preview.pdf"'},
+    )

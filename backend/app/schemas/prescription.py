@@ -44,6 +44,11 @@ class PrescriptionOut(BaseModel):
     reject_reason: str | None = None
     ca_sign: str | None = None
     pdf_url: str | None = None
+    ca_sign_status: str | None = None
+    ca_verify_trade_no: str | None = None
+    ca_file_digest: str | None = None
+    ca_signature_count: int | None = None
+    ca_signed_at: datetime | None = None
     doctor_ca_order_no: str | None = None
     pharmacist_ca_order_no: str | None = None
     doctor_name: str | None = None

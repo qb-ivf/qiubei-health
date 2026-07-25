@@ -27,6 +27,7 @@ class CaEnrollmentStartOut(CaEnrollmentOut):
 
 class CaConfigOut(BaseModel):
     enabled: bool
+    document_sign_enabled: bool
     required: bool
     ready: bool
     errors: list[str] = Field(default_factory=list)

@@ -62,20 +62,29 @@ class Settings(BaseSettings):
     # —— 合规网关（卫健委 / CA） ——
     GOV_REPORT_URL: str = ""     # （旧占位，待 TJ_* 全量接管后移除）
     GOV_APP_SECRET: str = ""
-    CA_SIGN_URL: str = ""        # 旧占位：放心签文档签署接口到手后移除
 
-    # —— 放心签：高级证书协议 + 智能双录 ——
-    # ENABLED 仅控制是否调用放心签；REQUIRED 决定开方/审方是否必须已有成功双录记录。
+    # —— 放心签：高级证书协议、智能双录与处方 PDF 签署 ——
+    # ENABLED 控制是否调用放心签；DOCUMENT_SIGN_ENABLED 控制审方通过时是否真实签署 PDF；
+    # REQUIRED 是生产总门禁，开启后双录与已验签 PDF 均不可绕过。
     FXQ_CA_ENABLED: bool = False
+    FXQ_DOCUMENT_SIGN_ENABLED: bool = False
     FXQ_CA_REQUIRED: bool = False
     FXQ_APP_KEY: str = ""        # 开放平台应用的 AppKey/AppID（以控制台显示为准）
     FXQ_APP_SECRET: str = ""     # 仅放部署环境变量，不入 git
     FXQ_CA_REDIRECT_URL: str = ""  # 如 https://api.example.com/api/v1/ca/callback
-    FXQ_TOKEN_URL: str = "https://restapi.fangxinqian.cn/auth/v1/token"
+    FXQ_COMPANY_NAME: str = ""   # 签章证书主体全称，如“天津逑贝互联网医院有限公司”
+    FXQ_COMPANY_IDNO: str = ""   # 企业统一社会信用代码
+    FXQ_TOKEN_URL: str = "https://identity.fangxinqian.cn/auth/v1/token"
     FXQ_REQUEST_SIGN_URL: str = "https://identity.fangxinqian.cn/auth/v1/encrypt"
     FXQ_CA_AGREEMENT_URL: str = "https://identity.fangxinqian.cn/face/v1/agreement/dualrecording/ca"
     FXQ_CA_RESULT_URL: str = "https://identity.fangxinqian.cn/face/v1/dualrecording/result"
+    FXQ_PERSONAL_SEAL_URL: str = "https://restapi.fangxinqian.cn/seal/v1/personal"
+    FXQ_COMPANY_SEAL_URL: str = "https://restapi.fangxinqian.cn/seal/v1/company"
+    FXQ_PDF_SIGN_URL: str = "https://restapi.fangxinqian.cn/contract/v1/port/sign"
+    FXQ_PDF_VERIFY_URL: str = "https://restapi.fangxinqian.cn/signature/chk/file"
     FXQ_HTTP_TIMEOUT_SECONDS: float = 15.0
+    FXQ_MAX_PDF_BYTES: int = 10 * 1024 * 1024
+    FXQ_SIGNED_PDF_DIR: str = ""  # 空时使用 backend/storage/prescriptions（须持久卷/备份）
 
     # —— 天津监管平台（docs/tianjin_supervision_plan.md，密钥见平台"秘钥生成及管理"） ——
     # False：DEBUG=true 时本地模拟；DEBUG=false 时保留 pending 队列、不发送也不吞任务。

@@ -9,7 +9,7 @@ const STATUS = {
 
 Page({
   data: {
-    config: { enabled: false, required: false, ready: false, errors: [] },
+    config: { enabled: false, document_sign_enabled: false, required: false, ready: false, errors: [] },
     enrollment: null,
     statusText: '尚未发起',
     tone: 'idle',

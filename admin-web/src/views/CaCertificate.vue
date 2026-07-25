@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import request from '@/api/request'
 
-const config = ref({ enabled: false, required: false, ready: false, errors: [] })
+const config = ref({ enabled: false, document_sign_enabled: false, required: false, ready: false, errors: [] })
 const enrollment = ref(null)
 const loading = ref(false)
 const polling = ref(false)

@@ -52,6 +52,13 @@ COLUMNS = [
     # —— 放心签双录与处方签章追踪 ——
     ("prescriptions", "doctor_ca_order_no", "VARCHAR(64) NULL"),
     ("prescriptions", "pharmacist_ca_order_no", "VARCHAR(64) NULL"),
+    ("prescriptions", "ca_sign_status", "VARCHAR(16) NULL"),
+    ("prescriptions", "ca_verify_trade_no", "VARCHAR(64) NULL"),
+    ("prescriptions", "ca_source_digest", "VARCHAR(64) NULL"),
+    ("prescriptions", "ca_file_digest", "VARCHAR(64) NULL"),
+    ("prescriptions", "ca_signature_count", "INT NULL"),
+    ("prescriptions", "ca_signed_at", "DATETIME NULL"),
+    ("prescriptions", "ca_verify_report", "JSON NULL"),
 ]
 
 TABLE_DDLS = [

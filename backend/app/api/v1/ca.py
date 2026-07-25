@@ -30,6 +30,7 @@ async def config(user=Depends(get_current_user)):
     errors = config_errors(settings)
     return CaConfigOut(
         enabled=settings.FXQ_CA_ENABLED,
+        document_sign_enabled=settings.FXQ_DOCUMENT_SIGN_ENABLED,
         required=settings.FXQ_CA_REQUIRED,
         ready=not errors and settings.FXQ_CA_ENABLED,
         errors=errors,

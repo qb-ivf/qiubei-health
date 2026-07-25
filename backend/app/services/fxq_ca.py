@@ -1,11 +1,11 @@
-"""放心签高级证书协议 + 智能双录 HTTP 客户端。
+"""放心签高级证书协议、智能双录与文档签署 HTTP 客户端。
 
 调用链与开放平台保持一致：
   1) AppKey/AppSecret -> token
   2) token + 原始请求体 -> 官方 encrypt 接口生成 fxq-nonce/fxq-sign
   3) token/fxq-nonce/fxq-sign + 同一请求体 -> 业务接口
 
-严禁记录 token、AppSecret、身份证号、agreementUrl 或响应中的照片/视频。
+严禁记录 token、AppSecret、身份证号、agreementUrl、签章图片或响应中的照片/视频。
 """
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ class FxqCaError(Exception):
 @dataclass(frozen=True)
 class FxqResponse:
     code: int
-    data: dict[str, Any]
+    data: Any
     msg: str
     trade_no: str | None = None
 
@@ -50,13 +50,27 @@ def _is_official_https(url: str) -> bool:
     return parsed.scheme == "https" and (host == "fangxinqian.cn" or host.endswith(_ALLOWED_HOST_SUFFIX))
 
 
+def _is_provider_file_https(url: str) -> bool:
+    """签署接口只允许从放心签官方域名或阿里云 OSS HTTPS 地址取回文件。"""
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    return parsed.scheme == "https" and (
+        host == "fangxinqian.cn"
+        or host.endswith(_ALLOWED_HOST_SUFFIX)
+        or host.endswith(".aliyuncs.com")
+    )
+
+
 def config_errors(config=settings) -> list[str]:
     """返回可安全展示的配置缺失项，不回显任何密钥值。"""
-    if not config.FXQ_CA_ENABLED and not config.FXQ_CA_REQUIRED:
+    sign_enabled = bool(getattr(config, "FXQ_DOCUMENT_SIGN_ENABLED", False))
+    if not config.FXQ_CA_ENABLED and not config.FXQ_CA_REQUIRED and not sign_enabled:
         return []
     errors: list[str] = []
-    if not config.FXQ_CA_ENABLED:
-        errors.append("FXQ_CA_REQUIRED=true 时必须启用 FXQ_CA_ENABLED")
+    if not config.FXQ_CA_ENABLED and (config.FXQ_CA_REQUIRED or sign_enabled):
+        errors.append("启用放心签签署/生产门禁时必须设置 FXQ_CA_ENABLED=true")
+    if config.FXQ_CA_REQUIRED and not sign_enabled:
+        errors.append("FXQ_CA_REQUIRED=true 时必须启用 FXQ_DOCUMENT_SIGN_ENABLED")
     if not config.FXQ_APP_KEY:
         errors.append("FXQ_APP_KEY 未配置")
     if not config.FXQ_APP_SECRET:
@@ -65,7 +79,16 @@ def config_errors(config=settings) -> list[str]:
         errors.append("FXQ_CA_REDIRECT_URL 未配置")
     elif not config.FXQ_CA_REDIRECT_URL.startswith("https://"):
         errors.append("FXQ_CA_REDIRECT_URL 必须使用 HTTPS")
-    for field in ("FXQ_TOKEN_URL", "FXQ_REQUEST_SIGN_URL", "FXQ_CA_AGREEMENT_URL", "FXQ_CA_RESULT_URL"):
+    url_fields = ["FXQ_TOKEN_URL", "FXQ_REQUEST_SIGN_URL", "FXQ_CA_AGREEMENT_URL", "FXQ_CA_RESULT_URL"]
+    if sign_enabled:
+        if not getattr(config, "FXQ_COMPANY_NAME", ""):
+            errors.append("FXQ_COMPANY_NAME 未配置")
+        if not getattr(config, "FXQ_COMPANY_IDNO", ""):
+            errors.append("FXQ_COMPANY_IDNO 未配置")
+        url_fields.extend(
+            ["FXQ_PERSONAL_SEAL_URL", "FXQ_COMPANY_SEAL_URL", "FXQ_PDF_SIGN_URL", "FXQ_PDF_VERIFY_URL"]
+        )
+    for field in url_fields:
         if not _is_official_https(getattr(config, field, "")):
             errors.append(f"{field} 必须是放心签官方 HTTPS 地址")
     return errors
@@ -132,8 +155,8 @@ class FxqCaClient:
             if code != SUCCESS_CODE or not isinstance(token, str) or not token:
                 raise FxqCaError("放心签 token 获取失败", code=code)
             self._token = token
-            # 官方未在所附文档中声明 token TTL；短缓存并在失效码时立即刷新。
-            self._token_expires_monotonic = time.monotonic() + 50 * 60
+            # 标准 API 文档声明 token 有效期 2 小时；提前 10 分钟刷新。
+            self._token_expires_monotonic = time.monotonic() + 110 * 60
             return token
 
     async def check_auth(self) -> None:
@@ -173,9 +196,13 @@ class FxqCaClient:
                 continue
             if code != SUCCESS_CODE:
                 msg = str(body.get("msg") or "业务请求失败")[:120]
-                raise FxqCaError(f"放心签业务请求失败：{msg}", code=code, retryable=code in {1506, 9999})
+                raise FxqCaError(
+                    f"放心签业务请求失败：{msg}",
+                    code=code,
+                    retryable=code in {1506, 9999, 99999},
+                )
             data = body.get("data")
-            if not isinstance(data, dict):
+            if data is None:
                 raise FxqCaError("放心签业务响应缺少 data", code=code)
             return FxqResponse(
                 code=code,
@@ -188,7 +215,7 @@ class FxqCaClient:
     async def start_agreement(
         self, *, name: str, id_no: str, redirect_url: str, user_id: str, order_no: str
     ) -> FxqResponse:
-        return await self._signed_post(
+        result = await self._signed_post(
             self.config.FXQ_CA_AGREEMENT_URL,
             {
                 "name": name,
@@ -198,13 +225,112 @@ class FxqCaClient:
                 "orderNo": order_no,
             },
         )
+        if not isinstance(result.data, dict):
+            raise FxqCaError("放心签双录响应 data 格式不正确", code=result.code)
+        return result
 
     async def query_result(self, *, order_no: str) -> FxqResponse:
         # 文档说明 getFile 不传时默认返回照片；显式传 0，避免把生物识别材料拉回业务系统。
-        return await self._signed_post(
+        result = await self._signed_post(
             self.config.FXQ_CA_RESULT_URL,
             {"orderNo": order_no, "getFile": "0", "getDetails": "1", "getPhotos": "0"},
         )
+        if not isinstance(result.data, dict):
+            raise FxqCaError("放心签核身响应 data 格式不正确", code=result.code)
+        return result
+
+    async def generate_personal_seal(self, *, name: str) -> FxqResponse:
+        result = await self._signed_post(
+            self.config.FXQ_PERSONAL_SEAL_URL,
+            {
+                "name": name,
+                "rtype": 1,
+                "color": 0,
+                "font": 1,
+                "type": 0,
+                "isAddType": 1,
+                "chooseAddFont": 0,
+            },
+        )
+        if not isinstance(result.data, str) or not _is_provider_file_https(result.data):
+            raise FxqCaError("放心签个人签章返回地址不安全或格式不正确", code=result.code)
+        return result
+
+    async def generate_company_seal(self, *, name: str) -> FxqResponse:
+        result = await self._signed_post(
+            self.config.FXQ_COMPANY_SEAL_URL,
+            {
+                "name": name,
+                "title": "处方专用章",
+                "type": 0,
+                "color": 0,
+                "font": 0,
+                "rtype": 1,
+                "isRound": 2,
+            },
+        )
+        if not isinstance(result.data, str) or not _is_provider_file_https(result.data):
+            raise FxqCaError("放心签企业签章返回地址不安全或格式不正确", code=result.code)
+        return result
+
+    async def sign_pdf(self, *, contract_base64: str, signers: list[dict[str, Any]]) -> FxqResponse:
+        result = await self._signed_post(
+            self.config.FXQ_PDF_SIGN_URL,
+            {
+                "contract": contract_base64,
+                "type": 1,
+                "size": 90,
+                "signers": signers,
+            },
+        )
+        if not isinstance(result.data, str) or not _is_provider_file_https(result.data):
+            raise FxqCaError("放心签签后文件地址不安全或格式不正确", code=result.code)
+        return result
+
+    async def verify_pdf(self, *, file_url: str) -> FxqResponse:
+        if not _is_provider_file_https(file_url):
+            raise FxqCaError("拒绝验签非放心签/OSS HTTPS 文件地址")
+        result = await self._signed_post(
+            self.config.FXQ_PDF_VERIFY_URL,
+            {"fileUrl": file_url, "fileSuffix": "pdf"},
+        )
+        if not isinstance(result.data, dict):
+            raise FxqCaError("放心签验签响应 data 格式不正确", code=result.code)
+        return result
+
+    async def download_pdf(self, *, file_url: str) -> bytes:
+        """下载刚签署的 PDF；不跟随跳转并限制大小，避免 SSRF 与内存放大。"""
+        if not _is_provider_file_https(file_url):
+            raise FxqCaError("拒绝下载非放心签/OSS HTTPS 文件地址")
+        limit = int(getattr(self.config, "FXQ_MAX_PDF_BYTES", 10 * 1024 * 1024))
+        try:
+            async with httpx.AsyncClient(
+                timeout=self.config.FXQ_HTTP_TIMEOUT_SECONDS,
+                transport=self.transport,
+                follow_redirects=False,
+            ) as client:
+                async with client.stream("GET", file_url) as response:
+                    response.raise_for_status()
+                    chunks: list[bytes] = []
+                    size = 0
+                    async for chunk in response.aiter_bytes():
+                        size += len(chunk)
+                        if size > limit:
+                            raise FxqCaError("放心签签后 PDF 超过大小限制")
+                        chunks.append(chunk)
+        except FxqCaError:
+            raise
+        except (httpx.TimeoutException, httpx.NetworkError) as exc:
+            raise FxqCaError("放心签签后 PDF 下载暂时不可用", retryable=True) from exc
+        except httpx.HTTPStatusError as exc:
+            raise FxqCaError(
+                "放心签签后 PDF 下载失败",
+                retryable=exc.response.status_code >= 500,
+            ) from exc
+        data = b"".join(chunks)
+        if not data.startswith(b"%PDF-"):
+            raise FxqCaError("放心签返回的签后文件不是有效 PDF")
+        return data
 
 
 fxq_ca_client = FxqCaClient()

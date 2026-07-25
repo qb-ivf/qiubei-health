@@ -14,6 +14,27 @@ def _report():
     )
 
 
+def _prescription():
+    return SimpleNamespace(
+        recipe_unique_id="RX-001",
+        diagnosis="测试诊断",
+        items=[{"name": "测试药品", "qty": 1, "usage": "口服"}],
+        checked_at=None,
+    )
+
+
+def test_prescription_source_pdf_is_byte_stable():
+    rx = _prescription()
+    first = compliance_service.generate_prescription_pdf(
+        rx, "测试患者", "测试医生", "测试药师", for_signing=True
+    )
+    second = compliance_service.generate_prescription_pdf(
+        rx, "测试患者", "测试医生", "测试药师", for_signing=True
+    )
+    assert first == second
+    assert first.startswith(b"%PDF-")
+
+
 @pytest.mark.asyncio
 async def test_disabled_production_keeps_report_pending(monkeypatch):
     monkeypatch.setattr(settings, "DEBUG", False)

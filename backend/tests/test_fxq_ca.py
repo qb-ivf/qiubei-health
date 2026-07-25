@@ -11,15 +11,23 @@ from app.services.fxq_ca import FxqCaClient, config_errors
 def _config(**overrides):
     values = {
         "FXQ_CA_ENABLED": True,
+        "FXQ_DOCUMENT_SIGN_ENABLED": False,
         "FXQ_CA_REQUIRED": False,
         "FXQ_APP_KEY": "app-key",
         "FXQ_APP_SECRET": "app-secret",
         "FXQ_CA_REDIRECT_URL": "https://api.example.com/api/v1/ca/callback",
-        "FXQ_TOKEN_URL": "https://restapi.fangxinqian.cn/auth/v1/token",
+        "FXQ_TOKEN_URL": "https://identity.fangxinqian.cn/auth/v1/token",
         "FXQ_REQUEST_SIGN_URL": "https://identity.fangxinqian.cn/auth/v1/encrypt",
         "FXQ_CA_AGREEMENT_URL": "https://identity.fangxinqian.cn/face/v1/agreement/dualrecording/ca",
         "FXQ_CA_RESULT_URL": "https://identity.fangxinqian.cn/face/v1/dualrecording/result",
+        "FXQ_COMPANY_NAME": "",
+        "FXQ_COMPANY_IDNO": "",
+        "FXQ_PERSONAL_SEAL_URL": "https://restapi.fangxinqian.cn/seal/v1/personal",
+        "FXQ_COMPANY_SEAL_URL": "https://restapi.fangxinqian.cn/seal/v1/company",
+        "FXQ_PDF_SIGN_URL": "https://restapi.fangxinqian.cn/contract/v1/port/sign",
+        "FXQ_PDF_VERIFY_URL": "https://restapi.fangxinqian.cn/signature/chk/file",
         "FXQ_HTTP_TIMEOUT_SECONDS": 2.0,
+        "FXQ_MAX_PDF_BYTES": 1024 * 1024,
     }
     values.update(overrides)
     return SimpleNamespace(**values)
@@ -141,3 +149,53 @@ def test_config_rejects_secret_exfiltration_to_non_official_host():
 def test_required_mode_cannot_silently_disable_provider():
     errors = config_errors(_config(FXQ_CA_ENABLED=False, FXQ_CA_REQUIRED=True))
     assert any("FXQ_CA_ENABLED" in error for error in errors)
+    assert any("FXQ_DOCUMENT_SIGN_ENABLED" in error for error in errors)
+
+
+@pytest.mark.asyncio
+async def test_document_endpoints_accept_string_data_and_download_only_pdf():
+    signed_url = "https://fxq-contract-api.oss-cn-qingdao.aliyuncs.com/finish/rx.pdf"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            assert str(request.url) == signed_url
+            return httpx.Response(200, content=b"%PDF-1.7\nsigned")
+        if request.url.path == "/auth/v1/token":
+            return httpx.Response(200, json={"code": 10000, "data": "token-1"})
+        if request.url.path == "/auth/v1/encrypt":
+            return httpx.Response(200, json={"code": 10000, "data": {"nonce": "n", "sign": "s"}})
+        if request.url.path == "/seal/v1/personal":
+            return httpx.Response(200, json={"code": 10000, "data": signed_url, "tradeNo": "seal-1"})
+        if request.url.path == "/contract/v1/port/sign":
+            return httpx.Response(200, json={"code": 10000, "data": signed_url, "tradeNo": "sign-1"})
+        if request.url.path == "/signature/chk/file":
+            return httpx.Response(
+                200,
+                json={"code": 10000, "data": {"pdfModify": True, "signatureList": []}},
+            )
+        raise AssertionError(request.url.path)
+
+    client = FxqCaClient(config=_config(), transport=httpx.MockTransport(handler))
+    seal = await client.generate_personal_seal(name="测试医生")
+    signed = await client.sign_pdf(
+        contract_base64="JVBERi0xLjc=",
+        signers=[{"name": "测试医生", "idno": "120101199001011234", "seal": seal.data, "areas": []}],
+    )
+    verified = await client.verify_pdf(file_url=signed.data)
+    downloaded = await client.download_pdf(file_url=signed.data)
+
+    assert signed.trade_no == "sign-1"
+    assert verified.data["pdfModify"] is True
+    assert downloaded.startswith(b"%PDF-")
+
+
+def test_document_signing_config_rejects_non_official_business_url():
+    errors = config_errors(
+        _config(
+            FXQ_DOCUMENT_SIGN_ENABLED=True,
+            FXQ_COMPANY_NAME="测试医院有限公司",
+            FXQ_COMPANY_IDNO="91120116MACJA9PX45",
+            FXQ_PDF_SIGN_URL="https://attacker.example/sign",
+        )
+    )
+    assert any("FXQ_PDF_SIGN_URL" in error for error in errors)
