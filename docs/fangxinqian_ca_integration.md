@@ -2,6 +2,7 @@
 
 > 对齐供应商文档：[ca协议高级证书接口.md](ca协议高级证书接口.md)  
 > 实现日期：2026-07-24
+> 生产预检：2026-07-25 已完成配置检查、数据库迁移、正式 token 验证和公网健康检查
 
 ## 0. 当前进度
 
@@ -15,9 +16,9 @@
 | PDF 签署/验签接口与代码 | ✅ 已完成 | 已按官方标准 API 实现个人/企业签章生成、三方 PDF 区域签署、合同验签、摘要复核和受保护下载 |
 | 官方沙箱端到端 | ✅ 已通过 | 使用官方公开沙箱凭据和虚构主体完成 3 个签章生成 → 三方 PDF 签署 → 合同验签 → 下载，接口均返回 10000，摘要一致 |
 | 自动化验证 | ✅ 已完成 | 后端 39 项测试通过，含稳定原文、签章地址白名单、三方验签、摘要不一致拒绝及受保护存储测试 |
-| 服务器配置与真实 token 验证 | ⬜ 待执行 | 需要在受保护的生产环境配置密钥并运行预检 |
+| 服务器配置与真实 token 验证 | ✅ 已完成 | 生产 `backend/.env` 配置项齐全；迁移完成；正式 AppKey/AppSecret 换取 token 成功且未输出 token；公网 `/health` 返回 200 |
 | 医师/药师真实双录 | ⬜ 待执行 | 先各选 1 人试点，再完成 6 名医师和 4 名药师 |
-| 首份真实处方签署 | 🟡 待联调 | 代码与权限已具备；仍需安全配置密钥、持久卷并用 1 名医师 + 1 名药师完成真实签署验收 |
+| 首份真实处方签署 | 🟡 待联调 | 代码、正式密钥和持久卷已部署；仍需确认企业 CA/处方专用章并用 1 名医师 + 1 名药师完成真实签署验收 |
 
 ## 1. 已实现范围
 
@@ -146,7 +147,7 @@ python -m scripts.fxq_ca_preflight --live
 ### A. 服务器配置与连通性
 
 - [x] A0. 放心签账号主体已由原主体迁移为天津逑贝互联网医院主体（2026-07-23/24 确认）；
-- [ ] A1. 在生产服务器环境变量或受保护的 `backend/.env` 配置：
+- [x] A1. 已在生产服务器受保护的 `backend/.env` 配置（2026-07-25）：
       `FXQ_APP_KEY`、`FXQ_APP_SECRET`、`FXQ_CA_REDIRECT_URL`、
       `FXQ_COMPANY_NAME`、`FXQ_COMPANY_IDNO`、`FXQ_SIGNED_PDF_DIR`；
 - [ ] A2. 设置 `FXQ_CA_ENABLED=true`，先保持
@@ -156,13 +157,13 @@ python -m scripts.fxq_ca_preflight --live
 - [x] A4. 控制台已确认合同签署、核身图片查询、智能鉴证、签章生成、企业四要素、
       PDF 转图片共 6 项服务已开通；
 - [ ] A4.1. 向放心签确认生产服务器出口 IP 是否需要加入白名单；
-- [ ] A5. 在生产容器执行 `python -m scripts.migrate`，确认
-      `ca_enrollments` 表及处方签署/验签字段创建成功；
-- [ ] A6. 执行 `python -m scripts.fxq_ca_preflight`，必须全部为 `OK`；
-- [ ] A7. 执行 `python -m scripts.fxq_ca_preflight --live`，必须显示
-      “AppKey/AppSecret 换取 token 成功”，且输出中不得出现 token；
+- [x] A5. 已在生产容器执行 `python -m scripts.migrate`（2026-07-25），
+      `ca_enrollments` 表已存在，处方签署/验签字段已创建；
+- [x] A6. 已执行 `python -m scripts.fxq_ca_preflight`，配置与官方域名检查全部为 `OK`；
+- [x] A7. 已执行 `python -m scripts.fxq_ca_preflight --live`，正式
+      AppKey/AppSecret 换取 token 成功，输出中未出现 token；
 - [ ] A8. 调用 `GET /api/v1/ca/config`，确认 `enabled=true`、`ready=true`、`errors=[]`。
-- [ ] A9. 确认 Compose `prescription_data`（或自建 `FXQ_SIGNED_PDF_DIR`）持久卷，
+- [ ] A9. Compose `prescription_data` 持久卷已于 2026-07-25 创建；仍需
       限制为 API 账号读写并验证备份/恢复，
       禁止静态公开访问。
 
