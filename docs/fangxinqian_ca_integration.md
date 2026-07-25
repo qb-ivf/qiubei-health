@@ -150,10 +150,10 @@ python -m scripts.fxq_ca_preflight --live
 - [x] A1. 已在生产服务器受保护的 `backend/.env` 配置（2026-07-25）：
       `FXQ_APP_KEY`、`FXQ_APP_SECRET`、`FXQ_CA_REDIRECT_URL`、
       `FXQ_COMPANY_NAME`、`FXQ_COMPANY_IDNO`、`FXQ_SIGNED_PDF_DIR`；
-- [ ] A2. 设置 `FXQ_CA_ENABLED=true`，先保持
+- [x] A2. 已设置 `FXQ_CA_ENABLED=true`，并保持
       `FXQ_DOCUMENT_SIGN_ENABLED=false`、`FXQ_CA_REQUIRED=false`；
-- [ ] A3. 确认 `FXQ_CA_REDIRECT_URL` 是公网可访问的 HTTPS 地址，路径为
-      `/api/v1/ca/callback`；
+- [x] A3. 已确认 `FXQ_CA_REDIRECT_URL` 为公网可访问的 HTTPS 地址
+      `https://api.qb-medical.cn/api/v1/ca/callback`（2026-07-25 探测返回预期回调页）；
 - [x] A4. 控制台已确认合同签署、核身图片查询、智能鉴证、签章生成、企业四要素、
       PDF 转图片共 6 项服务已开通；
 - [ ] A4.1. 向放心签确认生产服务器出口 IP 是否需要加入白名单；
@@ -177,6 +177,7 @@ python -m scripts.fxq_ca_preflight --live
 
 ### C. 首轮真实联调
 
+- [ ] C0. 按[人员资料收集与批量导入指引](personnel_import_guide.md)完成医生、药师资料收集；
 - [ ] C1. 选择 1 名医师本人完成：发起 → 阅读协议 → 人脸活体 → 意愿回答 → 回跳；
 - [ ] C2. 选择 1 名药师本人在运营后台完成同样流程；
 - [ ] C3. 核对两人的最新记录均为 `succeeded`，`faceCode=0`；
