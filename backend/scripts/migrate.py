@@ -1,7 +1,7 @@
-"""轻量迁移：为已有表补列（无 Alembic 的过渡方案，pending #21）。重复执行安全。
+"""为旧版数据库补列的兼容迁移，重复执行安全。
 
-用法（服务器）：
-  docker compose -f docker-compose.yml -f docker-compose.prod.yml exec api python -m scripts.migrate
+新部署统一运行 ``python -m scripts.db_upgrade``。本文件只在首次接管尚未纳入 Alembic
+的既有数据库时由接管脚本调用。
 """
 import asyncio
 

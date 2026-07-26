@@ -1,0 +1,25 @@
+# 版本控制与本地缓存
+.git
+.gitignore
+.pytest_cache
+__pycache__
+**/__pycache__
+*.py[cod]
+
+# 部署密钥：禁止进入镜像层（运行时由宿主机卷或密钥管理服务提供）
+.env
+secrets
+
+# 运行期患者/处方文件与归档产物
+uploads
+storage
+*.qba
+*.tar
+*.tar.gz
+*.zip
+
+# 测试与本地工具产物
+tests
+coverage.xml
+.coverage
+htmlcov

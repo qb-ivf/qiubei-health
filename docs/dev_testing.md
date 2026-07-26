@@ -8,7 +8,7 @@
 
 在 `backend/` 目录：
 ```powershell
-docker compose up -d --build      # 起 MySQL + Redis + api（自动建表 + seed 示例医生）
+docker compose up -d --build --wait   # Alembic 自动升级数据库后启动 API，并 seed 示例医生
 # 验证：浏览器打开 http://127.0.0.1:8000/health → {"status":"ok"}
 #       接口文档 http://127.0.0.1:8000/docs
 docker compose logs -f api        # 看后端日志
@@ -18,7 +18,8 @@ docker compose logs -f api        # 看后端日志
 ```powershell
 docker compose down -v ; docker compose up -d     # 约 30s 重新建表+seed
 ```
-> 改了**模型字段**（加列）必须 `down -v` 重置——`create_all` 只建新表、不会给旧表加列。
+> 改了模型字段必须先新增 Alembic revision；日常升级不再要求删卷。`down -v` 仅用于主动清空全部
+> 本地测试数据，生产严禁使用。
 
 ---
 
@@ -70,9 +71,9 @@ docker compose down -v ; docker compose up -d     # 约 30s 重新建表+seed
 | 请求"网络异常"/收不到呼叫 | 没勾"不校验合法域名" | 两个项目都勾上 |
 | 点按钮无反应、弹框不出 | `wx.showModal` 的 `confirmText`/`cancelText` **最多 4 个汉字** | 控制在 4 字内 |
 | 改了后端代码没生效 | Windows 卷挂载 inotify 失效 | 已加 `WATCHFILES_FORCE_POLLING`；必要时 `docker compose restart api` |
-| 登录报表不存在 / 加了字段没生效 | `create_all` 不改旧表 | `docker compose down -v ; up` 重置 |
+| 登录报表不存在 / 加了字段没生效 | 未提交或未执行 Alembic revision | `python -m scripts.db_upgrade`，再检查 `alembic_version`；不要靠删生产库解决 |
 | 医生接诊后患者没醒、`invited:false` | 患者 socket 未连/旧 token | 确认 `[ws] 已连接 ✓`；已支持 token 变化自动重连 |
 | `wx.requestPayment` 在工具里不弹窗 | 测试号无商户号 | 已改：mock 预支付直接走 `/pay/mock` |
-| 图标显示成英文单词 | Material Symbols 字体没加载 | 勾"不校验合法域名"或把 `cdn.jsdelivr.net` 加白名单 |
+| 图标显示成英文单词 | 本院自托管 Material Symbols 字体未加载 | 检查 `https://api.qb-medical.cn/static/material-symbols-outlined-subset.woff2`，无需配置第三方 CDN 域名 |
 
 > 开发期"每次登录是不同用户"：dev 模式 openid 由 `wx.login` 的 code 派生，code 每次不同 → 新用户。同一登录会话内（不重新登录）uid 一致，不影响联调。

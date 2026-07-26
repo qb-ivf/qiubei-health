@@ -14,7 +14,6 @@ from sqlalchemy import select
 
 from app.core.database import AsyncSessionLocal, engine
 from app.core.redis import redis_client
-from app.models import Base
 from app.models.schedule import Slot
 from app.services.doctor_service import slot_key
 
@@ -31,9 +30,6 @@ async def main() -> None:
     doctor_id = int(sys.argv[1])
     days = int(sys.argv[2]) if len(sys.argv) > 2 else 3
     quota = int(sys.argv[3]) if len(sys.argv) > 3 else 5
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
 
     today = date.today()
     created = 0

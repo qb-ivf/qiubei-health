@@ -1,5 +1,9 @@
 # 逑贝互联网医院 · 系统实施路线图（Roadmap）
 
+> **本文保留立项期里程碑和风险假设，顶部早期进度快照不再代表当前代码状态。**
+> 实际完成度及外部依赖统一以 [待办清单](pending_and_mocks.md) 为准；天津监管以
+> [监管实施方案](tianjin_supervision_plan.md) 为准。
+
 > 本文是全系统的实施总纲。四个工程（患者端小程序、医生端小程序、`backend` 中央服务端、`admin-web` 运营后台）按本文的里程碑推进。配套文档：[FRD](mini_program_prd.md) · [小程序开发指南](mini_program_dev_guide.md) · [后端 PRD](backend_saas_prd.md) · [后端开发指南](backend_saas_guide.md) · [全链路方案](qiubei_hospital_full_solutuion.md)。
 
 ---

@@ -13,7 +13,7 @@ from ..constants import ALLOWED_TRANSITIONS, OrderStatus
 from ..core.redis import redis_client
 from ..models.order import Order
 from ..models.schedule import Slot
-from ..models.user import Doctor
+from ..models.user import Consent, Doctor, Patient
 
 
 class StateError(Exception):
@@ -22,6 +22,11 @@ class StateError(Exception):
 
 def _slot_key(slot_id: int) -> str:
     return f"slot:remaining:{slot_id}"
+
+
+async def release_slot_reservation(slot_id: int) -> None:
+    """订单事务失败时回补已扣减的 Redis 号源。"""
+    await redis_client.incr(_slot_key(slot_id))
 
 
 def _utcnow() -> datetime:
@@ -47,9 +52,26 @@ async def create_register_order(
     复诊合规（天津监管）：视频问诊必须声明"已在实体医院确诊"（referral_flag）。
     """
     doctor = await db.get(Doctor, doctor_id)
-    if doctor is None:
-        raise StateError("医生不存在")
-    if consult_type == "video" and referral_flag is False:
+    if doctor is None or doctor.audit_status != "approved":
+        raise StateError("医生不存在或尚未通过资质审核")
+    patient = await db.get(Patient, patient_id)
+    if patient is None or patient.user_id != user_id:
+        raise StateError("就诊人不存在或不属于当前账号")
+    if not patient.verified:
+        raise StateError("就诊人尚未完成实名认证")
+    slot = await db.get(Slot, slot_id)
+    if slot is None or slot.doctor_id != doctor_id:
+        raise StateError("号源不存在或不属于所选医生")
+    consent_res = await db.execute(
+        select(Consent).where(
+            Consent.user_id == user_id,
+            Consent.consent_type == "diagnosis",
+            Consent.version == "v1",
+        )
+    )
+    if consent_res.scalars().first() is None:
+        raise StateError("请先阅读并签署当前版本互联网诊疗知情同意")
+    if consult_type == "video" and referral_flag is not True:
         raise StateError("互联网医院仅提供复诊服务，请先在实体医院完成首诊")
 
     # 号源锁：DECR < 0 则回补并报无号
@@ -67,7 +89,11 @@ async def create_register_order(
         original_diagnosis=(original_diagnosis or "").strip()[:255] or None,
     )
     db.add(order)
-    await db.flush()
+    try:
+        await db.flush()
+    except Exception:
+        await release_slot_reservation(slot_id)
+        raise
     return order
 
 

@@ -22,4 +22,3 @@ api_router.include_router(sms.router)
 api_router.include_router(icd10.router)
 api_router.include_router(drugs.router)
 api_router.include_router(ca.router)
-# TODO(后续子系统)：signaling(ws) / schedule / emr / pharmacist / admin / finance / compliance

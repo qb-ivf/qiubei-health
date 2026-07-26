@@ -105,7 +105,7 @@ Page({
       wx.showToast({ title: '请先确认复诊声明（互联网医院仅提供复诊）', icon: 'none' });
       return;
     }
-    if (!app.ensureConsent()) return; // 知情同意（首次需先签署再支付）
+    if (!(await app.ensureConsent())) return; // 服务端确认知情同意存证成功后才允许支付
 
     const patientId = (app.globalData.currentPatient && app.globalData.currentPatient.id) || 1;
     const consultType = this.data.service;

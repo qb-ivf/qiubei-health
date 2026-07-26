@@ -1,5 +1,11 @@
 # VS Code + AI 智能体开发后端 SaaS 系统实操指南
 
+> **历史开发方法文档，不作为当前实现或待办状态来源。** 文中的 Celery、AES/MD5
+> 合规网关提示词是立项期假设，已由 SM4/SM3 天津网关、轻量 asyncio 调度和 Redis
+> 分布式租约替代。当前状态以
+> [待办清单](pending_and_mocks.md) 和
+> [天津监管实施方案](tianjin_supervision_plan.md) 为准。
+
 本指南旨在指导研发团队如何利用 **VS Code** 作为核心代码编辑器，配合 **Gemini 3.1 Pro / Claude Code** 智能体，基于 **Python FastAPI** 框架全自动、高质高效地构建互联网医院 SaaS 后端四大子系统。
 
 > 🧭 **工程位置（与小程序同仓）：** 后端位于本仓库 `backend/`，PC 运营管理端（Vue3 + Element Plus）位于 `admin-web/`，与 `miniprogram-patient/`、`miniprogram-doctor/` 并列。后端是**一个 FastAPI 模块化单体**承载 4 个子系统（非 4 个仓）。PC 端的搭建另见 `admin-web/README.md`，本指南聚焦后端。

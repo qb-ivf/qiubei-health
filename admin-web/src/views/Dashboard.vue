@@ -9,6 +9,7 @@ const byMethod = ref([])
 const failed = ref([])
 const enabled = ref(false)
 const signin = ref(null)
+const alerts = ref([])
 const collectDay = ref('')
 const payloadDialog = ref(false)
 const payloadText = ref('')
@@ -28,6 +29,7 @@ async function load() {
   const s = await request.get('/admin/gov-reports/stats')
   enabled.value = s.enabled
   signin.value = s.signin
+  alerts.value = s.alerts || []
   stats.value = [
     { label: '上报总数', value: s.total, color: '#0056c4' },
     { label: '上报成功', value: s.success, color: '#00b578' },
@@ -64,6 +66,17 @@ async function collect() {
 </script>
 
 <template>
+  <div v-if="alerts.length" class="regulatory-alerts">
+    <el-alert
+      v-for="alert in alerts"
+      :key="`${alert.code}-${alert.method}`"
+      :title="alert.title"
+      :description="alert.message"
+      type="error"
+      show-icon
+      :closable="false"
+    />
+  </div>
   <el-row :gutter="16">
     <el-col :span="6" v-for="s in stats" :key="s.label">
       <el-card>
@@ -129,6 +142,7 @@ async function collect() {
 <style scoped>
 .stat__label { color: #909399; font-size: 13px; }
 .stat__value { font-size: 28px; font-weight: 700; margin-top: 8px; }
+.regulatory-alerts { display: grid; gap: 8px; margin-bottom: 16px; }
 .mt { margin-top: 16px; }
 .hd { display: flex; align-items: center; justify-content: space-between; }
 .collect { display: flex; gap: 8px; align-items: center; }

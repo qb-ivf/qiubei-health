@@ -1,9 +1,7 @@
-"""创建缺失的数据库表（无 Alembic 时的建表工具，pending #21）。
+"""创建缺失数据库表的旧版兼容工具。
 
-生产 DEBUG=false 不会自动建表；新增模型后在服务器运行一次：
-  docker compose -f docker-compose.yml -f docker-compose.prod.yml exec api python -m scripts.init_db
-
-只创建尚不存在的表，不影响已有表/数据。
+新部署统一运行 ``python -m scripts.db_upgrade``。本文件只供首次接管尚未纳入 Alembic
+的既有数据库使用；只创建缺失表，不影响已有表或数据。
 """
 import asyncio
 

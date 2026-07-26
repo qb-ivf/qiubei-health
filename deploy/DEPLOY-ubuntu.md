@@ -89,13 +89,15 @@ scp backend/secrets/apiclient_key.pem root@<ECS公网IP>:/opt/qiubei-health/back
 ```bash
 cd /opt/qiubei-health/backend
 chmod 600 secrets/apiclient_key.pem
-docker compose up -d        # 起 mysql + redis + api
+docker compose up -d mysql redis
+docker compose run --rm --no-deps api python -m scripts.db_upgrade
+docker compose up -d --wait --wait-timeout 180 api
 docker compose logs -f api  # 看启动日志，Ctrl+C 退出
 curl http://127.0.0.1:8000/health   # 应返回 {"status":"ok",...}
 ```
 
-> 初次部署 `.env` 保持 `DEBUG=true`：后端靠它自动建表（Alembic 迁移尚未接入，见 pending #21）。
-> 生产强化（正式对外前）：换 `JWT_SECRET`、设 `ENCRYPTION_KEY`、收敛 CORS（pending #8/#9/#23）。
+> 数据库结构由 Alembic 管理，`scripts.db_upgrade` 同时支持全新数据库和既有库首次安全接管。
+> 正式环境从一开始就使用 `DEBUG=false`；不要依赖应用启动时建表。
 
 ---
 
@@ -196,12 +198,16 @@ grep -E "^(JWT_SECRET|ENCRYPTION_KEY)=" .env   # 确认已写入（非默认值�
 
 ### 9.4 用生产 compose 重启（关 --reload / DEBUG，开自动重启）
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# 先在当前 API 容器内升级数据库，再切换生产启动参数
+docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T api \
+  python -m scripts.db_upgrade
+docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+  up -d --wait --wait-timeout 180 api
 docker compose logs --tail=30 api      # 确认无报错
 curl http://127.0.0.1:8000/health
 ```
 > 以后生产环境都用这条 `-f docker-compose.yml -f docker-compose.prod.yml` 启动。
-> 注意：`DEBUG=false` 后不再自动建表（Alembic 迁移待接入，pending #21）；现有表已建好不受影响。
+> 后续每次发布均先运行 `scripts.db_upgrade`，确认成功后再重启 API。
 
 ---
 

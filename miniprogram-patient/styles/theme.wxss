@@ -32,7 +32,7 @@ page {
   line-height: 1.5;
 }
 
-/* —— Material Symbols 图标（app.js 用 wx.loadFontFace 全局加载）—— */
+/* —— Material Symbols 图标（app.js 从本院 API 加载固定子集）—— */
 .material-symbols-outlined, .ms {
   font-family: "Material Symbols Outlined";
   font-weight: normal;

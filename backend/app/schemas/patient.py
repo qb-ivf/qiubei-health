@@ -1,4 +1,6 @@
 """就诊人 Pydantic 模型（M1）。"""
+from typing import Literal
+
 from pydantic import BaseModel
 
 
@@ -31,5 +33,5 @@ class PatientOut(BaseModel):
 
 
 class ConsentIn(BaseModel):
-    consent_type: str = "diagnosis"
-    version: str = "v1"
+    consent_type: Literal["diagnosis"] = "diagnosis"
+    version: Literal["v1"] = "v1"

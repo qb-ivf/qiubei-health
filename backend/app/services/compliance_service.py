@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 # 指数退避（秒）：5min / 15min / 1h / 3h / 6h
 BACKOFF = [300, 900, 3600, 10800, 21600]
 MAX_RETRY = len(BACKOFF)
+CN_TZ = timezone(timedelta(hours=8))
 
 
 def _utcnow() -> datetime:
@@ -72,6 +73,81 @@ async def enqueue(
 
 def _gateway_ready() -> bool:
     return bool(settings.TJ_REPORT_ENABLED and not gateway_config_errors(settings))
+
+
+def build_regulatory_alerts(
+    reports: list[GovReport],
+    *,
+    enabled: bool,
+    now_cn: datetime | None = None,
+    failure_threshold: int | None = None,
+    signin_deadline_hour: int | None = None,
+) -> list[dict]:
+    """根据上报任务快照生成可操作的监管告警，不依赖数据库，便于测试。
+
+    仅在真实监管上报已启用时告警，避免尚未切正式前产生误报。
+    """
+    if not enabled:
+        return []
+
+    threshold = max(1, failure_threshold or settings.TJ_ALERT_FAILURE_THRESHOLD)
+    deadline_hour = signin_deadline_hour
+    if deadline_hour is None:
+        deadline_hour = settings.TJ_ALERT_SIGNIN_DEADLINE_HOUR
+    deadline_hour = min(23, max(0, deadline_hour))
+    now_cn = now_cn or datetime.now(CN_TZ)
+    ordered = sorted(reports, key=lambda item: item.id or 0, reverse=True)
+    alerts: list[dict] = []
+
+    # 从最新任务向前看；遇到最近一次成功即停止，统计当前连续失败次数。
+    consecutive: dict[str, int] = {}
+    settled_methods: set[str] = set()
+    for report in ordered:
+        method = report.method
+        if not method or method in settled_methods:
+            continue
+        if report.status == "success":
+            settled_methods.add(method)
+        elif report.status in {"failed", "dead"}:
+            consecutive[method] = consecutive.get(method, 0) + 1
+
+    for method, count in sorted(consecutive.items()):
+        if count >= threshold:
+            alerts.append({
+                "code": "consecutive_failure",
+                "method": method,
+                "count": count,
+                "title": f"监管接口连续失败：{method}",
+                "message": f"最近连续失败 {count} 次（阈值 {threshold}），请查看失败报文并重报。",
+            })
+
+    # 03:00 前检查前两日，给 01:30 采集和网关重试预留时间；之后检查前一日。
+    required_day = now_cn.date() - timedelta(days=1 if now_cn.hour >= deadline_hour else 2)
+    signin = next(
+        (
+            report for report in ordered
+            if report.biz_type == "dispute_signin" and report.batch_date == required_day
+        ),
+        None,
+    )
+    if signin is None:
+        alerts.append({
+            "code": "signin_missing",
+            "method": "pushMedicalDispute",
+            "count": 0,
+            "title": f"不良事件签到缺失：{required_day}",
+            "message": "未找到该批次签到任务，请立即按日补采并确认上报成功。",
+        })
+    elif signin.status != "success":
+        alerts.append({
+            "code": "signin_incomplete",
+            "method": "pushMedicalDispute",
+            "count": 1,
+            "title": f"不良事件签到未完成：{required_day}",
+            "message": f"当前状态为 {signin.status}，请查看失败原因并重报。",
+        })
+
+    return alerts
 
 
 async def process_pending(db: AsyncSession) -> int:
@@ -166,12 +242,18 @@ async def stats(db: AsyncSession) -> dict:
         select(GovReport).where(GovReport.biz_type == "dispute_signin").order_by(GovReport.id.desc()).limit(1)
     )
     signin = res.scalars().first()
+    alert_limit = max(500, settings.TJ_ALERT_FAILURE_THRESHOLD * 50)
+    res = await db.execute(select(GovReport).order_by(GovReport.id.desc()).limit(alert_limit))
+    recent_reports = list(res.scalars().all())
+    if signin and all(report.id != signin.id for report in recent_reports):
+        recent_reports.append(signin)
     return {
         "total": int(total), "success": int(success), "failed": int(failed), "avg_ms": int(avg),
         "enabled": _gateway_ready(),
         "by_method": sorted(by_method.values(), key=lambda x: x["method"]),
         "signin": {"batch_date": str(signin.batch_date) if signin.batch_date else None,
                    "status": signin.status} if signin else None,
+        "alerts": build_regulatory_alerts(recent_reports, enabled=_gateway_ready()),
     }
 
 

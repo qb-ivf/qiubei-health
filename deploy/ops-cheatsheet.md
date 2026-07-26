@@ -16,41 +16,50 @@
 ```bash
 cd /opt/qiubei-health/backend
 git pull --ff-only               # 只允许快进，避免服务器产生意外合并提交
-dc restart api                   # 代码是卷挂载，重启加载新代码
-dc up -d --wait --wait-timeout 120 api  # 等 API 通过 /health 后再继续
 
-# 仅当 requirements.txt 变了才重建镜像：
-dc up -d --build --wait --wait-timeout 180
+# 总是先构建新镜像：Docker 会复用缓存，也可避免漏掉 requirements.txt/Dockerfile 变化。
+dc build api
 
-# 若本次提交含模型变更（新表/新列），重启前先跑迁移（幂等，重复执行安全）：
-dc exec api python -m scripts.init_db      # 建缺失的新表
-dc exec api python -m scripts.migrate      # 给已有表补列
+# 迁移由新镜像执行；首次运行会安全接管既有库并写入 alembic_version。
+dc up -d mysql redis
+dc run --rm --no-deps api python -m scripts.db_upgrade
+
+# 数据库成功后才切换 API；等待容器 healthcheck 通过再验证公网。
+dc up -d --wait --wait-timeout 180 api
+dc ps
+curl -fsS https://api.qb-medical.cn/health
+dc exec -T api python -m scripts.production_preflight
 ```
 
-### 1.1 ⚠️ 本次版本（天津监管改造，2026-07）部署清单
+当前基线接管只补齐结构、不会删除业务表或列，且基线 downgrade 已明确禁用。禁止继续手工修改
+线上表结构；新模型变更必须先生成并评审新的 `backend/alembic/versions/*.py`，特别检查其中是否
+出现 `drop_table`、`drop_column` 或数据重写。
 
-本次改了依赖（gmssl/openpyxl）、加了 3 张新表（evaluations/medical_disputes/icd10_codes）、
-32 条补列、需导入 ICD-10 字典。**按顺序执行，缺一不可**：
+### 1.1 ⚠️ 天津监管改造版本（2026-07）首次部署清单
+
+该历史版本改了依赖、增加监管表和字段并需导入 ICD-10 字典。新部署统一由 Alembic 接管，
+无需再分别运行旧版 `init_db`/`migrate`：
 
 ```bash
 cd /opt/qiubei-health/backend
 git pull --ff-only
 
-# ① requirements 变了 → 必须重建镜像（会自动重启）
-dc up -d --build --wait --wait-timeout 180
+# ① requirements 变了 → 先构建镜像，但暂不切换 API
+dc build api
 
-# ② 建新表（生产 DEBUG=false 不自动建表）
-dc exec api python -m scripts.init_db
+# ② 确保依赖服务运行，用新镜像升级数据库
+dc up -d mysql redis
+dc run --rm --no-deps api python -m scripts.db_upgrade
 
-# ③ 补列（orders 时间戳/复诊字段、prescriptions ICD、doctors/staff/patients/drugs 监管字段、gov_reports 扩列）
-dc exec api python -m scripts.migrate
+# ③ 启动新 API 并等待健康，再导入 ICD-10 编码库
+dc up -d --wait --wait-timeout 180 api
+dc exec -T api python -m scripts.import_icd10
 
-# ④ 导入 ICD-10 编码库（读仓库内 docs/specs/tianjin/*.xlsx，西医 35862 + 中医 1890 条，约半分钟）
-dc exec api python -m scripts.import_icd10
-
-# ⑤ 验证
+# ④ 验证
 curl http://127.0.0.1:8000/health
 dc logs --tail=30 api                        # 无报错、能看到后台任务启动
+dc exec -T mysql sh -c \
+  'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot "$MYSQL_DATABASE" -Nse "SELECT version_num FROM alembic_version;"'
 dc exec mysql mysql -uqiubei -pqiubei qiubei -e "SELECT count(*) FROM icd10_codes;"   # ≈37752
 dc exec mysql mysql -uqiubei -pqiubei qiubei -e "SHOW COLUMNS FROM orders LIKE 'paid_at';"  # 存在
 dc exec mysql mysql -uqiubei -pqiubei qiubei -e "SHOW TABLES LIKE 'medical_disputes';"      # 存在

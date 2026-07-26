@@ -23,5 +23,9 @@ admin-web/
 npm install
 npm run dev        # http://localhost:5173
 ```
-> 当前各页为接 mock 的脚手架；联调时把 `views/*` 内操作替换为 `@/api/request` 调用后端接口。
-> 登录账号任意（mock）；接入后端后走 RBAC（行政/药师/财务/运营角色）。
+
+当前页面均通过 `@/api/request` 调用真实后端。登录使用后端 staff 账号、bcrypt 密码、
+失败限流和 JWT；菜单及接口按行政、药师、财务、运营角色执行 RBAC。
+
+生产环境是 Nginx 托管的静态站，不在服务器上构建；完整发布及回滚命令见
+[运营后台部署手册](../deploy/DEPLOY-admin-web.md)。

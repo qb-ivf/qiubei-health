@@ -12,7 +12,6 @@ Page({
     ],
     assets: [
       { t: '我的处方', icon: 'prescriptions', color: 'var(--primary)', bg: 'rgba(0,86,196,.1)' },
-      { t: '报告单查询', icon: 'lab_research', color: 'var(--secondary)', bg: 'rgba(0,108,70,.1)' },
       { t: '挂号预约记录', icon: 'calendar_month', color: 'var(--tertiary)', bg: 'rgba(137,77,0,.1)' },
       { t: '电子病历档案', icon: 'clinical_notes', color: 'var(--primary)', bg: 'rgba(0,86,196,.1)' }
     ]
@@ -40,7 +39,6 @@ Page({
   },
 
   goPatients() { wx.navigateTo({ url: '/pages/patients/patients' }); },
-  comingSoon() { wx.showToast({ title: '功能完善中，敬请期待', icon: 'none' }); },
 
   editCurrent() {
     const c = this.data._cur;
@@ -61,10 +59,10 @@ Page({
     const t = e.currentTarget.dataset.t;
     if (t === '我的处方') {
       wx.navigateTo({ url: '/subpackages/consult/pages/rx-list/rx-list' });
+    } else if (t === '挂号预约记录') {
+      wx.navigateTo({ url: '/subpackages/consult/pages/order-list/order-list?title=挂号预约记录' });
     } else if (t === '电子病历档案') {
       wx.navigateTo({ url: '/subpackages/consult/pages/record-list/record-list' });
-    } else {
-      wx.showToast({ title: '功能完善中，敬请期待', icon: 'none' });
     }
   }
 });

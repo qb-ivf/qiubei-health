@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...constants import OrderStatus
 from ...core.database import get_db
+from ...models.evaluation import Evaluation
 from ...models.order import Order
 from ...models.phrase import Phrase
 from ...models.user import Doctor
@@ -152,12 +153,25 @@ async def delete_phrase(phrase_id: int, user=Depends(require_role("doctor")), db
 
 @router.get("/stats")
 async def my_stats(user=Depends(require_approved_doctor), db: AsyncSession = Depends(get_db)):
-    """医生本人统计：累计已接诊数（工作台/大厅展示用）。"""
+    """医生本人统计：累计接诊、评价均分和满意评价数。"""
     doctor = await _require_my_doctor(int(user["sub"]), db)
     consulted = await db.scalar(
         select(func.count(Order.id)).where(Order.doctor_id == doctor.id, Order.status.in_(_CONSULTED))
     )
-    return {"consulted": int(consulted or 0)}
+    score = await db.scalar(
+        select(func.avg(Evaluation.scoring)).where(Evaluation.doctor_id == doctor.id)
+    )
+    praise = await db.scalar(
+        select(func.count(Evaluation.id)).where(
+            Evaluation.doctor_id == doctor.id,
+            Evaluation.satisfaction >= 4,
+        )
+    )
+    return {
+        "consulted": int(consulted or 0),
+        "score": round(float(score), 1) if score is not None else None,
+        "praise": int(praise or 0),
+    }
 
 
 @router.get("/{doctor_id}", response_model=DoctorOut)

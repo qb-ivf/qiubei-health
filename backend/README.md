@@ -11,9 +11,9 @@ backend/
 │   ├── core/          # 配置 · 数据库 · Redis · 安全(JWT/脱敏)
 │   ├── models/        # SQLAlchemy ORM
 │   ├── schemas/       # Pydantic 校验/序列化
-│   ├── services/      # 业务逻辑（订单状态机 / 分账 / 提现）
-│   ├── workers/       # Celery 异步任务（卫健委上报 / CA 加签）
+│   ├── services/      # 业务逻辑（订单 / 合规 / CA / 分账）
 │   └── constants.py   # 订单状态机枚举 + 信令 + 角色
+├── alembic/           # 版本化数据库迁移
 ├── tests/             # pytest（状态机纯逻辑测试免依赖）
 ├── main.py · Dockerfile · docker-compose.yml · requirements.txt
 ```
@@ -23,7 +23,7 @@ backend/
 ### 方式 A：全 Docker 一键起（推荐，Windows + Docker Desktop）
 无需本地装 Python。在 `backend/` 目录执行：
 ```powershell
-docker compose up -d --build      # 起 MySQL + Redis + api（自动建表）
+docker compose up -d --build --wait  # Alembic 自动升级本地库后启动 API
 # 访问 http://127.0.0.1:8000/docs  与  /health
 docker compose logs -f api        # 看后端日志
 docker compose down               # 停止（加 -v 连数据卷一起删）
@@ -41,11 +41,14 @@ pytest -q                         # 纯逻辑测试（状态机/鉴权）免 DB 
 ```
 > 建议用 Python 3.11/3.12（部分依赖在 3.14 上可能缺预编译包）。
 
-## 已落地（脚手架）
+## 已落地
 
 - 订单**封闭式状态机**（`constants.ALLOWED_TRANSITIONS`）+ 悲观锁/幂等回调（`services/order_service.py`）
-- 微信支付回调、医生接诊接口（`api/v1/orders.py`）
-- RTC `UserSig` 动态下发骨架（`api/v1/rtc.py`）
-- 合规网关 Worker：卫健委上报指数退避、CA 加签占位（`workers/compliance.py`）
+- 微信支付 V3 下单/验签回调、医生接诊、药师审方、财务提现审核
+- RTC `UserSig` 动态下发；WebSocket 使用 Redis Pub/Sub 支持多 API 实例
+- 天津监管国密网关、T+1 采集、退避重试/死信、分布式租约及运营告警
+- 放心签人员双录、处方/无药病历签署、验签、受保护下载和加密归档
+- Alembic 版本化迁移；既有生产库由 `python -m scripts.db_upgrade` 安全接管
 
-> 后续按 `docs/backend_saas_guide.md` 的五步打法扩展：JWT 鉴权、WebSocket 信令、药师审方、财务分账提现、合规网关落地。
+仍需外部服务或真实业务数据的项目，以
+[待办清单](../docs/pending_and_mocks.md) 为唯一状态来源。

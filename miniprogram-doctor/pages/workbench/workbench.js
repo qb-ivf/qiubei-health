@@ -6,7 +6,7 @@ Page({
     balance: '0.00',
     doctor: { name: '', title: '', audit_status: '', fee_fen: 0 },
     authText: '',
-    metrics: { done: 0, score: '—', praise: 0 },  // 真实统计接口接入前用占位 0/—
+    metrics: { done: 0, score: '—', praise: 0 },
     manage: [
       { t: '排班管理', icon: 'calendar_month', color: 'var(--primary)', bg: 'rgba(0,86,196,.1)' },
       { t: '诊金设置', icon: 'payments', color: 'var(--secondary)', bg: 'rgba(0,108,70,.1)' },
@@ -18,10 +18,16 @@ Page({
 
   onShow() { this.loadWallet(); this.loadProfile(); this.loadStats(); },
 
-  // 真实累计接诊量
+  // 本人真实累计接诊量、患者评分和满意评价数
   loadStats() {
     if (!app.globalData.token) return;
-    request('/doctors/stats').then((s) => this.setData({ 'metrics.done': s.consulted || 0 })).catch(() => {});
+    request('/doctors/stats').then((s) => this.setData({
+      metrics: {
+        done: s.consulted || 0,
+        score: s.score == null ? '—' : Number(s.score).toFixed(1),
+        praise: s.praise || 0
+      }
+    })).catch(() => {});
   },
 
   loadWallet() {
@@ -44,7 +50,6 @@ Page({
     }).catch(() => {});
   },
 
-  comingSoon() { wx.showToast({ title: '功能完善中，敬请期待', icon: 'none' }); },
   goRecords() { wx.navigateTo({ url: '/subpackages/consult/pages/order-list/order-list?title=接诊记录' }); },
   goFinance() { wx.navigateTo({ url: '/pages/finance/finance' }); },
 
@@ -77,8 +82,6 @@ Page({
       wx.navigateTo({ url: '/pages/phrases/phrases' });
     } else if (t.indexOf('CA') > -1) {
       wx.navigateTo({ url: '/pages/ca/ca' });
-    } else {
-      wx.showToast({ title: t + '（建设中）', icon: 'none' });
     }
   },
 

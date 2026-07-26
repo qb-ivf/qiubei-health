@@ -5,14 +5,13 @@
     python -m scripts.create_admin <username> <password> [role]
 
 role 取值：admin（默认，全权）/ pharmacist（药师审方）/ finance（财务）。
-首次运行会自动建 staff 表（仅创建缺失表，不影响现有数据）。
+运行前须已执行 ``python -m scripts.db_upgrade``。
 """
 import asyncio
 import sys
 
 from app.constants import Role
 from app.core.database import AsyncSessionLocal, engine
-from app.models import Base
 from app.services import staff_service
 
 VALID_ROLES = {Role.ADMIN, Role.PHARMACIST, Role.FINANCE}
@@ -28,10 +27,6 @@ async def main() -> None:
     if role not in VALID_ROLES:
         print(f"非法角色 {role}，可选：{', '.join(sorted(VALID_ROLES))}")
         return
-
-    # 仅创建缺失的表（staff）；现有表不受影响
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
 
     async with AsyncSessionLocal() as db:
         staff = await staff_service.upsert(db, username, password, role)

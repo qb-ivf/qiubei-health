@@ -1,4 +1,6 @@
 """订单的 Pydantic 校验/序列化模型。"""
+from typing import Literal
+
 from pydantic import BaseModel
 
 from ..constants import OrderStatus
@@ -8,7 +10,7 @@ class RegisterOrderCreate(BaseModel):
     doctor_id: int
     slot_id: int
     patient_id: int
-    consult_type: str = "video"   # video 视频 / text 图文
+    consult_type: Literal["video", "text"] = "video"   # video 视频 / text 图文
     # 复诊合规声明（视频问诊必填，天津监管 referralFlag/originalDiagnosis）
     referral_flag: bool | None = None
     original_diagnosis: str | None = None

@@ -7,10 +7,9 @@ Page({
     queueBar: '',
     currentPatient: { name: '' },
     quickServices: [
-      { icon: 'payments', t: '门诊缴费' },
-      { icon: 'analytics', t: '报告查询' },
-      { icon: 'medication', t: '处方购药' },
-      { icon: 'folder_shared', t: '健康档案' }
+      { icon: 'payments', t: '待付药费', url: '/subpackages/consult/pages/order-list/order-list?status=5&title=待付药费' },
+      { icon: 'medication', t: '我的处方', url: '/subpackages/consult/pages/rx-list/rx-list' },
+      { icon: 'folder_shared', t: '电子病历', url: '/subpackages/consult/pages/record-list/record-list' }
     ],
     doctors: []
   },
@@ -43,7 +42,10 @@ Page({
     }).catch(() => {});
   },
 
-  comingSoon() { wx.showToast({ title: '功能完善中，敬请期待', icon: 'none' }); },
+  goQuick(e) {
+    const url = e.currentTarget.dataset.url;
+    if (url) wx.navigateTo({ url });
+  },
   goSearch() { wx.navigateTo({ url: '/pages/search/search' }); },
   goRegister() { wx.switchTab({ url: '/pages/register/register' }); },
   goDoctor(e) {

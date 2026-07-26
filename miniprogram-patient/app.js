@@ -16,15 +16,14 @@ App({
   },
 
   onLaunch() {
-    // 全局加载 Material Symbols 图标字体（设计稿图标体系）
-    // 注：dev 需勾选「不校验合法域名」或将 cdn.jsdelivr.net 加入 downloadFile 合法域名
+    // 固定图标子集由本院 API 域名托管，不依赖第三方 CDN 或额外合法域名。
     wx.loadFontFace({
       global: true,
       family: 'Material Symbols Outlined',
-      source: 'url("https://cdn.jsdelivr.net/npm/material-symbols@0.14.0/material-symbols-outlined.woff2")',
+      source: 'url("https://api.qb-medical.cn/static/material-symbols-outlined-subset.woff2?v=1912ddef")',
       scopes: ['webview', 'native'],
       success: () => {},
-      fail: (e) => console.warn('图标字体加载失败，可在 app.js 更新字体源', e)
+      fail: (e) => console.warn('本院图标字体加载失败，请检查 API 域名连通性', e)
     });
 
     // 读取本地 Token
@@ -32,7 +31,6 @@ App({
     if (token) this.globalData.token = token;
     const patient = wx.getStorageSync('currentPatient');
     if (patient) this.globalData.currentPatient = patient;
-    if (wx.getStorageSync('consentSigned')) this.globalData.consentSigned = true;
 
     // 已登录则建立全局信令长连接（接收 CALL_INVITE 呼叫）
     if (this.globalData.token) signaling.connect();
@@ -42,6 +40,7 @@ App({
   onShow() {
     if (!this.globalData.token) return;
     signaling.connect();
+    this.syncConsentStatus();
     this.tryRejoinConsult();
     this.loadDefaultPatient();
   },
@@ -114,30 +113,68 @@ App({
   /**
    * 准入闸门：支付/问诊前校验「实名 + 知情同意」（FRD §二）。
    */
-  ensureConsent() {
-    if (this.globalData.consentSigned) return true;
-    wx.showModal({
-      title: '互联网诊疗知情同意',
-      content: '问诊前需阅读并同意《互联网诊疗知情同意书》《隐私政策》《医疗风险告知》。',
-      confirmText: '同意签署',
-      cancelText: '取消',
-      success: (res) => {
-        if (res.confirm) {
-          this.globalData.consentSigned = true;
-          wx.setStorageSync('consentSigned', true);
-          // 存证到后端（best-effort）
-          if (this.globalData.token) {
-            wx.request({
-              url: this.globalData.baseUrl.replace(/\/$/, '') + '/api/v1/consents',
-              method: 'POST',
-              header: { 'content-type': 'application/json', Authorization: 'Bearer ' + this.globalData.token },
-              data: { consent_type: 'diagnosis', version: 'v1' }
-            });
-          }
-        }
-      }
+  async ensureConsent() {
+    if (!this.globalData.token) return false;
+    if (await this.syncConsentStatus()) return true;
+    const confirmed = await new Promise((resolve) => {
+      wx.showModal({
+        title: '互联网诊疗知情同意',
+        content: '问诊前需阅读并同意《互联网诊疗知情同意书》《隐私政策》《医疗风险告知》。',
+        confirmText: '同意签署',
+        cancelText: '取消',
+        success: (res) => resolve(!!res.confirm),
+        fail: () => resolve(false)
+      });
     });
-    return false;
+    if (!confirmed) return false;
+    try {
+      const result = await this._consentRequest('POST', { consent_type: 'diagnosis', version: 'v1' });
+      this.globalData.consentSigned = !!result.signed;
+      this.globalData.consentToken = this.globalData.consentSigned ? this.globalData.token : null;
+      return this.globalData.consentSigned;
+    } catch (e) {
+      wx.showToast({ title: '协议存证失败，请重试', icon: 'none' });
+      return false;
+    }
+  },
+
+  async syncConsentStatus() {
+    const token = this.globalData.token;
+    if (!token) {
+      this.globalData.consentSigned = false;
+      this.globalData.consentToken = null;
+      return false;
+    }
+    if (this.globalData.consentSigned && this.globalData.consentToken === token) return true;
+    try {
+      const result = await this._consentRequest('GET');
+      this.globalData.consentSigned = !!result.signed;
+      this.globalData.consentToken = this.globalData.consentSigned ? token : null;
+      return this.globalData.consentSigned;
+    } catch (e) {
+      this.globalData.consentSigned = false;
+      this.globalData.consentToken = null;
+      return false;
+    }
+  },
+
+  _consentRequest(method, data) {
+    return new Promise((resolve, reject) => {
+      wx.request({
+        url: this.globalData.baseUrl.replace(/\/$/, '') + '/api/v1/consents' + (method === 'GET' ? '/status' : ''),
+        method,
+        data,
+        header: {
+          'content-type': 'application/json',
+          Authorization: 'Bearer ' + this.globalData.token
+        },
+        success: (res) => {
+          if (res.statusCode >= 200 && res.statusCode < 300) resolve(res.data);
+          else reject(res.data);
+        },
+        fail: reject
+      });
+    });
   },
 
   /**

@@ -20,7 +20,7 @@ from ...models.user import Doctor, Patient
 from ...schemas.prescription import PrescriptionCreate, PrescriptionOut, RejectIn
 from ...services import audit_service, compliance_service
 from ...services import prescription_service as rx_service
-from ...ws import manager, rooms
+from ...ws import manager
 from ..deps import get_current_user, require_approved_doctor, require_role
 
 router = APIRouter(prefix="/prescriptions", tags=["prescriptions"])
@@ -87,7 +87,7 @@ async def submit(body: PrescriptionCreate, user=Depends(require_approved_doctor)
             },
         )
         if order.room_id:
-            rooms.pop(order.room_id, None)
+            await manager.delete_room(order.room_id)
     return await _decorate(db, rx)
 
 

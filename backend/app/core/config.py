@@ -59,10 +59,6 @@ class Settings(BaseSettings):
     TENCENT_SMS_TEMPLATE_ID: str = ""   # 验证码模板 ID
     TENCENT_SMS_REGION: str = "ap-guangzhou"
 
-    # —— 合规网关（卫健委 / CA） ——
-    GOV_REPORT_URL: str = ""     # （旧占位，待 TJ_* 全量接管后移除）
-    GOV_APP_SECRET: str = ""
-
     # —— 放心签：高级证书协议、智能双录与处方 PDF 签署 ——
     # ENABLED 控制是否调用放心签；DOCUMENT_SIGN_ENABLED 控制审方通过时是否真实签署 PDF；
     # REQUIRED 是生产总门禁，开启后双录与已验签 PDF 均不可绕过。
@@ -99,6 +95,8 @@ class Settings(BaseSettings):
     TJ_UNIT_ID: str = ""             # 监管平台机构 ID
     ORGAN_ID: str = ""               # 全国统一组织机构代码
     ORGAN_NAME: str = ""             # 机构登记全称
+    TJ_ALERT_FAILURE_THRESHOLD: int = 3  # 同一监管接口连续失败告警阈值
+    TJ_ALERT_SIGNIN_DEADLINE_HOUR: int = 3  # 北京时间每日签到完成时限（小时）
 
     # —— 对象存储（资质/录制/处方 PDF，15 年归档） ——
     OSS_BUCKET: str = ""

@@ -41,16 +41,22 @@ async def create_register_order(
     body: RegisterOrderCreate, uid: int = Depends(get_current_user_id), db: AsyncSession = Depends(get_db)
 ):
     """挂号下单（号源锁，PENDING）。视频问诊须携带复诊声明（referral_flag）。"""
+    order = None
     try:
         order = await order_service.create_register_order(
             db, uid, body.doctor_id, body.slot_id, body.patient_id, body.consult_type,
             referral_flag=body.referral_flag, original_diagnosis=body.original_diagnosis,
         )
         await db.commit()
-        await db.refresh(order)
     except order_service.StateError as e:
         await db.rollback()
         raise HTTPException(status_code=409, detail=str(e))
+    except Exception:
+        await db.rollback()
+        if order is not None:
+            await order_service.release_slot_reservation(order.slot_id)
+        raise
+    await db.refresh(order)
     return order
 
 
@@ -317,7 +323,7 @@ async def accept(order_id: int, user=Depends(require_approved_doctor), db: Async
         raise HTTPException(status_code=409, detail=str(e))
 
     doctor_uid = int(user["sub"])
-    rooms[room_id] = {"patient": order.user_id, "doctor": doctor_uid}
+    await manager.set_room(room_id, order.user_id, doctor_uid)
     doctor = await db.get(Doctor, order.doctor_id)
     if order.consult_type == "text":
         # 图文：不推视频呼叫；通知患者医生已接诊（患者在聊天页等待）
@@ -331,7 +337,7 @@ async def accept(order_id: int, user=Depends(require_approved_doctor), db: Async
     return {
         "room_id": room_id,
         "consult_type": order.consult_type,
-        "invited": order.user_id in manager.active,
+        "invited": await manager.is_online(order.user_id),
     }
 
 
@@ -386,7 +392,7 @@ async def complete_without_prescription(
                 },
             )
             if target.room_id:
-                rooms.pop(target.room_id, None)
+                await manager.delete_room(target.room_id)
     except prescription_service.RxError as exc:
         await db.rollback()
         detail = str(exc)

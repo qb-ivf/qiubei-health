@@ -17,10 +17,10 @@ App({
     wx.loadFontFace({
       global: true,
       family: 'Material Symbols Outlined',
-      source: 'url("https://cdn.jsdelivr.net/npm/material-symbols@0.14.0/material-symbols-outlined.woff2")',
+      source: 'url("https://api.qb-medical.cn/static/material-symbols-outlined-subset.woff2?v=1912ddef")',
       scopes: ['webview', 'native'],
       success: () => {},
-      fail: (e) => console.warn('图标字体加载失败', e)
+      fail: (e) => console.warn('本院图标字体加载失败，请检查 API 域名连通性', e)
     });
 
     const token = wx.getStorageSync('token');
