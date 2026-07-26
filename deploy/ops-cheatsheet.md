@@ -193,8 +193,9 @@ dc restart api
 
 ## 8. 运营后台 admin-web 部署 / 更新（前端静态站）
 
-admin-web 是纯静态站点：本机构建出 `dist/`，scp 到服务器 `/var/www/admin-web`，Nginx 直接托管
-（站点配置 `deploy/nginx/admin.qb-medical.cn.conf`，`/api/` 反代到 8000 后端）。
+admin-web 是纯静态站点：本机构建 `dist/` 并上传压缩包，服务器校验内容和权限后再切换到
+`/var/www/admin-web`，由 Nginx 直接托管（站点配置 `deploy/nginx/admin.qb-medical.cn.conf`，
+`/api/` 反代到 8000 后端）。
 
 ### 8.1 构建 dist
 本机装了 Node 就直接：
@@ -210,27 +211,94 @@ docker run --rm -v "${PWD}:/app" -v /app/node_modules -w /app node:20-alpine `
   sh -c "npm install && npm run build"
 ```
 
-### 8.2 上传 + 落位（服务器）
+### 8.2 打包并上传（本机 PowerShell）
+
+不要直接 `scp -r dist` 后 `rm -rf /var/www/admin-web`：目录套娃、上传中断或权限继承异常会造成
+整站 403/500，且旧版本已被删除时无法立即回退。改为上传单个压缩包：
+
 ```powershell
-# ⚠️ 必须先删临时目录，否则 scp -r 会套娃成 /tmp/admin-dist/dist
-ssh root@120.27.157.116 "rm -rf /tmp/admin-dist"     # 确认无 Permission denied 才算删成功
-scp -r dist root@120.27.157.116:/tmp/admin-dist
+# 当前目录为 admin-web；先确认入口和资源目录都存在
+Test-Path .\dist\index.html
+Test-Path .\dist\assets
+
+tar -czf admin-web-dist.tar.gz -C dist .
+scp .\admin-web-dist.tar.gz root@120.27.157.116:/tmp/admin-web-dist.tar.gz
+
+# 上传成功后清理本地临时包，禁止提交 Git
+Remove-Item .\admin-web-dist.tar.gz
 ```
+
+### 8.3 校验权限并切换（生产服务器）
+
+先解压到带时间戳的新目录，统一修复为“目录 0755、文件 0644”，确认 Nginx 用户可读后再切换。
+旧站点按时间戳保留，不使用 `rm -rf`：
+
 ```bash
-# 服务器：整目录替换
-rm -rf /var/www/admin-web && mv /tmp/admin-dist /var/www/admin-web
-ls /var/www/admin-web/index.html        # 必须在顶层（不是 .../admin-web/dist/index.html）
-ls /var/www/admin-web/assets/ | wc -l    # 资源齐全（构建时会打印总数）
-# 一般无需 reload nginx；改了 nginx 配置才需要：nginx -t && systemctl reload nginx
+set -e
+
+stamp="$(date +%Y%m%d%H%M%S)"
+archive="/tmp/admin-web-dist.tar.gz"
+release="/var/www/admin-web-release-${stamp}"
+current="/var/www/admin-web"
+backup="/var/www/admin-web-backup-${stamp}"
+
+test -f "$archive"
+install -d -m 0755 "$release"
+tar -xzf "$archive" -C "$release"
+
+# 防止空包、dist 套娃或 Windows 压缩包权限导致 Nginx 403
+test -f "$release/index.html"
+test -d "$release/assets"
+find "$release" -type d -exec chmod 0755 {} +
+find "$release" -type f -exec chmod 0644 {} +
+chown -R root:root "$release"
+runuser -u www-data -- test -r "$release/index.html"
+runuser -u www-data -- test -x "$release/assets"
+
+# Nginx 配置不变也先做语法检查；失败时不切站
+nginx -t
+
+# 保留旧版后切换；若新目录落位失败，立即恢复旧版
+moved_old=0
+if [ -e "$current" ]; then
+  mv "$current" "$backup"
+  moved_old=1
+fi
+if ! mv "$release" "$current"; then
+  [ "$moved_old" -eq 1 ] && mv "$backup" "$current"
+  exit 1
+fi
+
+test -r "$current/index.html"
+namei -l "$current/index.html"
+ls "$current/assets/" | wc -l
+rm -f "$archive"
+
+# 仅替换静态文件一般无需 reload；若同时改过 Nginx 配置才执行：
+# systemctl reload nginx
 ```
+
 改完浏览器 **Ctrl+F5** 强刷（避免缓存旧 index 去拿对不上的分片）。
 
-### 8.3 常见报错对照（都在 Nginx/前端层，不是后端）
+回滚时先从 `ls -dt /var/www/admin-web-backup-*` 中人工确认目标版本，再执行：
+
+```bash
+backup="/var/www/admin-web-backup-YYYYMMDDHHMMSS"  # 替换成已确认的实际目录
+test -f "$backup/index.html"
+failed="/var/www/admin-web-failed-$(date +%Y%m%d%H%M%S)"
+mv /var/www/admin-web "$failed"
+mv "$backup" /var/www/admin-web
+```
+
+### 8.4 常见报错对照
+
 | 现象 | 原因 | 处理 |
 |---|---|---|
-| 整页 `500 Internal Server Error`（nginx 字样） | `/var/www/admin-web/index.html` 不存在，`try_files` 兜底文件缺失 | 多半是套娃，`index.html` 跑到 `dist/` 里了；按 8.2 重新落位 |
-| `Failed to fetch dynamically imported module .../assets/Xxx.js` | 分片缺失，被 `try_files` 兜底成 index.html | dist 上传不完整，按 8.2 干净重传 |
+| 整页 `403 Forbidden`（nginx 字样） | 新目录或文件不可被 Nginx 用户读取/穿越 | 执行 `find /var/www/admin-web -type d -exec chmod 0755 {} +`、`find /var/www/admin-web -type f -exec chmod 0644 {} +`，再用 `namei -l /var/www/admin-web/index.html` 检查父目录权限 |
+| 整页 `500 Internal Server Error`（nginx 字样） | `/var/www/admin-web/index.html` 不存在，`try_files` 兜底文件缺失 | 多半是套娃，`index.html` 跑到 `dist/` 里了；按 8.3 重新校验并切换 |
+| `Failed to fetch dynamically imported module .../assets/Xxx.js` | 分片缺失，被 `try_files` 兜底成 index.html | dist 上传不完整，按 8.2 重新打包上传，再按 8.3 切换 |
 | `auth_basic_user_file ... failed` | `/etc/nginx/.htpasswd_admin` 丢了 | 重建 htpasswd |
+| 新页面能打开，但顶部提示 `Not found` | 新前端已发布，后端仍是旧进程，新 API 路由尚未加载 | 服务器仓库执行 `git pull --ff-only`，进入 `backend` 后执行 `dc restart api`，再用 `/health` 和对应 API 验证 |
 
 ---
 
