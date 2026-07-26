@@ -14,13 +14,13 @@
 | 5 | ✅ **医生资质审核闭环已实现并生产强制待审**：login 放行未审医生进入资料页；接诊/开方端点要求 approved。新医生仅在 `DEBUG=true && DOCTOR_AUTO_APPROVE=true` 时可自动通过，生产即使误配 true 也强制 pending | `auth_service.login_doctor`、`api/deps.py`、`doctors.py`、`orders.py`、`prescriptions.py`、医生端资质页 | 完成 | 人员导入可按医务审核结论显式终审 |
 | 6 | 🟡 **放心签 CA 双录 + 真实 PDF 签署代码已接入**：医师/药师 H5 双录、处方三方签署、无药病历医师+医院两方签署、验签、摘要复核、受保护下载及签后 PDF 加密备份/恢复演练均已实现；原 `CA_MOCK_SIGN` 和红章占位已删除。生产密钥、迁移、正式 token 预检、回调检查及零文件归档演练均已通过；**待人员导入、企业章确认、首份真实处方/病历联调及有文件/异地归档验收** | `services/fxq_ca.py`、`ca_service.py`、`fxq_document_service.py`、`fxq_archive_service.py`、`prescription_service.py`、`scripts/fxq_storage.py` | 首份真实三方处方和两方病历签署验收 + 有文件恢复 + OSS/对象锁长期归档 | 账号主体迁移完成，合同签署/签章生成等 6 项服务已开通；详见 `docs/fangxinqian_ca_integration.md` |
 | 7 | ✅ **天津监管真实网关已接入**：SM4-CBC/SM3、9 接口映射、异步队列、退避重试、死信、每日采集、正式只读预检均已实现；测试网关 9/9 通过，正式开关仍保持关闭 | `services/tj_gateway.py`、`tj_mappers.py`、`tj_collector.py`、`workers/compliance.py`、`scripts/tj_preflight.py` | 余生产人员/药品补录、首次真实批次与连续多日核验 | 正式环境禁止合成测试数据 |
-| 8 | **敏感字段加密**用开发回退密钥（未设 `ENCRYPTION_KEY`）           | `backend/app/core/crypto.py`                                                                       | 正式对外前                                      | 执行 `python -m scripts.production_preflight` 可只读检测；换密钥仍按 `deploy/DEPLOY-ubuntu.md` 第 9 步。⚠️ 回退密钥派生自 `JWT_SECRET`，已有真实加密数据时需先迁移 |
-| 9 | **JWT 密钥**为默认值                                              | `backend/.env` `JWT_SECRET`                                                                        | 正式对外前                                      | 总预检会阻断默认值或少于 32 字节的密钥；换后旧 token 失效，需重登录 |
+| 8 | ✅ **生产敏感字段加密密钥已替换**：服务器已配置有效 `ENCRYPTION_KEY`，正式预检通过；开发环境仍保留从 `JWT_SECRET` 派生的回退能力 | `backend/app/core/crypto.py`、生产 `backend/.env` | 完成（2026-07-26） | 密钥不得再次更换；已有加密数据时如需轮换，必须先做数据迁移 |
+| 9 | ✅ **生产 JWT 密钥已替换**：不再使用默认值且长度通过正式预检 | 生产 `backend/.env` `JWT_SECRET` | 完成（2026-07-26） | 后续轮换会令全部旧 token 失效，须安排重新登录窗口 |
 | 25 | **生产密钥明文落盘**：APIv3 密钥 / 商户私钥 / AppSecret 以明文存于服务器 `backend/.env`、`backend/secrets/` | `backend/.env`、`backend/secrets/apiclient_key.pem` | 上线前 | 改用 KMS / 密钥管理服务或部署平台的环境变量注入；私钥文件限权 600、最小化可读账号；定期轮换 |
 | 26 | ✅ **运营后台真实 RBAC 与账号安全已实现**：staff+bcrypt、真实角色守卫、菜单/路由过滤、财务临床隐私；登录按账号/IP 限流并返回 `Retry-After`，Redis 键不含用户名；新增/重置密码执行 12 位、3 类字符及 bcrypt 72 字节上限 | `auth.py`、`login_security.py`、`staff_service.py`、`admin.py`、`admin-web` | 完成（现有账号不强制失效） | 连续失败锁定 15 分钟，成功登录清零；后台账号管理页同步强度提示 |
 | 27 | 🟡 **短信验证码生产已 fail-closed**：腾讯云短信配置不完整时拒绝发送且绝不回传开发验证码；开发验证码仅 `DEBUG=true` 可用 | `services/sms_service.py`、`core/config.py`、`backend/.env.example` | 生产配置腾讯云短信签名/模板及密钥后真机验证 | 配置项：`TENCENT_SMS_SECRET_ID/SECRET_KEY/SDK_APP_ID/SIGN/TEMPLATE_ID` |
 | 28 | ✅ **MySQL/Redis 端口及凭据已加固**：仅绑定 `127.0.0.1:3306/6379`；应用/root 账号已分别轮换随机强口令，动态健康检查、备份和新旧账号验证均通过；生产预检数据库项 PASS | `backend/docker-compose.yml`、`services/production_readiness.py`、`scripts/production_preflight.py`、`ops-cheatsheet` 1.3 | 完成（2026-07-26） | 备份位于服务器 `/opt/backups/mysql`，权限须持续保持 700/600 |
-| 29 | 🟡 **API 直连端口与后台登录已加固**：宿主机 API 改为 `127.0.0.1:8000`，公网仅经 Nginx；登录限流、强密码后端门禁和前端提示已实现 | `backend/docker-compose.yml`、`services/login_security.py`、`api/v1/auth.py`、`staff_service.py`、`admin-web/Staff.vue` | 代码完成；服务器执行 `dc up -d api` 并按第 8 节发布 admin-web | 不影响已有账号登录；只在新增/重置密码时执行新策略 |
+| 29 | ✅ **API 直连端口与后台登录已加固**：宿主机 API 改为 `127.0.0.1:8000`，公网仅经 Nginx；登录限流、强密码后端门禁和前端提示已实现，生产后端与 admin-web 已发布验证 | `backend/docker-compose.yml`、`services/login_security.py`、`api/v1/auth.py`、`staff_service.py`、`admin-web/Staff.vue` | 完成（2026-07-26） | 不影响已有账号登录；只在新增/重置密码时执行新策略 |
 
 ## 🟠 P1：功能未做实 / 简化，影响体验或多端
 
@@ -28,7 +28,7 @@
 | #  | 现状                                                                    | 位置                                                 | 何时替换                              |
 | :- | :---------------------------------------------------------------------- | :--------------------------------------------------- | :------------------------------------ |
 | 10 | ✅ **TRTC 前端已接**（驱动 `live-pusher/live-player`，保留自定义 UI）；用占位桩 `utils/trtc-wx.js` | 患者`video-room`、医生 `prescribe`、两端 `utils/trtc-wx.js` | 真机前两步：①小程序「实时音视频」类目审核 ②官方 trtc-wx SDK 覆盖占位桩。详见 `docs/trtc-integration.md` |
-| 11 | ✅ **TRTC UserSig 已就绪**：算法实现 + 密钥已配（SDKAppID 1600148306），签发验证通过 | `backend/app/services/trtc.py`、`api/v1/rtc.py`、`backend/.env` | 完成（待服务器 .env 同样配置 TRTC_*） |
+| 11 | ✅ **TRTC UserSig 已就绪**：算法实现 + 密钥已配（SDKAppID 1600148306），服务器正式预检已确认字段齐全 | `backend/app/services/trtc.py`、`api/v1/rtc.py`、生产 `backend/.env` | 服务端完成（前端官方 SDK 与类目审核见 #10） |
 | 12 | ✅ **候诊队列按医生过滤**：只返回本医生名下 WAITING 订单；接诊端点加归属校验（接他人订单→404） | `backend/app/api/v1/orders.py` `doctor_queue`/`accept` | 完成 |
 | 13 | **WebSocket** 用单进程内存连接管理                                      | `backend/app/ws.py`                                  | 多实例部署前                          |
 | 14 | **超时取消**用 asyncio 轮询（每 30s）                                   | `backend/main.py` `_expiry_sweep`                    | 可选优化                              |
@@ -47,7 +47,7 @@
 | 20 | ✅ **医生端 AppID 已配真号** `wx22d31040c9fcafc6`；后端 `WX_DOCTOR_*` 已配 | `miniprogram-doctor/project.config.json`、`backend/.env` | 完成（小程序后台需配 request 合法域名 + app.js 指向生产） |
 | 21 | **数据库建表**用启动 `create_all`（非迁移） | `backend/main.py`                        | 引入**Alembic** 迁移    |
 | 22 | **图标**依赖 jsdelivr 在线字体              | 两端`app.js` `loadFontFace`              | 可改本地字体包/自托管   |
-| 23 | **CORS** ✅ 代码已可配（`CORS_ORIGINS`，DEBUG=false 时生效收敛）；待填 admin-web 域名 | `backend/main.py`、`core/config.py` | 部署 admin-web 时填 `CORS_ORIGINS` |
+| 23 | ✅ **生产 CORS 已收敛**：`DEBUG=false` 时只允许 `https://admin.qb-medical.cn`，预检及 OPTIONS 响应均已验证 | `backend/main.py`、`core/config.py`、生产 `backend/.env` | 完成（2026-07-26） |
 
 ---
 

@@ -15,11 +15,12 @@
 
 ```bash
 cd /opt/qiubei-health/backend
-git pull                         # 拉最新代码
-dc restart api                   # 重启加载新代码（代码是卷挂载，通常无需重建镜像）
+git pull --ff-only               # 只允许快进，避免服务器产生意外合并提交
+dc restart api                   # 代码是卷挂载，重启加载新代码
+dc up -d --wait --wait-timeout 120 api  # 等 API 通过 /health 后再继续
 
 # 仅当 requirements.txt 变了才重建镜像：
-dc up -d --build
+dc up -d --build --wait --wait-timeout 180
 
 # 若本次提交含模型变更（新表/新列），重启前先跑迁移（幂等，重复执行安全）：
 dc exec api python -m scripts.init_db      # 建缺失的新表
@@ -33,10 +34,10 @@ dc exec api python -m scripts.migrate      # 给已有表补列
 
 ```bash
 cd /opt/qiubei-health/backend
-git pull
+git pull --ff-only
 
 # ① requirements 变了 → 必须重建镜像（会自动重启）
-dc up -d --build
+dc up -d --build --wait --wait-timeout 180
 
 # ② 建新表（生产 DEBUG=false 不自动建表）
 dc exec api python -m scripts.init_db
@@ -63,7 +64,8 @@ dc exec mysql mysql -uqiubei -pqiubei qiubei -e "SHOW TABLES LIKE 'medical_dispu
 **`.env` 无需在普通部署步骤中开启监管上报**：`TJ_REPORT_ENABLED=false` 时生产队列保持 pending；
 正式切换必须单独按第 9 节完成预检和目录初始化。
 
-**回滚**：`git log --oneline` 找上一版本 → `git checkout <hash>` → `dc up -d --build`。
+**回滚**：`git log --oneline` 找上一版本 → `git checkout <hash>` →
+`dc up -d --build --wait --wait-timeout 180`。
 迁移只加表/加列不删改，旧代码跑在新表结构上无影响，**无需回滚数据库**。
 
 ### 1.2 生产安全总预检与 API/数据库/Redis 端口收敛
@@ -174,7 +176,7 @@ dc logs --tail=30 api
 
 ```bash
 git pull --ff-only
-dc up -d api
+dc up -d --wait --wait-timeout 120 api
 dc ps
 ss -lntp | grep -E ':8000\b'
 curl -fsS https://api.qb-medical.cn/health
@@ -186,14 +188,37 @@ dc exec -T api python -m scripts.production_preflight
 
 ## 2. 服务状态 / 日志 / 健康
 
+API 容器内置 `/health` 探针。`dc ps` 应显示 `api ... (healthy)`；发布脚本须等待 healthy 后再做
+公网验证，避免容器刚创建、Uvicorn 尚未监听时产生短暂 502。
+
 ```bash
-dc ps                            # 容器状态
+dc ps                            # API 应为 Up ... (healthy)
 dc logs --tail=50 api            # 看最近日志
 dc logs -f api                   # 实时跟踪日志（Ctrl+C 退出）
 curl http://127.0.0.1:8000/health   # 健康检查，应 {"status":"ok",...}
-dc restart api                   # 重启后端
+dc restart api                   # 重启加载代码或 .env
+dc up -d --wait --wait-timeout 120 api  # 阻塞到 API healthy；失败则返回非 0
+curl -fsS https://api.qb-medical.cn/health  # healthy 后再验证公网 Nginx 链路
 dc down                          # 停全部（谨慎：会停 MySQL/Redis）
-dc up -d                         # 起全部
+dc up -d --wait --wait-timeout 180  # 起全部并等待健康
+```
+
+首次部署包含 API `healthcheck` 的版本时，必须执行 `dc up` 让 Compose 重建容器；只执行
+`dc restart api` 不会把新的健康检查配置写入现有容器：
+
+```bash
+git pull --ff-only
+dc up -d --wait --wait-timeout 120 api
+dc ps
+```
+
+若等待超时，**不要立刻反复重启**，先查看失败原因：
+
+```bash
+dc ps
+dc logs --tail=100 api
+api_id="$(dc ps -q api)"
+docker inspect --format '{{json .State.Health}}' "$api_id"
 ```
 
 ## 3. 进数据库 / 常用查询
@@ -307,6 +332,7 @@ dc exec redis redis-cli LRANGE room:queue:<doctor_id> 0 -1
 # 生产：医生须走 admin 资质终审（默认应为 false）
 # 编辑 .env：DOCTOR_AUTO_APPROVE=false  然后：
 dc restart api
+dc up -d --wait --wait-timeout 120 api
 ```
 
 ## 8. 运营后台 admin-web 部署 / 更新（前端静态站）
@@ -416,7 +442,7 @@ mv "$backup" /var/www/admin-web
 | 整页 `500 Internal Server Error`（nginx 字样） | `/var/www/admin-web/index.html` 不存在，`try_files` 兜底文件缺失 | 多半是套娃，`index.html` 跑到 `dist/` 里了；按 8.3 重新校验并切换 |
 | `Failed to fetch dynamically imported module .../assets/Xxx.js` | 分片缺失，被 `try_files` 兜底成 index.html | dist 上传不完整，按 8.2 重新打包上传，再按 8.3 切换 |
 | `auth_basic_user_file ... failed` | `/etc/nginx/.htpasswd_admin` 丢了 | 重建 htpasswd |
-| 新页面能打开，但顶部提示 `Not found` | 新前端已发布，后端仍是旧进程，新 API 路由尚未加载 | 服务器仓库执行 `git pull --ff-only`，进入 `backend` 后执行 `dc restart api`，再用 `/health` 和对应 API 验证 |
+| 新页面能打开，但顶部提示 `Not found` | 新前端已发布，后端仍是旧进程，新 API 路由尚未加载 | 服务器仓库执行 `git pull --ff-only`，进入 `backend` 后执行 `dc restart api` 和 `dc up -d --wait --wait-timeout 120 api`，再验证公网 `/health` 和对应 API |
 
 ---
 
@@ -427,7 +453,8 @@ mv "$backup" /var/www/admin-web
 `pending`，**不发送、也不会伪装成功吞掉队列**。
 
 ### 9.1 测试环境联调
-编辑 `.env` 追加，然后 `dc restart api`：
+编辑 `.env` 追加，然后执行 `dc restart api` 和
+`dc up -d --wait --wait-timeout 120 api`：
 ```bash
 TJ_REPORT_ENABLED=true
 TJ_GATEWAY_URL=https://imssp.wsjk.tj.gov.cn/net-diag-service/test-openapi/api
@@ -441,7 +468,8 @@ ORGAN_NAME=<机构登记全称>
 **无需改代码、无需在宿主机 pip install**（容器镜像已含 gmssl/httpx）：
 ```bash
 dc exec api python scripts/tj_ping.py
-# 若报 ModuleNotFoundError: gmssl → 镜像未重建：dc up -d --build 后重试
+# 若报 ModuleNotFoundError: gmssl → 镜像未重建：
+# dc up -d --build --wait --wait-timeout 180 后重试
 ```
 
 `tj_smoke.py` 只允许测试网关；检测到正式网关会强制退出，避免合成患者/处方污染正式数据。
@@ -463,7 +491,8 @@ dc exec api python scripts/tj_bootstrap_drugs.py
 dc exec api python scripts/tj_bootstrap_drugs.py --apply --confirm-unit 20250813151647906
 ```
 
-4. 将 `.env` 的 `TJ_REPORT_ENABLED` 改为 `true`，执行 `dc restart api`。worker 会优先发送药品目录，
+4. 将 `.env` 的 `TJ_REPORT_ENABLED` 改为 `true`，执行 `dc restart api` 和
+   `dc up -d --wait --wait-timeout 120 api`。worker 会优先发送药品目录，
    再发送其他业务任务。先确认目录全部 success，次日再核验 01:30 批次和不良事件签到。
 
 > `tj_ping.py` 在正式网关默认拒绝写演示药品；正常正式验密由上述真实目录首批完成。
@@ -581,5 +610,6 @@ gunzip < /opt/backups/qiubei-2026-07-02.sql.gz | dc exec -T mysql mysql -uqiubei
 ## 安全/注意
 - `.env`、`backend/secrets/` 含密钥，**勿外泄、勿入库**（已 gitignore）。
 - 直接改库要谨慎：状态字段尽量走业务接口流转，避免破坏订单状态机。
-- 生产改完任何 `.env` 都要 `dc restart api` 才生效。
+- 生产改完任何 `.env` 都要执行 `dc restart api`，随后
+  `dc up -d --wait --wait-timeout 120 api`，确认 healthy 后才算生效。
 - `TJ_APP_SECRET` 同时是国密 SM4 密钥，泄露 = 可伪造本院监管上报，与支付密钥同级保管。
