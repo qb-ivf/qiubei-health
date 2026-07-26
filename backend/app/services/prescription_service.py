@@ -214,8 +214,9 @@ async def complete_without_prescription(
 
     # 文档签署成功（或开发环境未启用签署）后才允许订单进入完成态。
     await order_service.transition(db, order.id, OrderStatus.FINISHED, expect_from=cur)
-    from . import notification_service
+    from . import finance_service, notification_service
 
+    await finance_service.record_ledger(db, order)
     await notification_service.notify(
         db,
         order.user_id,

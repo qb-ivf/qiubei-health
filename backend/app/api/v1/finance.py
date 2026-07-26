@@ -32,7 +32,10 @@ async def wallet(user=Depends(get_current_user), db: AsyncSession = Depends(get_
     """医生可提现余额（M8）。"""
     if user.get("role") != "doctor":
         raise HTTPException(status_code=403, detail="仅医生可访问")
-    bal = await finance_service.doctor_balance_fen(db)
+    try:
+        bal = await finance_service.doctor_balance_fen(db, int(user["sub"]))
+    except finance_service.FinanceError as e:
+        raise HTTPException(status_code=409, detail=str(e))
     return {"balance": bal / 100}
 
 
@@ -57,7 +60,8 @@ async def request_withdrawal(amount: float = Body(embed=True), user=Depends(get_
     if user.get("role") != "doctor":
         raise HTTPException(status_code=403, detail="仅医生可提现")
     try:
-        w = await finance_service.create_withdrawal(db, int(user["sub"]), user.get("sub"), int(round(amount * 100)))
+        amount_fen = finance_service.yuan_to_fen(amount)
+        w = await finance_service.create_withdrawal(db, int(user["sub"]), amount_fen)
         await db.commit()
     except finance_service.FinanceError as e:
         await db.rollback()

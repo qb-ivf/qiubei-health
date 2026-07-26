@@ -8,7 +8,7 @@ from app.core.config import settings
 from app.models.order import Order
 from app.models.prescription import Prescription
 from app.schemas.prescription import MedicalRecordComplete, PrescriptionCreate
-from app.services import notification_service, order_service, prescription_service
+from app.services import finance_service, notification_service, order_service, prescription_service
 
 
 class _Result:
@@ -73,6 +73,7 @@ async def test_complete_without_prescription_saves_emr_and_skips_pharmacy(monkey
     doctor = SimpleNamespace(id=41, name="医师甲", id_card_enc=None)
     db = _Db(order, doctor)
     notices = []
+    ledgers = []
 
     async def transition(_db, order_id, to, expect_from=None):
         assert order_id == order.id
@@ -84,9 +85,13 @@ async def test_complete_without_prescription_saves_emr_and_skips_pharmacy(monkey
     async def notify(_db, user_id, ntype, title, body="", order_id=None):
         notices.append((user_id, ntype, title, body, order_id))
 
+    async def record_ledger(_db, target):
+        ledgers.append(target.id)
+
     monkeypatch.setattr(settings, "FXQ_CA_REQUIRED", False)
     monkeypatch.setattr(settings, "FXQ_DOCUMENT_SIGN_ENABLED", False)
     monkeypatch.setattr(order_service, "transition", transition)
+    monkeypatch.setattr(finance_service, "record_ledger", record_ledger)
     monkeypatch.setattr(notification_service, "notify", notify)
 
     record = await prescription_service.complete_without_prescription(
@@ -108,5 +113,6 @@ async def test_complete_without_prescription_saves_emr_and_skips_pharmacy(monkey
     assert record.diagnosis == "急性上呼吸道感染"
     assert record.ca_sign_status is None
     assert order.status == int(OrderStatus.FINISHED)
+    assert ledgers == [order.id]
     assert notices[0][0] == order.user_id
     assert "未开具药品" in notices[0][3]

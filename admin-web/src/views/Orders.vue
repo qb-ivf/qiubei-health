@@ -89,7 +89,15 @@ async function openDetail(row) {
         <el-descriptions-item label="最近更新">{{ detail.updated_at }}</el-descriptions-item>
       </el-descriptions>
 
-      <template v-if="detail.prescription">
+      <el-alert
+        v-if="detail.clinical_hidden"
+        title="财务角色仅可核对订单和金额，不展示主诉、诊断、医嘱及处方明细。"
+        type="info"
+        :closable="false"
+        show-icon
+        class="mt"
+      />
+      <template v-else-if="detail.prescription">
         <el-descriptions title="处方信息" :column="1" border class="mt">
           <el-descriptions-item label="审核状态">
             <el-tag :type="(RX_STATUS[detail.prescription.audit_status] || {}).type">{{ (RX_STATUS[detail.prescription.audit_status] || {}).t || detail.prescription.audit_status }}</el-tag>
@@ -107,7 +115,7 @@ async function openDetail(row) {
           <el-table-column prop="usage" label="用法" min-width="120" />
         </el-table>
       </template>
-      <el-empty v-else description="该订单暂无处方" :image-size="60" class="mt" />
+      <el-empty v-else description="该订单暂无处方或电子病历" :image-size="60" class="mt" />
     </div>
   </el-drawer>
 </template>

@@ -19,12 +19,16 @@ async function load() {
 }
 onMounted(load)
 
-// 审核通过 → 调微信「商家转账到零钱」打款
+// 当前没有自动转账接口：财务必须先在外部渠道完成真实打款，再在系统确认。
 function approve(row) {
-  ElMessageBox.confirm(`确认向 ${row.doctor} 打款 ¥${row.amount}？`, '提现审批', { type: 'warning' })
+  ElMessageBox.confirm(
+    `系统不会自动转账。请确认已通过银行或微信商家平台向 ${row.doctor} 实际打款 ¥${row.amount}，是否登记为已打款？`,
+    '确认实际打款',
+    { type: 'warning', confirmButtonText: '确认已打款' }
+  )
     .then(async () => {
       await request.post(`/admin/withdrawals/${row.id}/audit`, { approve: true })
-      ElMessage.success('已调用微信商家转账'); load()
+      ElMessage.success('已登记为实际打款完成'); load()
     }).catch(() => {})
 }
 async function reject(row) {
@@ -35,7 +39,14 @@ async function reject(row) {
 
 <template>
   <el-card>
-    <template #header>提现审批（医生发起 → 冻结 → 人工审核 → 商家转账到零钱）</template>
+    <template #header>提现审批（医生发起 → 冻结 → 财务在外部渠道打款 → 系统确认）</template>
+    <el-alert
+      title="当前系统不会自动发起银行或微信转账；必须先完成真实打款，再点击“确认已打款”。"
+      type="warning"
+      :closable="false"
+      show-icon
+      class="notice"
+    />
     <el-table :data="withdrawals">
       <el-table-column prop="id" label="提现单号" width="120" />
       <el-table-column prop="doctor" label="医生" width="120" />
@@ -48,7 +59,7 @@ async function reject(row) {
       </el-table-column>
       <el-table-column label="操作" width="200">
         <template #default="{ row }">
-          <el-button size="small" type="success" @click="approve(row)" :disabled="row.status !== '待审核'">通过打款</el-button>
+          <el-button size="small" type="success" @click="approve(row)" :disabled="row.status !== '待审核'">确认已打款</el-button>
           <el-button size="small" type="danger" @click="reject(row)" :disabled="row.status !== '待审核'">驳回</el-button>
         </template>
       </el-table-column>
@@ -69,4 +80,5 @@ async function reject(row) {
 
 <style scoped>
 .mt { margin-top: 16px; }
+.notice { margin-bottom: 16px; }
 </style>

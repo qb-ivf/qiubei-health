@@ -33,9 +33,9 @@ const router = createRouter({ history: createWebHashHistory(), routes })
 
 router.beforeEach((to) => {
   const token = localStorage.getItem('token')
-  if (to.path !== '/login' && !token) return '/login'
   const role = localStorage.getItem('role')
-  if (to.meta?.roles && role && !to.meta.roles.includes(role)) return ROLE_HOME[role] || '/login'
+  if (to.path !== '/login' && (!token || !role)) return '/login'
+  if (to.meta?.roles && !to.meta.roles.includes(role)) return ROLE_HOME[role] || '/login'
   return true
 })
 

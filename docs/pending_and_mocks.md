@@ -17,7 +17,7 @@
 | 8 | **敏感字段加密**用开发回退密钥（未设 `ENCRYPTION_KEY`）           | `backend/app/core/crypto.py`                                                                       | 正式对外前                                      | 待执行 `deploy/DEPLOY-ubuntu.md` 第 9 步生成 Fernet key。⚠️ 回退密钥派生自 `JWT_SECRET`，已有真实加密数据时换密钥需先做迁移 |
 | 9 | **JWT 密钥**为默认值                                              | `backend/.env` `JWT_SECRET`                                                                        | 正式对外前                                      | 同上，deploy 第 9 步换强密钥（换后旧 token 失效，需重登录）  |
 | 25 | **生产密钥明文落盘**：APIv3 密钥 / 商户私钥 / AppSecret 以明文存于服务器 `backend/.env`、`backend/secrets/` | `backend/.env`、`backend/secrets/apiclient_key.pem` | 上线前 | 改用 KMS / 密钥管理服务或部署平台的环境变量注入；私钥文件限权 600、最小化可读账号；定期轮换 |
-| 26 | ✅ **运营后台真实 RBAC 已实现**：staff 账号表 + bcrypt 密码校验，登录返回真实角色（端点守卫早已按 admin/pharmacist/finance 区分） | `backend/app/api/v1/auth.py`、`models/staff.py`、`services/staff_service.py`、`scripts/create_admin.py`、`admin-web` Login.vue | 完成（账号用脚本建） | 生产建账号：`docker compose ... exec api python -m scripts.create_admin <user> <pwd> [role]`。账号建好、验证可登后，Nginx Basic Auth 门禁可保留(纵深防御)或撤除。**可改进**：按角色隐藏 admin-web 菜单（现靠端点 403 兜底） |
+| 26 | ✅ **运营后台真实 RBAC 已实现**：staff 账号表 + bcrypt 密码校验，登录返回真实角色；前端菜单/路由按角色过滤，后端按 admin/pharmacist/finance 守卫；财务角色可查脱敏订单、分账及处理提现，登出/401 会清除全部本地身份状态 | `backend/app/api/v1/auth.py`、`admin.py`、`finance.py`、`models/staff.py`、`services/staff_service.py`、`admin-web` | 完成（账号用脚本建） | 生产建账号：`docker compose ... exec api python -m scripts.create_admin <user> <pwd> [role]`。账号建好、验证可登后，Nginx Basic Auth 门禁可保留作纵深防御 |
 
 ## 🟠 P1：功能未做实 / 简化，影响体验或多端
 
@@ -32,9 +32,9 @@
 | 15 | ✅ **医生自助排班/诊金已实现**（建/查/删号源 + 改诊金，医生端「排班管理/诊金设置」页）；seed 仅本地 dev 用 | `api/v1/doctors.py` `slots`/`fee`/`my-schedule`、医生端 `pages/schedule`、`workbench` | 生产 seed 不跑（DEBUG=false）；示例医生用 `ops-cheatsheet` 4.6 清理 |
 | 16 | ~~EMR/开方/药师审方~~ ✅ M5 已实现；无药问诊独立保存病历并完成，不生成空处方、不进药师审方，患者可在电子病历档案查看（真实 CA 首单见 #6） | — | 完成 |
 | 17 | ~~物流/退款/消息通知~~ ✅ M7 已实现（微信订阅消息下发仍占位）           | `notification_service`                               | 订阅消息下发待正式主体                |
-| 18 | PC 后台：资质终审/药品字典/财务提现 ✅ M8 接真；监管面板 ✅ M9 接真     | —                                                   | 完成                                  |
+| 18 | 🟡 PC 后台资质终审/药品字典/监管面板已接真；医生钱包按本人隔离，`admin/finance` 可处理提现。自动转账尚未接入，当前必须由财务先在外部渠道真实打款，再在系统确认，页面已明确禁止误认为自动转账 | `admin.py`、`finance_service.py`、`admin-web/src/views/Finance.vue` | 开通并联调微信商家转账产品后再自动化打款 |
 | 19 | ✅ **图文咨询闭环已完成**：两端聊天页、入口路由、`consult_type`、图片/历史/实时推送、医生填写真实病历后“开药或不开药”完成、结束后只读、患者进入处方或电子病历；最终结果由后端事务提交后推送 | `api/v1/chat.py`、`orders.py`、`prescriptions.py`、`ws.py`、两端 `pages/chat`、医生端 `pages/prescribe` | 完成 |
-| 24 | **医生钱包余额**为池化演示（未按医生维度核算）                          | `finance_service.doctor_balance_fen`                 | 上线前                                |
+| 24 | ✅ **医生钱包已按本人隔离**：收入只汇总本人订单分成，审核中/已打款提现只扣本人；提现按医生行锁串行校验并写入真实姓名；无药问诊完成时幂等生成挂号分成流水 | `finance_service.doctor_balance_fen`、`create_withdrawal`、`prescription_service.complete_without_prescription` | 完成 |
 
 ## 🟡 P2：工程 / 配置
 
@@ -53,7 +53,7 @@
 - [x]  正式小程序 AppID ×2：患者端 ✅ `wx44cd15c9d3e4da1a`；医生端 ✅ `wx22d31040c9fcafc6`（**审核中**，待通过后真机可用）
 - [x]  微信支付商户号 + 凭据（解锁 #3）— **天津逑贝互联网医院有限公司**，商户号 `1114381265`；真实 V3 下单 + 回调验签已上线验证（2026-06-24）
 - [x]  腾讯云 TRTC 开通（SDKAppID 1600148306，密钥已配）；**仍待：小程序「实时音视频」类目审核 + 官方 trtc-wx SDK 覆盖占位桩**（解锁 #10）
-- [ ]  卫健委监管接口规范（解锁 #7）
+- [x]  天津卫健委监管接口规范、测试/正式密钥及 9 接口测试联调（#7 代码完成；余生产首批）
 - [x]  放心签开放平台应用 + CA 高级证书双录接口文档（#6 前半段已实现）
 - [x]  放心签 PDF 签署、个人/企业签章生成、签后下载、合同验签接口文档与正式服务权限（#6 代码已实现）
 - [ ]  放心签医院企业章可用性确认、人员导入/双录、首份三方签署验收及签后文件长期归档（生产密钥配置与 token 预检已完成）

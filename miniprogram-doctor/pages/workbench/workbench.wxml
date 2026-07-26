@@ -34,13 +34,13 @@
   <view class="px-margin-x" style="margin-top:48rpx;">
     <view class="card" style="padding:32rpx;">
       <view class="flex justify-between items-center mb-md">
-        <view class="flex items-center gap-2"><text class="material-symbols-outlined text-primary">account_balance_wallet</text><text class="text-label-lg text-on-surface font-bold">我的收入</text></view>
+        <view class="flex items-center gap-2"><text class="material-symbols-outlined text-primary">account_balance_wallet</text><text class="text-label-lg text-on-surface font-bold">可提现收入</text></view>
         <view class="wb-withdraw" bindtap="goFinance">去提现</view>
       </view>
       <text class="text-headline-lg text-on-surface font-bold">¥{{balance}}</text>
       <view class="flex items-center gap-2" style="margin-top:24rpx;padding-top:24rpx;border-top:1rpx solid var(--outline-variant);">
         <text class="material-symbols-outlined text-on-surface-variant" style="font-size:32rpx;">info</text>
-        <text class="text-caption text-on-surface-variant">每周五可提现至银行卡/微信钱包</text>
+        <text class="text-caption text-on-surface-variant">提交申请后由医院财务审核并完成实际打款</text>
       </view>
     </view>
   </view>

@@ -16,6 +16,8 @@ request.interceptors.response.use(
     ElMessage.error(msg)
     if (err.response?.status === 401) {
       localStorage.removeItem('token')
+      localStorage.removeItem('role')
+      localStorage.removeItem('uname')
       location.hash = '#/login'
     }
     return Promise.reject(err)

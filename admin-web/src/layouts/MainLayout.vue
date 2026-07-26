@@ -63,6 +63,7 @@ function onCommand(cmd) {
   if (cmd === 'logout') {
     localStorage.removeItem('token')
     localStorage.removeItem('role')
+    localStorage.removeItem('uname')
     router.replace('/login')
   }
 }

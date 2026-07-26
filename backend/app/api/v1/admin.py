@@ -27,6 +27,7 @@ from ..deps import require_role
 router = APIRouter(prefix="/admin", tags=["admin"])
 _admin = require_role("admin")
 _prescription_reviewer = require_role("admin", "pharmacist")
+_finance_operator = require_role("admin", "finance")
 
 # 订单状态文案（与 constants.OrderStatus 对齐）
 ORDER_STATUS_TEXT = {
@@ -347,7 +348,11 @@ async def clear_ca_manual_review(
 
 # —— 订单管理（全部问诊订单可查）——
 @router.get("/orders")
-async def list_orders(status: int | None = None, user=Depends(_admin), db: AsyncSession = Depends(get_db)):
+async def list_orders(
+    status: int | None = None,
+    user=Depends(_finance_operator),
+    db: AsyncSession = Depends(get_db),
+):
     q = select(Order).order_by(Order.id.desc()).limit(300)
     if status is not None:
         q = q.where(Order.status == status)
@@ -369,7 +374,11 @@ async def list_orders(status: int | None = None, user=Depends(_admin), db: Async
 
 
 @router.get("/orders/{order_id}")
-async def order_detail(order_id: int, user=Depends(_admin), db: AsyncSession = Depends(get_db)):
+async def order_detail(
+    order_id: int,
+    user=Depends(_finance_operator),
+    db: AsyncSession = Depends(get_db),
+):
     o = await db.get(Order, order_id)
     if not o:
         raise HTTPException(status_code=404, detail="订单不存在")
@@ -378,7 +387,8 @@ async def order_detail(order_id: int, user=Depends(_admin), db: AsyncSession = D
     res = await db.execute(select(Prescription).where(Prescription.order_id == order_id))
     rx = res.scalars().first()
     rx_out = None
-    if rx:
+    clinical_hidden = user.get("role") == "finance"
+    if rx and not clinical_hidden:
         rx_out = {
             "id": rx.id, "diagnosis": rx.diagnosis, "chief": rx.chief,
             "present_illness": rx.present_illness, "advice": rx.advice,
@@ -394,12 +404,14 @@ async def order_detail(order_id: int, user=Depends(_admin), db: AsyncSession = D
         "status": o.status, "status_text": ORDER_STATUS_TEXT.get(o.status, str(o.status)),
         "created_at": _fmt(o.created_at), "updated_at": _fmt(o.updated_at),
         "prescription": rx_out,
+        "has_prescription": rx is not None,
+        "clinical_hidden": clinical_hidden,
     }
 
 
 # —— 提现审批（§4.3）——
 @router.get("/withdrawals")
-async def list_withdrawals(user=Depends(_admin), db: AsyncSession = Depends(get_db)):
+async def list_withdrawals(user=Depends(_finance_operator), db: AsyncSession = Depends(get_db)):
     ws = await finance_service.list_withdrawals(db)
     return [
         {"id": w.id, "doctor": w.doctor_name, "amount": w.amount_fen / 100,
@@ -409,12 +421,18 @@ async def list_withdrawals(user=Depends(_admin), db: AsyncSession = Depends(get_
 
 
 @router.post("/withdrawals/{wid}/audit")
-async def audit_withdrawal(wid: int, request: Request, approve: bool = Body(embed=True), user=Depends(_admin), db: AsyncSession = Depends(get_db)):
+async def audit_withdrawal(
+    wid: int,
+    request: Request,
+    approve: bool = Body(embed=True),
+    user=Depends(_finance_operator),
+    db: AsyncSession = Depends(get_db),
+):
     try:
-        # 通过 → paid（演示：此处应调微信「商家转账到零钱」后再置 paid）
+        # approve 只登记财务已在外部渠道完成真实打款；本接口不发起资金转账。
         w = await finance_service.set_withdrawal_status(db, wid, "paid" if approve else "rejected")
         await audit_service.record(
-            db, user, request, "提现" + ("打款" if approve else "驳回"),
+            db, user, request, "提现" + ("确认已打款" if approve else "驳回"),
             "withdrawal", wid, f"{w.doctor_name} ¥{w.amount_fen / 100}",
         )
         await db.commit()
@@ -588,7 +606,7 @@ async def overview(user=Depends(_admin), db: AsyncSession = Depends(get_db)):
     revenue_total = await _sum(Order.register_fee_fen, paid) + await _sum(Order.drug_fee_fen, finished)
     today_revenue = (await _sum(Order.register_fee_fen, paid, Order.created_at >= today)
                      + await _sum(Order.drug_fee_fen, finished, Order.created_at >= today))
-    balance = await finance_service.doctor_balance_fen(db)
+    balance = await finance_service.total_doctor_balance_fen(db)
 
     # 订单状态分布
     rows = await db.execute(select(Order.status, func.count()).group_by(Order.status))
