@@ -1,6 +1,6 @@
 """短信验证码服务：腾讯云 SMS 下发 + Redis 校验。
 
-未配置腾讯云凭据时回退开发模式（验证码打印到日志，不真正发短信），便于联调。
+未配置腾讯云凭据时仅 DEBUG 环境回退开发模式；生产环境直接拒绝。
 配置后（见 config.TENCENT_SMS_*）自动走真实短信。
 """
 import hashlib
@@ -34,6 +34,9 @@ async def send_code(phone: str) -> tuple[bool, str, str | None]:
     """生成并下发验证码。返回 (是否成功, 提示, dev_code)。dev_code 仅开发模式返回。"""
     if not phone or not phone.isdigit() or len(phone) != 11:
         return False, "手机号格式不正确", None
+    if not _tencent_configured() and not settings.DEBUG:
+        logger.error("生产环境腾讯云短信配置不完整")
+        return False, "短信服务暂不可用，请联系管理员", None
     if await redis_client.get(_RATE_KEY.format(phone)):
         return False, "发送过于频繁，请稍后再试", None
     code = f"{random.randint(0, 999999):06d}"

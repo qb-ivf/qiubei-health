@@ -5,7 +5,7 @@ from pydantic import BaseModel
 class WxLogin(BaseModel):
     code: str                      # wx.login 返回的临时登录凭证
     phone_code: str | None = None  # getPhoneNumber 返回的加密码（生产解码取手机号）
-    dev_phone: str | None = None   # 开发期直接传手机号（无微信密钥时用）
+    dev_phone: str | None = None   # 仅后端 DEBUG=true 时接受
 
 
 class AdminLogin(BaseModel):

@@ -1,7 +1,7 @@
 """微信支付 V3：JSAPI 下单 + 回调验签解密（M2 / 解锁 pending #3）。
 
-设计与 auth_service 一致：**凭据未配齐时回退 mock**，保证本地联调不受阻；
-配齐后自动走真实微信支付。真实模式所需 .env：
+凭据未配齐时仅 DEBUG 环境允许回退 mock；生产环境一律拒绝，避免形成未付款订单。
+真实模式所需 .env：
   WX_APPID / WX_MCHID / WX_API_V3_KEY / WX_MCH_CERT_SERIAL /
   WX_MCH_PRIVATE_KEY_PATH（商户私钥 apiclient_key.pem）/
   WX_PAY_NOTIFY_URL（公网 HTTPS 回调地址）。
@@ -39,7 +39,7 @@ class PayError(Exception):
 
 
 def is_enabled() -> bool:
-    """凭据是否配齐（含公网回调地址）。未配齐则各接口回退 mock。"""
+    """真实支付凭据是否配齐（含公网回调地址和私钥文件）。"""
     return bool(
         settings.WX_APPID
         and settings.WX_MCHID
@@ -121,9 +121,11 @@ async def _get(url_path: str) -> dict:
 # ——————————————————— JSAPI 下单 ———————————————————
 
 async def prepay(order_no: str, fee_fen: int, openid: str, description: str, order_id: int) -> PrepayOut:
-    """JSAPI 下单，返回 wx.requestPayment 五元组。未启用真实支付则回退 mock。"""
+    """JSAPI 下单；只有 DEBUG 环境可在未配置时返回 mock 五元组。"""
     if not is_enabled():
-        return _mock_prepay(order_id)
+        if settings.DEBUG:
+            return _mock_prepay(order_id)
+        raise PayError("生产环境微信支付配置不完整，已拒绝创建模拟支付")
     if not openid:
         raise PayError("缺少支付者 openid")
     data = await _post("/v3/pay/transactions/jsapi", {

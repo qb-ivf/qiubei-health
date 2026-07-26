@@ -3,7 +3,7 @@ const { request } = require('./request.js');
 
 /**
  * 挂号支付闭环：下单 → 预支付 → wx.requestPayment；
- * 测试号无商户号时 requestPayment 会 fail，自动降级开发 mock 支付。
+ * 只有后端明确返回 mock 五元组时才走开发支付；真实支付失败绝不降级。
  * @returns {Promise<{ok:boolean, orderId?:number, mock?:boolean, cancelled?:boolean}>}
  */
 async function payRegister({ doctorId, slotId, patientId, consultType, referralFlag, originalDiagnosis }) {
@@ -51,16 +51,13 @@ async function payRegister({ doctorId, slotId, patientId, consultType, referralF
           resolve({ ok: false, cancelled: true });
           return;
         }
-        // 测试号/无商户号 → 走开发 mock 支付，便于联调验收
-        request(`/orders/${order.id}/pay/mock`, { method: 'POST' })
-          .then(() => resolve({ ok: true, orderId: order.id, mock: true }))
-          .catch(() => resolve({ ok: false, detail: '支付失败' }));
+        resolve({ ok: false, detail: '支付失败，请稍后重试' });
       }
     });
   });
 }
 
-// 药费支付闭环（M6）：drug-prepay → 支付 → 5→6 + 分账。测试号自动降级 mock。
+// 药费支付闭环（M6）：drug-prepay → 支付 → 5→6 + 分账。
 async function payDrug(orderId) {
   let pre;
   try {
@@ -85,9 +82,7 @@ async function payDrug(orderId) {
       success: () => resolve({ ok: true, orderId }),
       fail: (err) => {
         if (err && err.errMsg && err.errMsg.indexOf('cancel') > -1) { resolve({ ok: false, cancelled: true }); return; }
-        request(`/orders/${orderId}/drug-pay/mock`, { method: 'POST' })
-          .then(() => resolve({ ok: true, orderId, mock: true }))
-          .catch(() => resolve({ ok: false, detail: '支付失败' }));
+        resolve({ ok: false, detail: '支付失败，请稍后重试' });
       }
     });
   });

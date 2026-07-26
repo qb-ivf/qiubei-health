@@ -66,6 +66,32 @@ dc exec mysql mysql -uqiubei -pqiubei qiubei -e "SHOW TABLES LIKE 'medical_dispu
 **回滚**：`git log --oneline` 找上一版本 → `git checkout <hash>` → `dc up -d --build`。
 迁移只加表/加列不删改，旧代码跑在新表结构上无影响，**无需回滚数据库**。
 
+### 1.2 生产安全总预检与数据库/Redis 端口收敛
+
+每次正式发布后执行只读预检。它不写数据库、不访问外网，也不会输出任何密钥；`FAIL` 必须处理，
+`WARN` 是尚未开通或仍需人工验收的能力：
+
+```bash
+dc exec -T api python -m scripts.production_preflight
+echo $?   # 0=无 FAIL；1=仍有阻断项
+```
+
+当前 Compose 已把宿主机 MySQL `3306`、Redis `6379` 绑定到 `127.0.0.1`，避免直接暴露到公网。
+这一变更涉及容器端口映射，首次部署本版本不能只执行 `dc restart api`，必须：
+
+```bash
+git pull --ff-only
+dc up -d
+dc ps
+ss -lntp | grep -E ':(3306|6379)\b'
+# 正确结果只能看到 127.0.0.1:3306 和 127.0.0.1:6379，不应是 0.0.0.0 或 [::]
+```
+
+`MYSQL_ROOT_PASSWORD/MYSQL_USER/MYSQL_PASSWORD/MYSQL_DATABASE` 现可由服务器 `.env` 注入。
+但已有 MySQL 数据卷只修改 `.env` **不会自动修改库内账号密码**，反而会令 API 无法连接；
+密码轮换必须在维护窗口内先执行数据库 `ALTER USER`，再同步 `.env` 后 `dc up -d`。
+本次仅收敛监听地址，不自动改现有数据库口令。
+
 ## 2. 服务状态 / 日志 / 健康
 
 ```bash

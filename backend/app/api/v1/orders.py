@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timezone
 
 from ...constants import OrderStatus, Signal
+from ...core.config import settings
 from ...core.database import get_db
 from ...core.security import mask_name
 from ...models.order import Order
@@ -28,6 +29,11 @@ logger = logging.getLogger("orders")
 
 _UPLOAD_DIR = Path(__file__).resolve().parents[3] / "uploads"  # backend/uploads（与聊天图片同目录，经 /uploads 托管）
 _IMG_EXT = {"jpg", "jpeg", "png", "webp"}
+
+
+def _require_debug_mock() -> None:
+    if not settings.DEBUG:
+        raise HTTPException(status_code=404, detail="接口不存在")
 
 
 @router.post("/register", response_model=OrderOut)
@@ -50,7 +56,7 @@ async def create_register_order(
 
 @router.post("/{order_id}/prepay", response_model=PrepayOut)
 async def prepay(order_id: int, uid: int = Depends(get_current_user_id), db: AsyncSession = Depends(get_db)):
-    """挂号费微信支付下单，返回 wx.requestPayment 五元组（未配凭据则 mock）。"""
+    """挂号费微信支付下单；生产返回真实五元组，DEBUG 未配凭据时可 mock。"""
     order = await db.get(Order, order_id)
     if not order or order.user_id != uid:
         raise HTTPException(status_code=404, detail="订单不存在")
@@ -67,6 +73,10 @@ async def prepay(order_id: int, uid: int = Depends(get_current_user_id), db: Asy
 @router.post("/{order_id}/pay/mock", response_model=OrderOut)
 async def pay_mock(order_id: int, uid: int = Depends(get_current_user_id), db: AsyncSession = Depends(get_db)):
     """开发用：跳过真实微信支付，直接标记支付成功（0→1）。"""
+    _require_debug_mock()
+    target = await db.get(Order, order_id)
+    if not target or target.user_id != uid:
+        raise HTTPException(status_code=404, detail="订单不存在")
     try:
         order = await order_service.mark_paid(db, order_id)
         await db.commit()
@@ -93,10 +103,16 @@ async def pay_callback(request: Request, db: AsyncSession = Depends(get_db)):
                 return {"code": "SUCCESS", "message": "OK"}  # 非成功态：已接收，不处理
             out_trade_no = resource["out_trade_no"]
             transaction_id = resource.get("transaction_id")  # 微信流水号（监管核销 tradeNo）
-        else:
+        elif settings.DEBUG:
             out_trade_no = (json.loads(body) if body else {}).get("order_no")
             if not out_trade_no:
                 raise HTTPException(status_code=400, detail="缺少 order_no")
+        else:
+            logger.error("生产环境微信支付未启用，拒绝未验签回调")
+            return JSONResponse(
+                status_code=503,
+                content={"code": "FAIL", "message": "微信支付配置不完整"},
+            )
 
         if out_trade_no.endswith(pay_service.DRUG_SUFFIX):
             await order_service.mark_drug_paid_by_no(
@@ -137,6 +153,10 @@ async def drug_prepay(order_id: int, uid: int = Depends(get_current_user_id), db
 @router.post("/{order_id}/drug-pay/mock", response_model=OrderOut)
 async def drug_pay_mock(order_id: int, uid: int = Depends(get_current_user_id), db: AsyncSession = Depends(get_db)):
     """开发用：药费支付成功（5→6 + 分账）。"""
+    _require_debug_mock()
+    target = await db.get(Order, order_id)
+    if not target or target.user_id != uid:
+        raise HTTPException(status_code=404, detail="订单不存在")
     try:
         order = await order_service.mark_drug_paid(db, order_id)
         await db.commit()

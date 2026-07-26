@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     WX_API_V3_KEY: str = ""      # APIv3 密钥（32 位，回调/敏感信息解密）
     WX_MCH_CERT_SERIAL: str = ""        # 商户 API 证书序列号
     WX_MCH_PRIVATE_KEY_PATH: str = ""   # 商户 API 私钥 apiclient_key.pem 路径（相对 backend/ 或绝对路径）
-    WX_PAY_NOTIFY_URL: str = ""         # 支付结果回调地址（公网 HTTPS）；空则支付走 mock 回退
+    WX_PAY_NOTIFY_URL: str = ""         # 支付结果回调地址（公网 HTTPS）；空时仅 DEBUG 可 mock，生产拒绝
     WX_PAY_PUBLIC_KEY_PATH: str = ""    # 微信支付公钥 pub_key.pem 路径（公钥模式回调验签，新商户用）
     WX_PAY_PUBLIC_KEY_ID: str = ""      # 微信支付公钥ID（PUB_KEY_ID_...，可选，留存备用）
 
@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     # —— 医生白名单（开发期自动通过；生产置 False，走 admin 终审） ——
     DOCTOR_AUTO_APPROVE: bool = True
 
-    # —— 腾讯云短信（验证码；留空走开发模式打印验证码） ——
+    # —— 腾讯云短信（验证码；留空仅 DEBUG 可打印开发验证码，生产拒绝） ——
     TENCENT_SMS_SECRET_ID: str = ""
     TENCENT_SMS_SECRET_KEY: str = ""
     TENCENT_SMS_SDK_APP_ID: str = ""

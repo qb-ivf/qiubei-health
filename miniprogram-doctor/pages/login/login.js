@@ -2,15 +2,25 @@ const app = getApp();
 const { request } = require('../../utils/request.js');
 
 Page({
+  data: { allowDevLogin: false },
+
+  onLoad() {
+    const account = wx.getAccountInfoSync ? wx.getAccountInfoSync() : null;
+    this.setData({
+      allowDevLogin: !!(account && account.miniProgram && account.miniProgram.envVersion === 'develop')
+    });
+  },
+
   onGetPhone(e) {
     const ok = e.detail.errMsg && e.detail.errMsg.indexOf('ok') > -1;
     if (!ok) {
-      wx.showToast({ title: '测试号无法授权手机号，请用下方开发者登录', icon: 'none' });
+      wx.showToast({ title: '请授权手机号后登录', icon: 'none' });
       return;
     }
     this._login(e.detail.code, null);
   },
 
+  // 仅微信开发版显示；生产后端 DEBUG=false 时仍会拒绝 dev_phone。
   devLogin() { this._login(null, '13900000000'); },
 
   _login(phoneCode, devPhone) {
