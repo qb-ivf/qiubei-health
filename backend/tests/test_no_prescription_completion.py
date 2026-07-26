@@ -49,7 +49,13 @@ class _Db:
 
 @pytest.mark.asyncio
 async def test_empty_drug_list_is_not_an_electronic_prescription():
-    data = PrescriptionCreate(order_id=1, diagnosis="上呼吸道感染", items=[])
+    data = PrescriptionCreate(
+        order_id=1,
+        chief="咽痛两天",
+        present_illness="咽痛两天，无呼吸困难",
+        diagnosis="上呼吸道感染",
+        items=[],
+    )
 
     with pytest.raises(prescription_service.RxError, match="至少应包含一种药品"):
         await prescription_service.submit(None, 7, data)
@@ -88,6 +94,7 @@ async def test_complete_without_prescription_saves_emr_and_skips_pharmacy(monkey
         doctor_uid=7,
         order_id=order.id,
         data=MedicalRecordComplete(
+            chief="咽痛两天",
             present_illness="咽痛两天，无呼吸困难",
             diagnosis="急性上呼吸道感染",
             advice="休息、补水，症状加重及时线下就诊",

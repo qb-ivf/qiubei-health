@@ -60,7 +60,10 @@ Page({
       if (!Array.isArray(list)) return;
       const queue = list.map((q) => ({
         id: q.order_id, no: q.no, name: q.patient_name,
-        gender: q.gender || '—', age: '—', type: '视频问诊',
+        gender: q.gender || '—', age: '—',
+        consultType: q.consult_type || 'video',
+        type: q.consult_type === 'text' ? '图文问诊' : '视频问诊',
+        typeIcon: q.consult_type === 'text' ? 'chat' : 'videocam',
         wait: q.wait_minutes,
         chief: '（候诊中，点击接诊查看主诉）'
       }));

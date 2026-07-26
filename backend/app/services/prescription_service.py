@@ -42,6 +42,10 @@ async def submit(db: AsyncSession, doctor_uid: int, data: PrescriptionCreate) ->
     """医生开方提交：病历校验 + 特殊药拦截 + 订单 2→3（或驳回后 4→3）。"""
     if not data.diagnosis or len(data.diagnosis.strip()) < 2:
         raise RxError("初步诊断不能为空")
+    if not data.chief or len(data.chief.strip()) < 2:
+        raise RxError("主诉不能为空")
+    if not data.present_illness or len(data.present_illness.strip()) < 2:
+        raise RxError("现病史不能为空")
     if not data.items:
         raise RxError("处方至少应包含一种药品；如本次不开药，请使用“仅保存病历并结束问诊”")
     _check_special(data.items)
@@ -113,6 +117,10 @@ async def complete_without_prescription(
     """保存无药病历并完成问诊；不生成处方、不进入药师审方。"""
     if not data.diagnosis or len(data.diagnosis.strip()) < 2:
         raise RxError("初步诊断不能为空")
+    if not data.chief or len(data.chief.strip()) < 2:
+        raise RxError("主诉不能为空")
+    if not data.present_illness or len(data.present_illness.strip()) < 2:
+        raise RxError("现病史不能为空")
     if not data.icd_code or not data.icd_name:
         raise RxError("请选择 ICD-10 诊断")
 

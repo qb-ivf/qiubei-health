@@ -8,6 +8,7 @@ const TRTC = (_trtc && _trtc.default) ? _trtc.default : _trtc;
 Page({
   data: {
     statusBar: 20,
+    isText: false,
     tab: 'record',
     kbHeight: 0,
     micOn: true, cameraOn: true, ready: false,
@@ -21,7 +22,9 @@ Page({
     phrases: [],   // 常用语（一键填入医嘱）
     usageOptions: ['一日三次，一次一粒', '一日两次，一次一粒', '一日三次，一次两粒', '睡前服用一次'],
     drugs: [],
-    form: { present_illness: '', diagnosis: '', advice: '' },
+    form: { chief: '', present_illness: '', diagnosis: '', advice: '' },
+    complaintTexts: [],
+    complaintImages: [],
     // ICD-10 诊断编码（天津监管必输；搜索选择，可多选）
     icdKw: '',
     icdSuggestions: [],
@@ -53,9 +56,25 @@ Page({
       });
     }).catch(() => {});
   },
+  loadComplaint() {
+    if (!this.orderId) return;
+    const base = app.globalData.baseUrl.replace(/\/$/, '');
+    request(`/orders/${this.orderId}/messages`).then((list) => {
+      const patientMessages = (Array.isArray(list) ? list : []).filter((m) => m.sender_role === 'patient');
+      this.setData({
+        complaintTexts: patientMessages.filter((m) => m.type === 'text').map((m) => m.content),
+        complaintImages: patientMessages.filter((m) => m.type === 'image').map((m) => base + m.content)
+      });
+    }).catch(() => {});
+  },
   previewReferral(e) {
     const r = this.data.referral;
     if (r && r.images.length) wx.previewImage({ current: e.currentTarget.dataset.src, urls: r.images });
+  },
+  previewComplaint(e) {
+    if (this.data.complaintImages.length) {
+      wx.previewImage({ current: e.currentTarget.dataset.src, urls: this.data.complaintImages });
+    }
   },
 
   // —— ICD-10 诊断编码搜索选择（天津监管必输）——
@@ -99,16 +118,21 @@ Page({
     if (query.tab) this.setData({ tab: query.tab });
     this.roomId = query.room || '';
     this.orderId = (query.room || '').replace('room_', '') || query.order || '';
-    this.fetchRtc();
+    const isText = !this.roomId;
+    this.setData({ isText });
     this.loadPhrases();
     this.loadReferralInfo();
-    // 监听患者挂断：结束视频但不离页，医生继续写病历/开处方
-    signaling.connect();
-    signaling.on(signaling.SIGNAL.CALL_FINISHED, (m) => this.onPeerFinished(m));
-    this._timer = setInterval(() => {
-      const s = this.data.seconds + 1;
-      this.setData({ seconds: s, timeText: `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}` });
-    }, 1000);
+    this.loadComplaint();
+    if (!isText) {
+      this.fetchRtc();
+      // 监听患者挂断：结束视频但不离页，医生继续写病历/开处方
+      signaling.connect();
+      signaling.on(signaling.SIGNAL.CALL_FINISHED, (m) => this.onPeerFinished(m));
+      this._timer = setInterval(() => {
+        const s = this.data.seconds + 1;
+        this.setData({ seconds: s, timeText: `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}` });
+      }, 1000);
+    }
   },
   onUnload() { clearInterval(this._timer); signaling.off(signaling.SIGNAL.CALL_FINISHED); this._exitRoom(); },
 
@@ -257,12 +281,25 @@ Page({
   onUsage(e) { const i = +e.currentTarget.dataset.i; const drugs = this.data.drugs; drugs[i].usageIdx = +e.detail.value; this.setData({ drugs }); },
   delDrug(e) { const drugs = this.data.drugs.filter((_, idx) => idx !== +e.currentTarget.dataset.i); this.setData({ drugs }); },
 
+  validateRecord() {
+    if (!this.data.form.chief || this.data.form.chief.trim().length < 2) {
+      wx.showToast({ title: '请填写患者主诉', icon: 'none' }); return false;
+    }
+    if (!this.data.form.present_illness || this.data.form.present_illness.trim().length < 2) {
+      wx.showToast({ title: '请填写现病史', icon: 'none' }); return false;
+    }
+    if (!this.data.icdList.length) {
+      wx.showToast({ title: '请选择 ICD-10 诊断（监管必填）', icon: 'none' }); return false;
+    }
+    if (!this.data.form.diagnosis || this.data.form.diagnosis.trim().length < 2) {
+      wx.showToast({ title: '请填写初步诊断', icon: 'none' }); return false;
+    }
+    return true;
+  },
+
   // 不开药：保存电子病历后直接完成问诊，不生成空处方、不进入药师审方。
   completeWithoutPrescription() {
-    if (!this.data.icdList.length) { wx.showToast({ title: '请选择 ICD-10 诊断（监管必填）', icon: 'none' }); return; }
-    if (!this.data.form.diagnosis || this.data.form.diagnosis.trim().length < 2) {
-      wx.showToast({ title: '请填写初步诊断', icon: 'none' }); return;
-    }
+    if (!this.validateRecord()) return;
     if (!this.orderId) { wx.showToast({ title: '缺少订单信息', icon: 'none' }); return; }
 
     wx.showModal({
@@ -275,6 +312,7 @@ Page({
         request(`/orders/${this.orderId}/complete-without-prescription`, {
           method: 'POST',
           data: {
+            chief: this.data.form.chief,
             present_illness: this.data.form.present_illness,
             diagnosis: this.data.form.diagnosis,
             advice: this.data.form.advice,
@@ -284,13 +322,11 @@ Page({
         }).then(() => {
           wx.hideLoading();
           this._exitRoom();
-          signaling.send(signaling.SIGNAL.CALL_FINISHED, {
-            roomId: this.roomId,
-            result: 'medical_record',
-            orderId: +this.orderId
-          });
           wx.showToast({ title: '病历已保存，本次未开药', icon: 'success', duration: 1500 });
-          setTimeout(() => wx.navigateBack({ fail: () => wx.switchTab({ url: '/pages/hall/hall' }) }), 1500);
+          setTimeout(() => wx.navigateBack({
+            delta: this.data.isText ? 2 : 1,
+            fail: () => wx.switchTab({ url: '/pages/hall/hall' })
+          }), 1500);
         }).catch((err) => {
           wx.hideLoading();
           wx.showToast({ title: (err && err.detail) || '病历保存失败', icon: 'none' });
@@ -303,8 +339,7 @@ Page({
   // CA 双录由“CA数字证书”页完成；文档签署不能用前端 loading 冒充成功。
   submit() {
     if (!this.data.drugs.length) { wx.showToast({ title: '请先开具药品', icon: 'none' }); return; }
-    if (!this.data.icdList.length) { wx.showToast({ title: '请选择 ICD-10 诊断（监管必填）', icon: 'none' }); return; }
-    if (!this.data.form.diagnosis) { wx.showToast({ title: '请填写初步诊断', icon: 'none' }); return; }
+    if (!this.validateRecord()) return;
     if (!this.orderId) { wx.showToast({ title: '缺少订单信息', icon: 'none' }); return; }
 
     const items = this.data.drugs.map((d) => ({
@@ -323,6 +358,7 @@ Page({
       method: 'POST',
       data: {
         order_id: +this.orderId,
+        chief: this.data.form.chief,
         present_illness: this.data.form.present_illness,
         diagnosis: this.data.form.diagnosis,
         advice: this.data.form.advice,
@@ -332,15 +368,13 @@ Page({
       }
     }).then(() => {
       wx.hideLoading();
-      // 通知患者端：视频结束 → 生成处方页（CALL_FINISHED）
+      // 后端提交成功后负责向患者推送最终结果，避免客户端伪造或丢失结果字段。
       this._exitRoom();
-      signaling.send(signaling.SIGNAL.CALL_FINISHED, {
-        roomId: this.roomId,
-        result: 'prescription',
-        orderId: +this.orderId
-      });
       wx.showToast({ title: '处方已发送，等待药师审核', icon: 'success', duration: 1500 });
-      setTimeout(() => wx.navigateBack({ fail: () => wx.switchTab({ url: '/pages/hall/hall' }) }), 1500);
+      setTimeout(() => wx.navigateBack({
+        delta: this.data.isText ? 2 : 1,
+        fail: () => wx.switchTab({ url: '/pages/hall/hall' })
+      }), 1500);
     }).catch((err) => {
       wx.hideLoading();
       wx.showToast({ title: (err && err.detail) || '提交失败', icon: 'none' });

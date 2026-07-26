@@ -13,7 +13,7 @@
 | 4 | **实名认证**仅校验身份证格式，无三方核验                          | `backend/app/services/patient_service.py` `real_name_verify`                                       | 接公安二要素/三方                               |                                             |
 | 5 | ✅ **医生资质审核闭环已实现**（端到端验证通过）：login 放行未审医生、`POST /doctors/qualification` 提交、医生端资质页按状态路由、接诊/开方端点 `require_approved_doctor`。**生产可置 `DOCTOR_AUTO_APPROVE=false`** 走 admin 终审 | `auth_service.login_doctor`、`api/deps.py`、`api/v1/doctors.py`、`orders.py`、`prescriptions.py`、医生端 `pages/qualification/*`、`login.js` | 生产 .env 置 false 即生效 | 开发保留 true 便于联调；正式对外前在服务器置 false |
 | 6 | 🟡 **放心签 CA 双录 + 真实 PDF 签署代码已接入**：医师/药师 H5 双录、处方三方签署、无药病历医师+医院两方签署、验签、摘要复核、受保护下载及签后 PDF 加密备份/恢复演练均已实现；原 `CA_MOCK_SIGN` 和红章占位已删除。生产密钥、迁移、正式 token 预检、回调检查及零文件归档演练均已通过；**待人员导入、企业章确认、首份真实处方/病历联调及有文件/异地归档验收** | `services/fxq_ca.py`、`ca_service.py`、`fxq_document_service.py`、`fxq_archive_service.py`、`prescription_service.py`、`scripts/fxq_storage.py` | 首份真实三方处方和两方病历签署验收 + 有文件恢复 + OSS/对象锁长期归档 | 账号主体迁移完成，合同签署/签章生成等 6 项服务已开通；详见 `docs/fangxinqian_ca_integration.md` |
-| 7 | 卫健委上报 ✅ M9 异步队列+重试+死信骨架（mock 加密/接口）         | `services/compliance_service.py`、`workers/compliance.py`                                          | 待**卫健委规范**（AES/SM4+Sign）；生产换 Celery |                                             |
+| 7 | ✅ **天津监管真实网关已接入**：SM4-CBC/SM3、9 接口映射、异步队列、退避重试、死信、每日采集、正式只读预检均已实现；测试网关 9/9 通过，正式开关仍保持关闭 | `services/tj_gateway.py`、`tj_mappers.py`、`tj_collector.py`、`workers/compliance.py`、`scripts/tj_preflight.py` | 余生产人员/药品补录、首次真实批次与连续多日核验 | 正式环境禁止合成测试数据 |
 | 8 | **敏感字段加密**用开发回退密钥（未设 `ENCRYPTION_KEY`）           | `backend/app/core/crypto.py`                                                                       | 正式对外前                                      | 待执行 `deploy/DEPLOY-ubuntu.md` 第 9 步生成 Fernet key。⚠️ 回退密钥派生自 `JWT_SECRET`，已有真实加密数据时换密钥需先做迁移 |
 | 9 | **JWT 密钥**为默认值                                              | `backend/.env` `JWT_SECRET`                                                                        | 正式对外前                                      | 同上，deploy 第 9 步换强密钥（换后旧 token 失效，需重登录）  |
 | 25 | **生产密钥明文落盘**：APIv3 密钥 / 商户私钥 / AppSecret 以明文存于服务器 `backend/.env`、`backend/secrets/` | `backend/.env`、`backend/secrets/apiclient_key.pem` | 上线前 | 改用 KMS / 密钥管理服务或部署平台的环境变量注入；私钥文件限权 600、最小化可读账号；定期轮换 |
@@ -33,7 +33,7 @@
 | 16 | ~~EMR/开方/药师审方~~ ✅ M5 已实现；无药问诊独立保存病历并完成，不生成空处方、不进药师审方，患者可在电子病历档案查看（真实 CA 首单见 #6） | — | 完成 |
 | 17 | ~~物流/退款/消息通知~~ ✅ M7 已实现（微信订阅消息下发仍占位）           | `notification_service`                               | 订阅消息下发待正式主体                |
 | 18 | PC 后台：资质终审/药品字典/财务提现 ✅ M8 接真；监管面板 ✅ M9 接真     | —                                                   | 完成                                  |
-| 19 | 🔨 **图文咨询后端已实现**（自建 WS：消息收发/图片上传/历史/WS 推送）；**待前端聊天页 + 入口路由 + 订单 consult_type** | `api/v1/chat.py`、`models/message.py`、`main.py`(/uploads 静态) | 前端聊天页 + consult_type（加列需 ALTER orders） |
+| 19 | ✅ **图文咨询闭环已完成**：两端聊天页、入口路由、`consult_type`、图片/历史/实时推送、医生填写真实病历后“开药或不开药”完成、结束后只读、患者进入处方或电子病历；最终结果由后端事务提交后推送 | `api/v1/chat.py`、`orders.py`、`prescriptions.py`、`ws.py`、两端 `pages/chat`、医生端 `pages/prescribe` | 完成 |
 | 24 | **医生钱包余额**为池化演示（未按医生维度核算）                          | `finance_service.doctor_balance_fen`                 | 上线前                                |
 
 ## 🟡 P2：工程 / 配置

@@ -4,14 +4,14 @@
   <view class="pr-bar" style="padding-top: {{statusBar}}px;">
     <view class="flex items-center gap-2" bindtap="back">
       <text class="material-symbols-outlined text-primary">arrow_back</text>
-      <text class="text-headline-md text-primary font-bold">视频问诊</text>
+      <text class="text-headline-md text-primary font-bold">{{isText ? '图文问诊病历' : '视频问诊'}}</text>
     </view>
-    <view class="pr-bar__status"><view class="pr-bar__dot"></view><text class="text-caption text-on-secondary-container">连接稳定</text></view>
+    <view class="pr-bar__status"><view class="pr-bar__dot"></view><text class="text-caption text-on-secondary-container">{{isText ? '书写中' : '连接稳定'}}</text></view>
   </view>
 
   <!-- 顶部视频区（40vh，软键盘弹起时雷打不动）。TRTC：主画面=患者(远端)，PiP=医生(本地) -->
   <!-- ⚠️ 装官方 trtc-wx SDK 后，按官方 demo 补全 <live-pusher>/<live-player> 的属性与事件 -->
-  <view class="pr-video">
+  <view wx:if="{{!isText}}" class="pr-video">
     <!-- 远端（患者） -->
     <live-player wx:if="{{configured && playerList[0]}}" id="{{playerList[0].streamID}}"
       class="pr-video__media" src="{{playerList[0].src}}" mode="{{playerList[0].mode || 'RTC'}}" autoplay object-fit="fillCrop"
@@ -39,7 +39,7 @@
   </view>
 
   <!-- 底部作业区（60vh） -->
-  <view class="pr-work">
+  <view class="pr-work {{isText ? 'pr-work--text' : ''}}">
     <view class="pr-tabs">
       <view class="pr-tab {{tab==='complaint' ? 'pr-tab--on' : ''}}" bindtap="switchTab" data-t="complaint">患者主诉</view>
       <view class="pr-tab {{tab==='record' ? 'pr-tab--on' : ''}}" bindtap="switchTab" data-t="record">书写病历</view>
@@ -50,9 +50,11 @@
       <!-- 患者主诉 -->
       <view wx:if="{{tab==='complaint'}}" class="pr-view">
         <view class="card" style="padding:32rpx;">
-          <text class="text-body-md text-on-surface">“医生您好，我从昨晚开始嗓子疼，今早有点发烧，测了是38.2度，还有点咳嗽，没有痰。”</text>
-          <view class="pr-imgs">
-            <view class="pr-img"><text class="material-symbols-outlined text-outline" style="font-size:48rpx;">image</text></view>
+          <text wx:if="{{!complaintTexts.length && !complaintImages.length}}" class="text-body-md text-on-surface-variant">暂无患者图文留言，请以实际问诊内容为准，禁止使用演示主诉。</text>
+          <text wx:for="{{complaintTexts}}" wx:key="*this" class="text-body-md text-on-surface" style="display:block;margin-bottom:16rpx;">{{item}}</text>
+          <view wx:if="{{complaintImages.length}}" class="pr-imgs">
+            <image wx:for="{{complaintImages}}" wx:key="*this" class="pr-img" src="{{item}}" mode="aspectFill"
+              bindtap="previewComplaint" data-src="{{item}}" />
           </view>
         </view>
       </view>
@@ -72,6 +74,10 @@
           </view>
         </view>
 
+        <view class="pr-field">
+          <text class="text-label-md text-on-surface-variant">主诉（必填）</text>
+          <textarea class="pr-textarea" placeholder="概括患者本次就诊的主要症状、持续时间..." value="{{form.chief}}" data-f="chief" bindinput="onField" adjust-position="{{false}}" cursor-spacing="20" bindfocus="onFocus" bindblur="onBlur"></textarea>
+        </view>
         <view class="pr-field">
           <text class="text-label-md text-on-surface-variant">现病史</text>
           <textarea class="pr-textarea" placeholder="详细记录症状演变过程、伴随症状等..." value="{{form.present_illness}}" data-f="present_illness" bindinput="onField" adjust-position="{{false}}" cursor-spacing="20" bindfocus="onFocus" bindblur="onBlur"></textarea>

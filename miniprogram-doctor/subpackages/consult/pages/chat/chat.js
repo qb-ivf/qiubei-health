@@ -5,7 +5,8 @@ const signaling = require('../../../../utils/signaling.js');
 Page({
   data: {
     orderId: '', peer: '患者', myRole: 'doctor',
-    messages: [], input: '', baseUrl: '', scrollTo: ''
+    messages: [], input: '', baseUrl: '', scrollTo: '',
+    writable: true, status: 0
   },
 
   onLoad(query) {
@@ -15,10 +16,12 @@ Page({
       baseUrl: (app.globalData.baseUrl || '').replace(/\/$/, '')
     });
     this.load();
+    this.loadState();
   },
 
   onShow() {
     signaling.connect();
+    this.loadState();
     signaling.on(signaling.SIGNAL.CHAT_MESSAGE, (m) => {
       if (String(m.orderId) !== String(this.data.orderId)) return;
       if (m.msg) this.append(m.msg); else this.load();
@@ -30,6 +33,16 @@ Page({
   load() {
     request(`/orders/${this.data.orderId}/messages`).then((l) => {
       this.setData({ messages: (Array.isArray(l) ? l : []).map((m) => this._fmt(m)) }, () => this._toBottom());
+    }).catch(() => {});
+  },
+
+  loadState() {
+    if (!this.data.orderId) return;
+    request(`/orders/${this.data.orderId}/chat-state`).then((state) => {
+      this.setData({
+        writable: !!state.writable,
+        status: Number(state.status || 0)
+      });
     }).catch(() => {});
   },
 
@@ -51,6 +64,10 @@ Page({
   onInput(e) { this.setData({ input: e.detail.value }); },
 
   send() {
+    if (!this.data.writable) {
+      wx.showToast({ title: '问诊已结束，聊天记录只读', icon: 'none' });
+      return;
+    }
     const c = (this.data.input || '').trim();
     if (!c) return;
     this.setData({ input: '' });
@@ -60,6 +77,10 @@ Page({
   },
 
   sendImage() {
+    if (!this.data.writable) {
+      wx.showToast({ title: '问诊已结束，聊天记录只读', icon: 'none' });
+      return;
+    }
     wx.chooseMedia({
       count: 1, mediaType: ['image'], sizeType: ['compressed'],
       success: (r) => {
@@ -72,7 +93,17 @@ Page({
           header: { Authorization: 'Bearer ' + app.globalData.token },
           success: (res) => {
             wx.hideLoading();
-            try { this.append(JSON.parse(res.data)); } catch (e) { wx.showToast({ title: '上传失败', icon: 'none' }); }
+            try {
+              const body = JSON.parse(res.data);
+              if (res.statusCode >= 200 && res.statusCode < 300) {
+                this.append(body);
+              } else {
+                this.loadState();
+                wx.showToast({ title: body.detail || '上传失败', icon: 'none' });
+              }
+            } catch (e) {
+              wx.showToast({ title: '上传失败', icon: 'none' });
+            }
           },
           fail: () => { wx.hideLoading(); wx.showToast({ title: '上传失败', icon: 'none' }); }
         });
@@ -82,8 +113,9 @@ Page({
 
   previewImage(e) { wx.previewImage({ urls: [e.currentTarget.dataset.src] }); },
 
-  // 进入开处方（复用 prescribe 的处方页，无视频）
-  openPrescribe() {
-    wx.navigateTo({ url: `/subpackages/consult/pages/prescribe/prescribe?order=${this.data.orderId}&tab=prescription` });
+  // 进入问诊完成页，可选择不开药保存病历或提交处方。
+  openComplete() {
+    if (!this.data.writable) return;
+    wx.navigateTo({ url: `/subpackages/consult/pages/prescribe/prescribe?order=${this.data.orderId}&tab=record` });
   }
 });

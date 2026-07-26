@@ -61,8 +61,8 @@
               <text class="text-body-sm text-on-surface-variant">{{queue[0].gender}} · {{queue[0].age}}岁</text>
             </view>
             <view class="flex items-center gap-1" style="margin-top:6rpx;">
-              <text class="material-symbols-outlined text-primary" style="font-size:28rpx;">videocam</text>
-              <text class="text-label-md text-primary">视频问诊</text>
+              <text class="material-symbols-outlined text-primary" style="font-size:28rpx;">{{queue[0].typeIcon}}</text>
+              <text class="text-label-md text-primary">{{queue[0].type}}</text>
             </view>
           </view>
         </view>

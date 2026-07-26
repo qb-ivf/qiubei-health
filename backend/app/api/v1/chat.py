@@ -6,10 +6,11 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ...constants import Signal
+from ...constants import OrderStatus, Signal
 from ...core.database import get_db
 from ...models.message import Message
 from ...models.order import Order
+from ...models.prescription import Prescription
 from ...models.user import Doctor
 from ...schemas.chat import MessageIn, MessageOut
 from ...ws import manager
@@ -19,6 +20,7 @@ router = APIRouter(prefix="/orders", tags=["chat"])
 
 UPLOAD_DIR = Path(__file__).resolve().parents[3] / "uploads"  # backend/uploads
 ALLOWED_EXT = {"jpg", "jpeg", "png", "gif", "webp"}
+_WRITABLE_STATUSES = {int(OrderStatus.WAITING), int(OrderStatus.CONSULTING)}
 
 
 async def _role_in_order(order: Order, user: dict, db: AsyncSession) -> str:
@@ -47,6 +49,15 @@ async def _push_to_peer(order: Order, sender_role: str, msg: Message, db: AsyncS
         })
 
 
+def _is_chat_writable(status: int) -> bool:
+    return status in _WRITABLE_STATUSES
+
+
+def _ensure_chat_writable(order: Order) -> None:
+    if not _is_chat_writable(order.status):
+        raise HTTPException(status_code=409, detail="本次问诊已结束，聊天记录已转为只读")
+
+
 @router.get("/{order_id}/messages", response_model=list[MessageOut])
 async def list_messages(order_id: int, user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     order = await db.get(Order, order_id)
@@ -57,12 +68,36 @@ async def list_messages(order_id: int, user=Depends(get_current_user), db: Async
     return res.scalars().all()
 
 
+@router.get("/{order_id}/chat-state")
+async def chat_state(
+    order_id: int,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """图文问诊状态：供两端切换只读、进入处方或电子病历。"""
+    order = await db.get(Order, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="订单不存在")
+    await _role_in_order(order, user, db)
+    res = await db.execute(select(Prescription).where(Prescription.order_id == order_id))
+    record = res.scalars().first()
+    return {
+        "status": order.status,
+        "writable": _is_chat_writable(order.status),
+        "has_medical_record": record is not None,
+        "has_prescription": bool(
+            record and record.audit_status != "not_required" and record.items
+        ),
+    }
+
+
 @router.post("/{order_id}/messages", response_model=MessageOut)
 async def send_message(order_id: int, body: MessageIn, user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     order = await db.get(Order, order_id)
     if not order:
         raise HTTPException(status_code=404, detail="订单不存在")
     role = await _role_in_order(order, user, db)
+    _ensure_chat_writable(order)
     content = (body.content or "").strip()
     if not content:
         raise HTTPException(status_code=400, detail="内容不能为空")
@@ -80,6 +115,7 @@ async def send_image(order_id: int, file: UploadFile = File(...), user=Depends(g
     if not order:
         raise HTTPException(status_code=404, detail="订单不存在")
     role = await _role_in_order(order, user, db)
+    _ensure_chat_writable(order)
     ext = (file.filename or "").rsplit(".", 1)[-1].lower() if "." in (file.filename or "") else "jpg"
     if ext not in ALLOWED_EXT:
         ext = "jpg"

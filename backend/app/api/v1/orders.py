@@ -270,6 +270,7 @@ async def doctor_queue(user=Depends(require_approved_doctor), db: AsyncSession =
             "patient_name": mask_name(patient.name) if patient else "患者",
             "gender": patient.gender if patient else None,
             "wait_minutes": max(waited, 0),
+            "consult_type": o.consult_type,
         })
     return out
 
@@ -353,6 +354,19 @@ async def complete_without_prescription(
             f"订单{order_id}；未生成处方、未进入药师审方",
         )
         await db.commit()
+        target = await db.get(Order, order_id)
+        if target:
+            await manager.send(
+                target.user_id,
+                {
+                    "type": Signal.CALL_FINISHED,
+                    "roomId": target.room_id,
+                    "result": "medical_record",
+                    "orderId": target.id,
+                },
+            )
+            if target.room_id:
+                rooms.pop(target.room_id, None)
     except prescription_service.RxError as exc:
         await db.rollback()
         detail = str(exc)

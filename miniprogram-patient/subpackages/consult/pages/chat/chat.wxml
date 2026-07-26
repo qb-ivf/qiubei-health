@@ -10,11 +10,15 @@
     </view>
   </scroll-view>
 
-  <view class="chat-bar">
+  <view wx:if="{{writable}}" class="chat-bar">
     <view class="chat-img-btn" bindtap="sendImage">
       <text class="material-symbols-outlined" style="font-size:48rpx;color:var(--primary);">image</text>
     </view>
     <input class="chat-input" placeholder="输入消息…" value="{{input}}" bindinput="onInput" confirm-type="send" bindconfirm="send" />
     <view class="chat-send" bindtap="send">发送</view>
+  </view>
+  <view wx:else class="chat-result" bindtap="openResult">
+    <text>问诊已结束，聊天记录仅供查看</text>
+    <text class="chat-result__link">查看问诊结果</text>
   </view>
 </view>

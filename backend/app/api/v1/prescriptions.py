@@ -12,6 +12,7 @@ from sqlalchemy import or_, select
 from ...core.security import mask_name
 from ...core.database import get_db
 from ...core.config import settings
+from ...constants import Signal
 from ...models.order import Order
 from ...models.prescription import Prescription
 from ...models.staff import Staff
@@ -19,6 +20,7 @@ from ...models.user import Doctor, Patient
 from ...schemas.prescription import PrescriptionCreate, PrescriptionOut, RejectIn
 from ...services import audit_service, compliance_service
 from ...services import prescription_service as rx_service
+from ...ws import manager, rooms
 from ..deps import get_current_user, require_approved_doctor, require_role
 
 router = APIRouter(prefix="/prescriptions", tags=["prescriptions"])
@@ -73,6 +75,19 @@ async def submit(body: PrescriptionCreate, user=Depends(require_approved_doctor)
     except rx_service.RxError as e:
         await db.rollback()
         raise HTTPException(status_code=422, detail=str(e))
+    order = await db.get(Order, rx.order_id)
+    if order:
+        await manager.send(
+            order.user_id,
+            {
+                "type": Signal.CALL_FINISHED,
+                "roomId": order.room_id,
+                "result": "prescription",
+                "orderId": order.id,
+            },
+        )
+        if order.room_id:
+            rooms.pop(order.room_id, None)
     return await _decorate(db, rx)
 
 

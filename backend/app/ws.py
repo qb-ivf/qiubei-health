@@ -46,17 +46,28 @@ async def _handle(uid: int, data: dict):
     t = data.get("type")
     room_id = data.get("roomId")
     room = rooms.get(room_id) if room_id else None
+    if room and uid not in {room["patient"], room["doctor"]}:
+        logger.warning("ws 拒绝非房间成员信令 uid=%s room=%s type=%s", uid, room_id, t)
+        return
 
     if t == "PING":
         await manager.send(uid, {"type": "PONG"})
-    elif t == Signal.CALL_ANSWER and room:
+    elif t == Signal.CALL_ANSWER and room and uid == room["patient"]:
         # 患者接听 → 通知医生开始推流
         await manager.send(room["doctor"], {"type": Signal.START_STREAM, "roomId": room_id})
-    elif t == Signal.CALL_REJECT and room:
+    elif t == Signal.CALL_REJECT and room and uid == room["patient"]:
         await manager.send(room["doctor"], {"type": Signal.CALL_REJECT, "roomId": room_id})
     elif t == Signal.CALL_FINISHED and room:
         other = room["doctor"] if uid == room["patient"] else room["patient"]
-        await manager.send(other, {"type": Signal.CALL_FINISHED, "roomId": room_id})
+        # 客户端只能中继“通话已挂断”；处方/病历结果由业务接口提交成功后服务端推送。
+        await manager.send(
+            other,
+            {
+                "type": Signal.CALL_FINISHED,
+                "roomId": room_id,
+                "result": "call_ended",
+            },
+        )
 
 
 @router.websocket("/ws")
