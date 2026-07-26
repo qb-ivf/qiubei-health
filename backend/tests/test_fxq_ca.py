@@ -273,3 +273,54 @@ async def test_signing_switch_is_enforced_inside_client():
 
     with pytest.raises(FxqCaError, match="FXQ_DOCUMENT_SIGN_ENABLED"):
         await client.generate_personal_seal(name="测试医生")
+
+
+@pytest.mark.asyncio
+async def test_network_timeout_is_retryable_and_does_not_expose_credentials():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("simulated provider timeout", request=request)
+
+    client = FxqCaClient(config=_config(), transport=httpx.MockTransport(handler))
+
+    with pytest.raises(FxqCaError) as captured:
+        await client.check_auth()
+
+    assert str(captured.value) == "放心签网络暂时不可用"
+    assert captured.value.retryable is True
+    assert "app-key" not in str(captured.value)
+    assert "app-secret" not in str(captured.value)
+
+
+@pytest.mark.asyncio
+async def test_non_retryable_quota_error_is_not_called_twice():
+    """供应商未确认正式余额错误码前，用普通非重试业务码模拟签章额度不足。"""
+    business_calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal business_calls
+        if request.url.path == "/auth/v1/token":
+            return httpx.Response(200, json={"code": 10000, "data": "token-1"})
+        if request.url.path == "/auth/v1/encrypt":
+            return httpx.Response(
+                200, json={"code": 10000, "data": {"nonce": "n", "sign": "s"}}
+            )
+        business_calls += 1
+        return httpx.Response(200, json={"code": 24001, "msg": "签章额度不足"})
+
+    client = FxqCaClient(
+        config=_config(
+            FXQ_DOCUMENT_SIGN_ENABLED=True,
+            FXQ_COMPANY_NAME="测试医院有限公司",
+            FXQ_COMPANY_IDNO="91120116MACJA9PX45",
+            FXQ_SERVICE_EXPIRES_ON="2099-01-01",
+            FXQ_PERSONAL_CERT_EXPIRES_ON="2099-01-01",
+        ),
+        transport=httpx.MockTransport(handler),
+    )
+
+    with pytest.raises(FxqCaError, match="签章额度不足") as captured:
+        await client.generate_personal_seal(name="测试医生")
+
+    assert captured.value.code == 24001
+    assert captured.value.retryable is False
+    assert business_calls == 1

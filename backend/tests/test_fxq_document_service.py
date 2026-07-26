@@ -6,6 +6,8 @@ import stat
 import pytest
 
 from app.core.config import settings
+from app.services import fxq_document_service
+from app.services.fxq_ca import FxqCaError
 from app.services.fxq_document_service import (
     FxqDocumentError,
     _validate_verification,
@@ -100,3 +102,27 @@ def test_signed_pdf_storage_is_private_and_digest_named(tmp_path, monkeypatch):
         assert stat.S_IMODE((tmp_path / reference).stat().st_mode) == 0o600
     with pytest.raises(FxqDocumentError):
         load_signed_pdf("../outside.pdf")
+
+
+@pytest.mark.asyncio
+async def test_provider_timeout_stops_document_signing(monkeypatch):
+    async def timeout(*, name: str):
+        raise FxqCaError("放心签网络暂时不可用", retryable=True)
+
+    monkeypatch.setattr(settings, "FXQ_DOCUMENT_SIGN_ENABLED", True)
+    monkeypatch.setattr(settings, "FXQ_COMPANY_NAME", "测试医院有限公司")
+    monkeypatch.setattr(settings, "FXQ_COMPANY_IDNO", "91120116MACJA9PX45")
+    monkeypatch.setattr(
+        fxq_document_service.fxq_ca_client,
+        "generate_personal_seal",
+        timeout,
+    )
+
+    with pytest.raises(FxqDocumentError, match="放心签网络暂时不可用"):
+        await fxq_document_service.sign_prescription_pdf(
+            b"%PDF-1.7\nsynthetic prescription",
+            doctor_name="医师甲",
+            doctor_id_no="120101199001011234",
+            pharmacist_name="药师乙",
+            pharmacist_id_no="120101199001015678",
+        )
