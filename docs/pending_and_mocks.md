@@ -46,8 +46,8 @@
 | #  | 现状                                        | 位置                                     | 何时替换                |
 | :- | :------------------------------------------ | :--------------------------------------- | :---------------------- |
 | 20 | ✅ **医生端 AppID 已配真号** `wx22d31040c9fcafc6`；后端 `WX_DOCTOR_*` 已配 | `miniprogram-doctor/project.config.json`、`backend/.env` | 完成（小程序后台需配 request 合法域名 + app.js 指向生产） |
-| 21 | 🟡 **Alembic 迁移体系已实现**：全新库执行版本化迁移，既有库先幂等补齐再安全 stamp；启动期不再直接 `create_all` | `backend/alembic/`、`scripts/db_upgrade.py`、`docker-compose.yml` | 代码完成；生产首次执行 `python -m scripts.db_upgrade` 后关闭 |
-| 22 | ✅ **小程序图标字体已自托管**：按实际使用的 65 个 Material Symbols 生成 11 KB 固定子集，保留 Apache-2.0 许可证；两端只从本院 API 域名加载 | `backend/app/static/`、两端 `app.js` | 完成 |
+| 21 | ✅ **Alembic 迁移体系已实现并接管生产库**：全新库执行版本化迁移，既有库先幂等补齐再安全 stamp；启动期不再直接 `create_all`；生产已写入 `20260726_01` | `backend/alembic/`、`scripts/db_upgrade.py`、`docker-compose.yml` | 完成（2026-07-26） |
+| 22 | ✅ **小程序图标字体已自托管并完成公网校验**：按实际使用的 65 个 Material Symbols 生成 11 KB 固定子集，保留 Apache-2.0 许可证；两端只从本院 API 域名加载；生产下载 SHA-256 与仓库固定值一致 | `backend/app/static/`、两端 `app.js` | 完成（2026-07-26） |
 | 23 | ✅ **生产 CORS 已收敛**：`DEBUG=false` 时只允许 `https://admin.qb-medical.cn`，预检及 OPTIONS 响应均已验证 | `backend/main.py`、`core/config.py`、生产 `backend/.env` | 完成（2026-07-26） |
 
 ---
