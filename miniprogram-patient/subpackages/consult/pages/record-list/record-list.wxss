@@ -1,0 +1,12 @@
+.mrl { min-height: 100vh; background: #f4f5f7; padding: 24rpx; box-sizing: border-box; }
+.mrl-empty { text-align: center; color: #909399; font-size: 26rpx; margin-top: 100rpx; }
+.mrl-item { background: #fff; border-radius: 16rpx; padding: 28rpx; margin-bottom: 20rpx; }
+.mrl-item__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16rpx; }
+.mrl-item__diag { flex: 1; color: #303133; font-size: 30rpx; font-weight: 600; }
+.mrl-item__tag { flex-shrink: 0; color: #52616b; background: #eef1f4; border-radius: 999rpx; padding: 6rpx 16rpx; font-size: 22rpx; }
+.mrl-item__tag--rx { color: #0056c4; background: rgba(0,86,196,.08); }
+.mrl-item__doc { display: block; color: #606266; font-size: 26rpx; margin-top: 16rpx; }
+.mrl-item__time { display: block; color: #9aa3ab; font-size: 24rpx; margin-top: 6rpx; }
+.mrl-item__bottom { display: flex; align-items: center; justify-content: space-between; border-top: 1rpx solid #f0f0f0; margin-top: 18rpx; padding-top: 16rpx; }
+.mrl-item__icd { color: #909399; font-size: 24rpx; }
+.mrl-item__go { color: #0056c4; font-size: 26rpx; }

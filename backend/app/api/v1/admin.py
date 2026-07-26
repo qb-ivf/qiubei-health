@@ -2,7 +2,7 @@
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...constants import OrderStatus
@@ -272,9 +272,22 @@ async def list_prescriptions(
     user=Depends(_prescription_reviewer),
     db: AsyncSession = Depends(get_db),
 ):
-    q = select(Prescription).order_by(Prescription.id.desc()).limit(300)
+    # 仅病历、未开药的记录通常不属于审方队列；CA 结果不确定时例外展示给管理员解锁。
+    q = (
+        select(Prescription)
+        .where(
+            or_(
+                Prescription.audit_status != "not_required",
+                Prescription.ca_sign_status == "manual_review",
+            )
+        )
+        .order_by(Prescription.id.desc())
+        .limit(300)
+    )
     if status in ("pending", "approved", "rejected"):
         q = q.where(Prescription.audit_status == status)
+    elif status == "manual_review":
+        q = q.where(Prescription.ca_sign_status == "manual_review")
     res = await db.execute(q)
     out = []
     for rx in res.scalars().all():
@@ -289,6 +302,7 @@ async def list_prescriptions(
             "chief": rx.chief, "present_illness": rx.present_illness, "advice": rx.advice,
             "audit_status": rx.audit_status, "reject_reason": rx.reject_reason,
             "ca_sign_status": rx.ca_sign_status,
+            "record_only": rx.audit_status == "not_required",
             "created_at": _fmt(rx.created_at),
         })
     return out
@@ -310,20 +324,25 @@ async def clear_ca_manual_review(
         raise HTTPException(status_code=422, detail="确认说明应为 5–240 个字符")
     try:
         rx = await prescription_service.clear_signing_manual_review(db, rx_id)
+        record_only = rx.audit_status == "not_required"
         await audit_service.record(
             db,
             user,
             request,
             "解除CA签署锁定",
-            "prescription",
+            "medical_record" if record_only else "prescription",
             rx_id,
-            f"已确认供应商未签署；{note}",
+            f"{'电子病历' if record_only else '电子处方'}；已确认供应商未签署；{note}",
         )
         await db.commit()
     except prescription_service.RxError as exc:
         await db.rollback()
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return {"id": rx.id, "ca_sign_status": rx.ca_sign_status}
+    return {
+        "id": rx.id,
+        "ca_sign_status": rx.ca_sign_status,
+        "record_only": rx.audit_status == "not_required",
+    }
 
 
 # —— 订单管理（全部问诊订单可查）——

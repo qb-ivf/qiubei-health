@@ -1,0 +1,15 @@
+<view class="mrl">
+  <view wx:if="{{!list.length}}" class="mrl-empty">暂无电子病历</view>
+  <view class="mrl-item" wx:for="{{list}}" wx:key="id" bindtap="open" data-order="{{item.order_id}}">
+    <view class="mrl-item__top">
+      <text class="mrl-item__diag">{{item.diagnosis || item.icd_name || '问诊病历'}}</text>
+      <text class="mrl-item__tag {{item.has_prescription ? 'mrl-item__tag--rx' : ''}}">{{item.typeText}}</text>
+    </view>
+    <text class="mrl-item__doc">接诊医生：{{item.doctor_name || '医生'}} {{item.dept || ''}}</text>
+    <text wx:if="{{item.timeText}}" class="mrl-item__time">记录时间：{{item.timeText}}</text>
+    <view class="mrl-item__bottom">
+      <text class="mrl-item__icd">ICD-10：{{item.icd_code || '—'}}</text>
+      <text class="mrl-item__go">查看病历 ›</text>
+    </view>
+  </view>
+</view>

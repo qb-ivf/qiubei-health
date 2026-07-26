@@ -2,6 +2,7 @@
 import hashlib
 import os
 import stat
+from types import SimpleNamespace
 
 import pytest
 
@@ -129,3 +130,58 @@ async def test_provider_timeout_stops_document_signing(monkeypatch):
 
     assert captured.value.retryable is True
     assert captured.value.manual_review is True
+
+
+@pytest.mark.asyncio
+async def test_medical_record_signing_has_doctor_and_hospital_only(monkeypatch):
+    signed_pdf = b"%PDF-1.7\nsigned medical record"
+    captured = {}
+
+    async def personal(*, name: str):
+        return SimpleNamespace(data=f"seal-{name}")
+
+    async def company(*, name: str):
+        return SimpleNamespace(data=f"seal-{name}")
+
+    async def sign_pdf(*, contract_base64: str, signers: list):
+        captured["signers"] = signers
+        assert contract_base64
+        return SimpleNamespace(data="https://openapi.fangxinqian.cn/signed.pdf", trade_no="SIGN-1")
+
+    async def verify_pdf(*, file_url: str):
+        assert file_url.endswith("signed.pdf")
+        names = ["医师甲", "测试医院有限公司"]
+        return SimpleNamespace(
+            data={
+                "pdfModify": True,
+                "signatureList": [_signature(name) for name in names],
+                "fileDegist": hashlib.sha256(signed_pdf).hexdigest(),
+            },
+            trade_no="VERIFY-1",
+        )
+
+    async def download_pdf(*, file_url: str):
+        assert file_url.endswith("signed.pdf")
+        return signed_pdf
+
+    monkeypatch.setattr(settings, "FXQ_DOCUMENT_SIGN_ENABLED", True)
+    monkeypatch.setattr(settings, "FXQ_COMPANY_NAME", "测试医院有限公司")
+    monkeypatch.setattr(settings, "FXQ_COMPANY_IDNO", "91120116MACJA9PX45")
+    monkeypatch.setattr(fxq_document_service.fxq_ca_client, "generate_personal_seal", personal)
+    monkeypatch.setattr(fxq_document_service.fxq_ca_client, "generate_company_seal", company)
+    monkeypatch.setattr(fxq_document_service.fxq_ca_client, "sign_pdf", sign_pdf)
+    monkeypatch.setattr(fxq_document_service.fxq_ca_client, "verify_pdf", verify_pdf)
+    monkeypatch.setattr(fxq_document_service.fxq_ca_client, "download_pdf", download_pdf)
+
+    result = await fxq_document_service.sign_medical_record_pdf(
+        b"%PDF-1.7\nmedical record",
+        doctor_name="医师甲",
+        doctor_id_no="120101199001011234",
+    )
+
+    assert [signer["name"] for signer in captured["signers"]] == [
+        "医师甲",
+        "测试医院有限公司",
+    ]
+    assert result.signature_count == 2
+    assert len(result.verify_report) == 2

@@ -31,6 +31,17 @@ class PrescriptionCreate(BaseModel):
     icd_name: str | None = None
 
 
+class MedicalRecordComplete(BaseModel):
+    """医生不开药时保存的问诊病历；不会生成电子处方。"""
+
+    chief: str | None = None
+    present_illness: str | None = None
+    diagnosis: str
+    advice: str | None = None
+    icd_code: str | None = None
+    icd_name: str | None = None
+
+
 class PrescriptionOut(BaseModel):
     id: int
     order_id: int

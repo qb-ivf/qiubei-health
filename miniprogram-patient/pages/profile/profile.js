@@ -56,11 +56,13 @@ Page({
     wx.navigateTo({ url: `/subpackages/consult/pages/order-list/order-list${q}` });
   },
 
-  // 健康资产：我的处方 → 处方列表，其余暂占位
+  // 健康资产：处方与电子病历分别归档，未开药问诊不会混入处方列表。
   goAsset(e) {
     const t = e.currentTarget.dataset.t;
     if (t === '我的处方') {
       wx.navigateTo({ url: '/subpackages/consult/pages/rx-list/rx-list' });
+    } else if (t === '电子病历档案') {
+      wx.navigateTo({ url: '/subpackages/consult/pages/record-list/record-list' });
     } else {
       wx.showToast({ title: '功能完善中，敬请期待', icon: 'none' });
     }

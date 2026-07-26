@@ -20,7 +20,8 @@ ALLOWED_TRANSITIONS: dict[OrderStatus, set[OrderStatus]] = {
     OrderStatus.WAITING: {OrderStatus.CONSULTING, OrderStatus.REFUNDED},
     OrderStatus.CONSULTING: {OrderStatus.AUDITING, OrderStatus.FINISHED, OrderStatus.REFUNDED},
     OrderStatus.AUDITING: {OrderStatus.PRESCRIBED, OrderStatus.REJECTED},
-    OrderStatus.REJECTED: {OrderStatus.AUDITING},
+    # 驳回后医生既可修改重提，也可根据复核结果决定不再用药并完成病历。
+    OrderStatus.REJECTED: {OrderStatus.AUDITING, OrderStatus.FINISHED},
     OrderStatus.PRESCRIBED: {OrderStatus.FINISHED, OrderStatus.REFUNDED},
     OrderStatus.FINISHED: set(),
     OrderStatus.REFUNDED: set(),

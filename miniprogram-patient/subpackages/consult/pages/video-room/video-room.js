@@ -24,8 +24,8 @@ Page({
 
     this.fetchRtc();
 
-    // 监听挂断信令 → 跳处方页
-    signaling.on(signaling.SIGNAL.CALL_FINISHED, () => this.onFinished());
+    // 医生结束通话后可能提交处方，也可能只完成电子病历。
+    signaling.on(signaling.SIGNAL.CALL_FINISHED, (m) => this.onFinished(m));
 
     this._timer = setInterval(() => {
       const s = this.data.seconds + 1;
@@ -135,17 +135,38 @@ Page({
   },
   noop() {},
 
-  // 收到 CALL_FINISHED：销毁流 → 跳处方页
-  onFinished() {
+  // 收到 CALL_FINISHED：按医生最终诊疗结果进入处方或电子病历；单纯挂断不假定有处方。
+  onFinished(message) {
     this._exitRoom();
-    wx.showToast({ title: '通话已结束，正在生成电子处方', icon: 'none', duration: 1000 });
-    const orderId = (this.data.roomId || '').replace('room_', '');
-    setTimeout(() => wx.redirectTo({ url: `/subpackages/consult/pages/prescription/prescription?orderId=${orderId}` }), 1000);
+    const result = message && message.result;
+    const orderId = (message && message.orderId) || (this.data.roomId || '').replace('room_', '');
+    if (result === 'medical_record') {
+      wx.showToast({ title: '问诊已完成，本次未开药', icon: 'none', duration: 1000 });
+      setTimeout(() => wx.redirectTo({
+        url: `/subpackages/consult/pages/medical-record/medical-record?orderId=${orderId}`
+      }), 1000);
+      return;
+    }
+    if (result === 'prescription' || !result) {
+      // 无 result 兼容已发布的旧医生端。
+      wx.showToast({ title: '通话已结束，处方审核中', icon: 'none', duration: 1000 });
+      setTimeout(() => wx.redirectTo({
+        url: `/subpackages/consult/pages/prescription/prescription?orderId=${orderId}`
+      }), 1000);
+      return;
+    }
+    wx.showToast({ title: '通话已结束，医生正在完成病历', icon: 'none', duration: 1200 });
+    setTimeout(() => wx.navigateBack({
+      fail: () => wx.switchTab({ url: '/pages/index/index' })
+    }), 1200);
   },
 
   // 患者主动挂断
   hangup() {
-    signaling.send(signaling.SIGNAL.CALL_FINISHED, { roomId: this.data.roomId });
-    this.onFinished();
+    signaling.send(signaling.SIGNAL.CALL_FINISHED, {
+      roomId: this.data.roomId,
+      result: 'call_ended'
+    });
+    this.onFinished({ result: 'call_ended' });
   }
 });

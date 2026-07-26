@@ -1,6 +1,7 @@
-"""放心签电子处方 PDF 三方签署、验签和受保护文件存储。
+"""放心签诊疗文档签署、验签和受保护文件存储。
 
-签署顺序在一个标准 API 请求中完成：开方医师、审核药师、医院企业。
+处方由开方医师、审核药师、医院企业三方签署；无药电子病历由接诊医师、
+医院企业两方签署，不会虚构药师审核。
 身份证仅作为调用参数在内存中短暂存在；验签报告会主动剔除证件号、印章数据和签名值。
 """
 from __future__ import annotations
@@ -218,6 +219,75 @@ async def sign_prescription_pdf(
     file_digest, signature_count, signed_at, report = _validate_verification(
         verify_result.data,
         expected_names=[doctor_name, pharmacist_name, company_name],
+        signed_pdf=signed_pdf,
+    )
+    if not sign_result.trade_no:
+        raise FxqDocumentError("放心签签署响应缺少交易流水")
+    return DocumentSignResult(
+        signed_pdf=signed_pdf,
+        sign_trade_no=sign_result.trade_no,
+        verify_trade_no=verify_result.trade_no,
+        source_digest=hashlib.sha256(pdf_bytes).hexdigest(),
+        file_digest=file_digest,
+        signature_count=signature_count,
+        signed_at=signed_at,
+        verify_report=report,
+    )
+
+
+async def sign_medical_record_pdf(
+    pdf_bytes: bytes,
+    *,
+    doctor_name: str,
+    doctor_id_no: str,
+) -> DocumentSignResult:
+    """由接诊医师和医院签署无药电子病历，并下载验签后的原件。"""
+    if not settings.FXQ_DOCUMENT_SIGN_ENABLED:
+        raise FxqDocumentError("FXQ_DOCUMENT_SIGN_ENABLED 未开启")
+    if not pdf_bytes.startswith(b"%PDF-"):
+        raise FxqDocumentError("待签署文件不是有效 PDF")
+    if len(pdf_bytes) > settings.FXQ_MAX_PDF_BYTES:
+        raise FxqDocumentError("待签署 PDF 超过大小限制")
+    company_name = settings.FXQ_COMPANY_NAME.strip()
+    company_id_no = settings.FXQ_COMPANY_IDNO.strip()
+    if not company_name or not company_id_no:
+        raise FxqDocumentError("医院签章主体名称或统一社会信用代码未配置")
+
+    try:
+        doctor_seal = await fxq_ca_client.generate_personal_seal(name=doctor_name)
+        company_seal = await fxq_ca_client.generate_company_seal(name=company_name)
+        sign_result = await fxq_ca_client.sign_pdf(
+            contract_base64=base64.b64encode(pdf_bytes).decode("ascii"),
+            signers=[
+                {
+                    "name": doctor_name,
+                    "idno": doctor_id_no,
+                    "seal": doctor_seal.data,
+                    "size": 82,
+                    "areas": [{"x": 145, "y": 76, "page": 1}],
+                },
+                {
+                    "name": company_name,
+                    "idno": company_id_no,
+                    "seal": company_seal.data,
+                    "size": 100,
+                    "areas": [{"x": 370, "y": 66, "page": 1}],
+                },
+            ],
+        )
+        verify_result = await fxq_ca_client.verify_pdf(file_url=sign_result.data)
+        signed_pdf = await fxq_ca_client.download_pdf(file_url=sign_result.data)
+    except FxqCaError as exc:
+        raise FxqDocumentError(
+            str(exc),
+            retryable=exc.retryable,
+            manual_review=exc.retryable,
+            provider_code=exc.code,
+        ) from exc
+
+    file_digest, signature_count, signed_at, report = _validate_verification(
+        verify_result.data,
+        expected_names=[doctor_name, company_name],
         signed_pdf=signed_pdf,
     )
     if not sign_result.trade_no:

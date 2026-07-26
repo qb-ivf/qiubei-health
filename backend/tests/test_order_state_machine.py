@@ -11,6 +11,7 @@ def test_legal_transitions():
     assert can_transition(OrderStatus.AUDITING, OrderStatus.PRESCRIBED)
     assert can_transition(OrderStatus.AUDITING, OrderStatus.REJECTED)
     assert can_transition(OrderStatus.REJECTED, OrderStatus.AUDITING)
+    assert can_transition(OrderStatus.REJECTED, OrderStatus.FINISHED)
     assert can_transition(OrderStatus.PRESCRIBED, OrderStatus.FINISHED)
 
 

@@ -45,8 +45,14 @@ Page({
       wx.navigateTo({ url: `/subpackages/consult/pages/chat/chat?orderId=${o.id}&peer=${o.doctor_name || '医生'}` });
     } else if (o.status === 2) {
       wx.navigateTo({ url: `/subpackages/consult/pages/video-room/video-room?room=${o.room_id || ('room_' + o.id)}` });
-    } else if (o.status >= 3 && o.status <= 6) {
+    } else if (o.status >= 3 && o.status <= 5) {
       wx.navigateTo({ url: `/subpackages/consult/pages/prescription/prescription?orderId=${o.id}` });
+    } else if (o.status === 6 && o.has_prescription) {
+      wx.navigateTo({ url: `/subpackages/consult/pages/prescription/prescription?orderId=${o.id}` });
+    } else if (o.status === 6 && o.has_medical_record) {
+      wx.navigateTo({ url: `/subpackages/consult/pages/medical-record/medical-record?orderId=${o.id}` });
+    } else if (o.status === 6) {
+      wx.showToast({ title: '问诊已完成，暂无可查看的病历', icon: 'none' });
     } else if (o.status === 1) {
       wx.showToast({ title: '请耐心等待医生接诊', icon: 'none' });
     } else {

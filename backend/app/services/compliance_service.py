@@ -248,3 +248,57 @@ def generate_prescription_pdf(
     c.save()
     buf.seek(0)
     return buf.read()
+
+
+def generate_medical_record_pdf(
+    rx,
+    patient_name: str,
+    doctor_name: str,
+    *,
+    for_signing: bool = False,
+) -> bytes:
+    """生成无药问诊电子病历 PDF；正式模式由医师和医院两方签署。"""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+    from reportlab.pdfgen import canvas
+
+    pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4, invariant=1)
+    w, h = A4
+    hospital_name = settings.FXQ_COMPANY_NAME.strip() or "天津逑贝互联网医院"
+    c.setFont("STSong-Light", 18)
+    c.drawCentredString(w / 2, h - 60, f"{hospital_name}电子病历")
+    c.setFont("STSong-Light", 11)
+    c.drawString(50, h - 92, f"病历编号：EMR{rx.id}")
+    c.drawString(50, h - 114, f"患者姓名：{patient_name}")
+    c.drawString(320, h - 114, f"接诊医师：{doctor_name}")
+    c.drawString(50, h - 136, f"ICD-10：{rx.icd_code or ''} {rx.icd_name or ''}")
+
+    def draw_section(label: str, value: str | None, y: float) -> float:
+        c.setFont("STSong-Light", 11)
+        c.drawString(50, y, label)
+        y -= 20
+        text = (value or "未记录").strip()
+        for offset in range(0, len(text), 38):
+            c.drawString(70, y, text[offset:offset + 38])
+            y -= 18
+        return y - 12
+
+    y = h - 174
+    y = draw_section("主诉：", rx.chief, y)
+    y = draw_section("现病史：", rx.present_illness, y)
+    y = draw_section("诊断：", rx.diagnosis, y)
+    draw_section("医嘱：", rx.advice, y)
+
+    if for_signing:
+        c.setFillColorRGB(0.25, 0.25, 0.25)
+        c.drawString(145, 52, "医师数字签名")
+        c.drawString(370, 52, "医院电子签章")
+    else:
+        c.setFillColorRGB(0.73, 0.1, 0.1)
+        c.drawString(50, 90, "未完成文档数字签名——仅供预览，不可作为正式电子病历原件")
+    c.save()
+    buf.seek(0)
+    return buf.read()

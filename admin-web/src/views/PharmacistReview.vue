@@ -15,12 +15,14 @@ const TABS = [
   { k: 'pending', t: '待审核' },
   { k: 'approved', t: '已通过' },
   { k: 'rejected', t: '已驳回' },
+  { k: 'manual_review', t: 'CA待确认' },
   { k: 'all', t: '全部' }
 ]
 const STATUS = {
   pending: { t: '待审核', type: 'info' },
   approved: { t: '已通过', type: 'success' },
-  rejected: { t: '已驳回', type: 'danger' }
+  rejected: { t: '已驳回', type: 'danger' },
+  not_required: { t: '仅病历', type: 'warning' }
 }
 const CA_STATUS = {
   manual_review: { t: '结果待人工确认', type: 'danger' },
@@ -37,7 +39,7 @@ async function load() {
       id: rx.id, order: rx.order_id, patient: rx.patient_name, doctor: rx.doctor_name, dept: rx.dept,
       diagnosis: rx.diagnosis, chief: rx.chief, present: rx.present_illness, advice: rx.advice,
       items: rx.items || [], status: rx.audit_status, reason: rx.reject_reason, time: rx.created_at,
-      caStatus: rx.ca_sign_status,
+      caStatus: rx.ca_sign_status, recordOnly: !!rx.record_only,
       drugs: (rx.items || []).map((it) => `${it.name} x${it.qty}`).join('；')
     }))
   } finally {
@@ -95,7 +97,7 @@ function resolveCa(row) {
       confirmed_not_signed: true,
       note: value.trim()
     })
-    ElMessage.success(`处方 ${row.id} 已解除 CA 签署锁定`)
+    ElMessage.success(`诊疗文档 ${row.id} 已解除 CA 签署锁定`)
     drawer.value = false
     load()
   }).catch(() => {})
@@ -106,17 +108,17 @@ function resolveCa(row) {
   <el-card>
     <template #header>
       <div class="hd">
-        <span>处方审核队列（双盲分发，含审核历史）</span>
+        <span>处方审核与 CA 异常（双盲分发，含审核历史）</span>
         <el-radio-group :model-value="tab" @change="switchTab">
           <el-radio-button v-for="t in TABS" :key="t.k" :value="t.k">{{ t.t }}</el-radio-button>
         </el-radio-group>
       </div>
     </template>
     <el-table :data="list" v-loading="loading">
-      <el-table-column prop="id" label="处方号" width="90" />
+      <el-table-column prop="id" label="文档号" width="90" />
       <el-table-column prop="order" label="订单号" width="90" />
       <el-table-column prop="patient" label="患者" width="80" />
-      <el-table-column prop="doctor" label="开方医生" width="100" />
+      <el-table-column prop="doctor" label="接诊医生" width="100" />
       <el-table-column prop="diagnosis" label="临床诊断" width="150" />
       <el-table-column prop="drugs" label="药品明细" min-width="160" show-overflow-tooltip />
       <el-table-column label="状态" width="90">
@@ -139,23 +141,23 @@ function resolveCa(row) {
           <template v-if="row.status === 'pending'">
             <el-button size="small" type="success" :disabled="row.caStatus === 'manual_review'" @click="approve(row)">通过</el-button>
             <el-button size="small" type="danger" :disabled="row.caStatus === 'manual_review'" @click="reject(row)">驳回</el-button>
-            <el-button
-              v-if="isAdmin && row.caStatus === 'manual_review'"
-              size="small"
-              type="warning"
-              @click="resolveCa(row)"
-            >人工确认</el-button>
           </template>
+          <el-button
+            v-if="isAdmin && row.caStatus === 'manual_review'"
+            size="small"
+            type="warning"
+            @click="resolveCa(row)"
+          >人工确认</el-button>
         </template>
       </el-table-column>
     </el-table>
   </el-card>
 
   <!-- 病历 / 处方详情 -->
-  <el-drawer v-model="drawer" :title="`处方 #${current.id} · 病历详情`" size="520px">
+  <el-drawer v-model="drawer" :title="`${current.recordOnly ? '电子病历' : '处方'} #${current.id} · 详情`" size="520px">
     <el-descriptions :column="2" border>
       <el-descriptions-item label="患者">{{ current.patient }}</el-descriptions-item>
-      <el-descriptions-item label="开方医生">{{ current.doctor }}<span v-if="current.dept" class="muted"> / {{ current.dept }}</span></el-descriptions-item>
+      <el-descriptions-item label="接诊医生">{{ current.doctor }}<span v-if="current.dept" class="muted"> / {{ current.dept }}</span></el-descriptions-item>
       <el-descriptions-item label="订单号">{{ current.order }}</el-descriptions-item>
       <el-descriptions-item label="提交时间">{{ current.time }}</el-descriptions-item>
       <el-descriptions-item label="状态" :span="2">
@@ -176,7 +178,7 @@ function resolveCa(row) {
       :closable="false"
       show-icon
       class="mt"
-      title="供应商返回结果不确定，已禁止重复签署和驳回。"
+      title="供应商返回结果不确定，已禁止重复签署。"
       description="请由管理员联系放心签确认本次未生成签署结果，记录工单说明后再解除锁定。"
     />
 
@@ -187,8 +189,8 @@ function resolveCa(row) {
       <el-descriptions-item label="医嘱">{{ current.advice || '—' }}</el-descriptions-item>
     </el-descriptions>
 
-    <div class="sec-title">处方药品</div>
-    <el-table :data="current.items" size="small" border>
+    <div v-if="!current.recordOnly" class="sec-title">处方药品</div>
+    <el-table v-if="!current.recordOnly" :data="current.items" size="small" border>
       <el-table-column prop="name" label="药品" />
       <el-table-column prop="spec" label="规格" width="110" />
       <el-table-column prop="qty" label="数量" width="60" />
@@ -198,11 +200,9 @@ function resolveCa(row) {
     <div v-if="current.status === 'pending'" class="drawer-foot">
       <el-button type="success" :disabled="current.caStatus === 'manual_review'" @click="approve(current)">通过审方</el-button>
       <el-button type="danger" :disabled="current.caStatus === 'manual_review'" @click="reject(current)">驳回</el-button>
-      <el-button
-        v-if="isAdmin && current.caStatus === 'manual_review'"
-        type="warning"
-        @click="resolveCa(current)"
-      >人工确认并解锁</el-button>
+    </div>
+    <div v-if="isAdmin && current.caStatus === 'manual_review'" class="drawer-foot">
+      <el-button type="warning" @click="resolveCa(current)">人工确认并解锁</el-button>
     </div>
   </el-drawer>
 </template>

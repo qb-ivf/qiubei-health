@@ -36,8 +36,8 @@ class _Db:
         self.flushes += 1
 
 
-def _rx(status=None):
-    return SimpleNamespace(id=17, audit_status="pending", ca_sign_status=status)
+def _rx(status=None, audit_status="pending"):
+    return SimpleNamespace(id=17, audit_status=audit_status, ca_sign_status=status)
 
 
 @pytest.mark.asyncio
@@ -79,3 +79,14 @@ async def test_manual_review_lock_blocks_rejection():
 
     assert rx.audit_status == "pending"
     assert rx.ca_sign_status == "manual_review"
+
+
+@pytest.mark.asyncio
+async def test_no_prescription_record_manual_review_lock_can_be_cleared():
+    rx = _rx("manual_review", audit_status="not_required")
+    db = _Db(rx)
+
+    cleared = await prescription_service.clear_signing_manual_review(db, rx.id)
+
+    assert cleared.ca_sign_status == "failed"
+    assert db.flushes == 1

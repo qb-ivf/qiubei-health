@@ -210,15 +210,17 @@ Page({
   back() { wx.navigateBack(); },
   hangup() {
     wx.showModal({
-      title: '结束问诊', content: '确认挂断并结束本次视频问诊？',
-      confirmText: '结束', cancelText: '继续',
+      title: '结束通话', content: '确认挂断视频？挂断后仍需填写病历，并选择“提交处方”或“不开药，仅保存病历”。',
+      confirmText: '挂断', cancelText: '继续',
       success: (r) => {
         if (!r.confirm) return;
         this._exitRoom();
-        // 后端置 FINISHED（患者端不再被离线补偿拉回）+ 通知患者结束
-        if (this.orderId) request(`/orders/${this.orderId}/end-consult`, { method: 'POST' }).catch(() => {});
-        signaling.send(signaling.SIGNAL.CALL_FINISHED, { roomId: this.roomId });
-        wx.navigateBack({ fail: () => wx.switchTab({ url: '/pages/hall/hall' }) });
+        this.setData({ callEnded: true, ready: false, tab: 'record' });
+        signaling.send(signaling.SIGNAL.CALL_FINISHED, {
+          roomId: this.roomId,
+          result: 'call_ended'
+        });
+        wx.showToast({ title: '通话已结束，请完成病历', icon: 'none', duration: 2500 });
       }
     });
   },
@@ -255,6 +257,48 @@ Page({
   onUsage(e) { const i = +e.currentTarget.dataset.i; const drugs = this.data.drugs; drugs[i].usageIdx = +e.detail.value; this.setData({ drugs }); },
   delDrug(e) { const drugs = this.data.drugs.filter((_, idx) => idx !== +e.currentTarget.dataset.i); this.setData({ drugs }); },
 
+  // 不开药：保存电子病历后直接完成问诊，不生成空处方、不进入药师审方。
+  completeWithoutPrescription() {
+    if (!this.data.icdList.length) { wx.showToast({ title: '请选择 ICD-10 诊断（监管必填）', icon: 'none' }); return; }
+    if (!this.data.form.diagnosis || this.data.form.diagnosis.trim().length < 2) {
+      wx.showToast({ title: '请填写初步诊断', icon: 'none' }); return;
+    }
+    if (!this.orderId) { wx.showToast({ title: '缺少订单信息', icon: 'none' }); return; }
+
+    wx.showModal({
+      title: '确认本次不开药',
+      content: '系统将保存电子病历并结束问诊，不生成电子处方，也不会进入药师审方。',
+      confirmText: '确认完成',
+      success: (r) => {
+        if (!r.confirm) return;
+        wx.showLoading({ title: '保存病历中...', mask: true });
+        request(`/orders/${this.orderId}/complete-without-prescription`, {
+          method: 'POST',
+          data: {
+            present_illness: this.data.form.present_illness,
+            diagnosis: this.data.form.diagnosis,
+            advice: this.data.form.advice,
+            icd_code: this.data.icdList.map((x) => x.code).join('|'),
+            icd_name: this.data.icdList.map((x) => x.name).join('|')
+          }
+        }).then(() => {
+          wx.hideLoading();
+          this._exitRoom();
+          signaling.send(signaling.SIGNAL.CALL_FINISHED, {
+            roomId: this.roomId,
+            result: 'medical_record',
+            orderId: +this.orderId
+          });
+          wx.showToast({ title: '病历已保存，本次未开药', icon: 'success', duration: 1500 });
+          setTimeout(() => wx.navigateBack({ fail: () => wx.switchTab({ url: '/pages/hall/hall' }) }), 1500);
+        }).catch((err) => {
+          wx.hideLoading();
+          wx.showToast({ title: (err && err.detail) || '病历保存失败', icon: 'none' });
+        });
+      }
+    });
+  },
+
   // 提交处方 → 订单 AUDITING → 通知患者结束 → 退回 D1。
   // CA 双录由“CA数字证书”页完成；文档签署不能用前端 loading 冒充成功。
   submit() {
@@ -290,7 +334,11 @@ Page({
       wx.hideLoading();
       // 通知患者端：视频结束 → 生成处方页（CALL_FINISHED）
       this._exitRoom();
-      signaling.send(signaling.SIGNAL.CALL_FINISHED, { roomId: this.roomId });
+      signaling.send(signaling.SIGNAL.CALL_FINISHED, {
+        roomId: this.roomId,
+        result: 'prescription',
+        orderId: +this.orderId
+      });
       wx.showToast({ title: '处方已发送，等待药师审核', icon: 'success', duration: 1500 });
       setTimeout(() => wx.navigateBack({ fail: () => wx.switchTab({ url: '/pages/hall/hall' }) }), 1500);
     }).catch((err) => {

@@ -18,7 +18,8 @@ from ...models.order import Order
 from ...models.user import Doctor, Patient, User
 from ...schemas.evaluation import EvaluationCreate, EvaluationOut
 from ...schemas.order import ActiveOrderOut, OrderOut, PrepayOut, RegisterOrderCreate
-from ...services import evaluation_service, order_service, pay_service, prescription_service
+from ...schemas.prescription import MedicalRecordComplete
+from ...services import audit_service, evaluation_service, order_service, pay_service, prescription_service
 from ...ws import manager, rooms
 from ..deps import get_current_user, get_current_user_id, require_approved_doctor
 
@@ -315,23 +316,76 @@ async def accept(order_id: int, user=Depends(require_approved_doctor), db: Async
 
 @router.post("/{order_id}/end-consult")
 async def end_consult(order_id: int, user=Depends(require_approved_doctor), db: AsyncSession = Depends(get_db)):
-    """医生挂断结束问诊：CONSULTING→FINISHED（无处方）。让订单离开进行中状态，
-    避免患者端"离线补偿"把它当作进行中而反复拉回呼叫。仅本医生可操作；非 CONSULTING 则忽略。"""
+    """旧版挂断接口保留为兼容门禁；完成问诊必须同时提交病历。"""
     res = await db.execute(select(Doctor.id).where(Doctor.user_id == int(user["sub"])))
     my_doctor_id = res.scalar_one_or_none()
     target = await db.get(Order, order_id)
     if not target or target.doctor_id != my_doctor_id:
         raise HTTPException(status_code=404, detail="订单不存在或不属于您")
     if target.status == int(OrderStatus.CONSULTING):
-        try:
-            target = await order_service.transition(
-                db, order_id, OrderStatus.FINISHED, expect_from=OrderStatus.CONSULTING
-            )
-            await db.commit()
-        except order_service.StateError as e:
-            await db.rollback()
-            raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(
+            status_code=409,
+            detail="通话可以结束，但问诊必须填写病历；不开药时请使用“仅保存病历并结束问诊”",
+        )
     return {"status": target.status}
+
+
+@router.post("/{order_id}/complete-without-prescription")
+async def complete_without_prescription(
+    order_id: int,
+    body: MedicalRecordComplete,
+    request: Request,
+    user=Depends(require_approved_doctor),
+    db: AsyncSession = Depends(get_db),
+):
+    """医生保存电子病历后按无药问诊完成；不会创建可流转的电子处方。"""
+    try:
+        record = await prescription_service.complete_without_prescription(
+            db, int(user["sub"]), order_id, body
+        )
+        await audit_service.record(
+            db,
+            user,
+            request,
+            "无药结束问诊",
+            "medical_record",
+            record.id,
+            f"订单{order_id}；未生成处方、未进入药师审方",
+        )
+        await db.commit()
+    except prescription_service.RxError as exc:
+        await db.rollback()
+        detail = str(exc)
+        if exc.manual_review:
+            try:
+                record = await prescription_service.stage_no_prescription_manual_review(
+                    db, int(user["sub"]), order_id, body
+                )
+                code = f"，供应商代码 {exc.provider_code}" if exc.provider_code else ""
+                await audit_service.record(
+                    db,
+                    user,
+                    request,
+                    "电子病历CA签署待确认",
+                    "medical_record",
+                    record.id,
+                    f"供应商响应不确定{code}；已禁止重复签署",
+                )
+                await db.commit()
+                detail += "；供应商结果待人工确认，系统已禁止重复签署"
+            except Exception:  # noqa: BLE001
+                await db.rollback()
+                logger.exception("订单 %s 的电子病历 CA 人工复核锁定保存失败", order_id)
+                detail += "；人工复核锁定保存失败，请勿重试并立即联系技术人员"
+        raise HTTPException(
+            status_code=409 if exc.manual_review else 422,
+            detail=detail,
+        ) from exc
+    return {
+        "status": int(OrderStatus.FINISHED),
+        "record_id": record.id,
+        "has_prescription": False,
+    }
 
 
 @router.get("/mine")
@@ -344,12 +398,15 @@ async def my_orders(status: int | None = None, uid: int = Depends(get_current_us
     out = []
     for o in res.scalars().all():
         doctor = await db.get(Doctor, o.doctor_id)
+        rx = await prescription_service.get_by_order(db, o.id)
         out.append({
             "id": o.id, "order_no": o.order_no, "status": o.status,
             "consult_type": getattr(o, "consult_type", "video"),
             "doctor_name": doctor.name if doctor else None,
             "dept": doctor.dept if doctor else None,
             "register_fee_fen": o.register_fee_fen, "room_id": o.room_id,
+            "has_medical_record": rx is not None,
+            "has_prescription": bool(rx and rx.audit_status != "not_required" and rx.items),
             "created_at": o.created_at,
         })
     return out

@@ -28,7 +28,8 @@ class Prescription(Base, TimestampMixin):
     # 处方药品：[{name, spec, qty, usage, price_fen}]
     items: Mapped[list] = mapped_column(JSON, default=list)
 
-    audit_status: Mapped[str] = mapped_column(String(16), default="pending")  # pending/approved/rejected
+    # not_required 表示本次只有电子病历、未开药，不进入药师审方或处方签章。
+    audit_status: Mapped[str] = mapped_column(String(16), default="pending")  # pending/approved/rejected/not_required
     reject_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # ca_sign 保存放心签真实签署 tradeNo；pdf_url 保存受保护存储中的相对文件名。
     ca_sign: Mapped[str | None] = mapped_column(String(255), nullable=True)

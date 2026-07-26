@@ -22,6 +22,8 @@
         "pages/chat/chat",
         "pages/order-list/order-list",
         "pages/rx-list/rx-list",
+        "pages/record-list/record-list",
+        "pages/medical-record/medical-record",
         "pages/evaluate/evaluate"
       ]
     }

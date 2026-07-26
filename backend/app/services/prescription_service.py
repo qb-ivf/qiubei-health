@@ -9,7 +9,7 @@ from ..models.order import Order
 from ..models.prescription import Prescription
 from ..models.staff import Staff
 from ..models.user import Doctor, Patient
-from ..schemas.prescription import PrescriptionCreate
+from ..schemas.prescription import MedicalRecordComplete, PrescriptionCreate
 from . import order_service
 
 # 互联网医院严禁开具的特殊管理药（PRD §4.2）。生产应由药品字典 restricted 标记驱动。
@@ -42,21 +42,24 @@ async def submit(db: AsyncSession, doctor_uid: int, data: PrescriptionCreate) ->
     """医生开方提交：病历校验 + 特殊药拦截 + 订单 2→3（或驳回后 4→3）。"""
     if not data.diagnosis or len(data.diagnosis.strip()) < 2:
         raise RxError("初步诊断不能为空")
+    if not data.items:
+        raise RxError("处方至少应包含一种药品；如本次不开药，请使用“仅保存病历并结束问诊”")
     _check_special(data.items)
 
     order = await db.get(Order, data.order_id)
     if order is None:
         raise RxError("订单不存在")
 
+    res = await db.execute(select(Doctor).where(Doctor.user_id == doctor_uid))
+    doctor = res.scalar_one_or_none()
+    if not doctor or doctor.id != order.doctor_id:
+        raise RxError("当前账号不是该订单的接诊医生")
+
     doctor_ca = None
     enforce_ca = settings.FXQ_CA_REQUIRED or settings.FXQ_DOCUMENT_SIGN_ENABLED
     if enforce_ca:
         from . import ca_service
 
-        res = await db.execute(select(Doctor).where(Doctor.user_id == doctor_uid))
-        doctor = res.scalar_one_or_none()
-        if not doctor or doctor.id != order.doctor_id:
-            raise RxError("当前账号不是该订单的接诊医生")
         doctor_ca = await ca_service.latest_success(db, "doctor", doctor.id)
         if not doctor_ca:
             raise RxError("开方医师尚未完成 CA 协议阅读及智能双录")
@@ -97,6 +100,180 @@ async def submit(db: AsyncSession, doctor_uid: int, data: PrescriptionCreate) ->
     rx.ca_verify_report = None
     rx.doctor_ca_order_no = doctor_ca.order_no if doctor_ca else None
     rx.pharmacist_ca_order_no = None
+    await db.flush()
+    return rx
+
+
+async def complete_without_prescription(
+    db: AsyncSession,
+    doctor_uid: int,
+    order_id: int,
+    data: MedicalRecordComplete,
+) -> Prescription:
+    """保存无药病历并完成问诊；不生成处方、不进入药师审方。"""
+    if not data.diagnosis or len(data.diagnosis.strip()) < 2:
+        raise RxError("初步诊断不能为空")
+    if not data.icd_code or not data.icd_name:
+        raise RxError("请选择 ICD-10 诊断")
+
+    order_res = await db.execute(
+        select(Order).where(Order.id == order_id).with_for_update()
+    )
+    order = order_res.scalar_one_or_none()
+    if order is None:
+        raise RxError("订单不存在")
+
+    res = await db.execute(select(Doctor).where(Doctor.user_id == doctor_uid))
+    doctor = res.scalar_one_or_none()
+    if not doctor or doctor.id != order.doctor_id:
+        raise RxError("当前账号不是该订单的接诊医生")
+
+    doctor_ca = None
+    enforce_ca = settings.FXQ_CA_REQUIRED or settings.FXQ_DOCUMENT_SIGN_ENABLED
+    if enforce_ca:
+        from . import ca_service
+
+        doctor_ca = await ca_service.latest_success(db, "doctor", doctor.id)
+        if not doctor_ca:
+            raise RxError("接诊医师尚未完成 CA 协议阅读及智能双录")
+    if settings.FXQ_CA_REQUIRED and not settings.FXQ_DOCUMENT_SIGN_ENABLED:
+        raise RxError("生产 CA 门禁已开启，但真实电子病历签署尚未启用")
+
+    cur = OrderStatus(order.status)
+    if cur not in (OrderStatus.CONSULTING, OrderStatus.REJECTED):
+        raise RxError(f"当前订单状态 {cur.name} 不可按无药问诊完成")
+
+    # 沿用 prescriptions 表中的 EMR 字段；not_required 明确区分“病历”与“处方”。
+    res = await db.execute(select(Prescription).where(Prescription.order_id == order.id))
+    rx = res.scalars().first()
+    if rx is not None and rx.ca_sign_status == "manual_review":
+        raise RxError("上次放心签调用结果待人工确认，禁止重复签署")
+    if rx is None:
+        rx = Prescription(order_id=order.id, doctor_id=order.doctor_id, patient_id=order.patient_id)
+        db.add(rx)
+
+    _fill_no_prescription_record(
+        rx,
+        data,
+        doctor_ca_order_no=doctor_ca.order_no if doctor_ca else None,
+    )
+    await db.flush()
+
+    if settings.FXQ_DOCUMENT_SIGN_ENABLED:
+        from . import compliance_service, fxq_document_service
+
+        patient = await db.get(Patient, order.patient_id)
+        if not doctor.name or not doctor.id_card_enc:
+            raise RxError("接诊医师实名资料不完整，无法完成电子病历签署")
+        if not patient or not patient.name:
+            raise RxError("患者资料不完整，无法生成电子病历原文")
+        try:
+            doctor_id_no = decrypt(doctor.id_card_enc)
+        except Exception as exc:  # noqa: BLE001
+            raise RxError("医师身份证密文无法解密，请重新完成备案") from exc
+        if not doctor_id_no or len(doctor_id_no) != 18:
+            raise RxError("接诊医师备案身份证格式不正确")
+
+        source_pdf = compliance_service.generate_medical_record_pdf(
+            rx,
+            patient.name,
+            doctor.name,
+            for_signing=True,
+        )
+        try:
+            signed = await fxq_document_service.sign_medical_record_pdf(
+                source_pdf,
+                doctor_name=doctor.name,
+                doctor_id_no=doctor_id_no,
+            )
+            rx.pdf_url = fxq_document_service.store_signed_pdf(
+                rx.id, signed.signed_pdf, signed.file_digest
+            )
+        except fxq_document_service.FxqDocumentError as exc:
+            raise RxError(
+                f"放心签电子病历签署未完成：{exc}",
+                manual_review=exc.manual_review,
+                provider_code=exc.provider_code,
+            ) from exc
+        rx.ca_sign = signed.sign_trade_no
+        rx.ca_sign_status = "verified"
+        rx.ca_verify_trade_no = signed.verify_trade_no
+        rx.ca_source_digest = signed.source_digest
+        rx.ca_file_digest = signed.file_digest
+        rx.ca_signature_count = signed.signature_count
+        rx.ca_signed_at = signed.signed_at
+        rx.ca_verify_report = signed.verify_report
+
+    # 文档签署成功（或开发环境未启用签署）后才允许订单进入完成态。
+    await order_service.transition(db, order.id, OrderStatus.FINISHED, expect_from=cur)
+    from . import notification_service
+
+    await notification_service.notify(
+        db,
+        order.user_id,
+        "consultation",
+        "问诊已完成",
+        "医生已完成电子病历，本次未开具药品，请按医嘱处理。",
+        order.id,
+    )
+    return rx
+
+
+def _fill_no_prescription_record(
+    rx: Prescription,
+    data: MedicalRecordComplete,
+    *,
+    doctor_ca_order_no: str | None,
+) -> None:
+    rx.chief = data.chief
+    rx.present_illness = data.present_illness
+    rx.diagnosis = data.diagnosis.strip()
+    rx.icd_code = data.icd_code
+    rx.icd_name = data.icd_name
+    rx.advice = data.advice
+    rx.items = []
+    rx.audit_status = "not_required"
+    rx.reject_reason = None
+    rx.recipe_unique_id = None
+    rx.checked_at = None
+    rx.audit_staff_id = None
+    rx.ca_sign = None
+    rx.pdf_url = None
+    rx.ca_sign_status = None
+    rx.ca_verify_trade_no = None
+    rx.ca_source_digest = None
+    rx.ca_file_digest = None
+    rx.ca_signature_count = None
+    rx.ca_signed_at = None
+    rx.ca_verify_report = None
+    rx.doctor_ca_order_no = doctor_ca_order_no
+    rx.pharmacist_ca_order_no = None
+
+
+async def stage_no_prescription_manual_review(
+    db: AsyncSession,
+    doctor_uid: int,
+    order_id: int,
+    data: MedicalRecordComplete,
+) -> Prescription:
+    """供应商结果不确定时，在原事务回滚后保留病历原文并锁定重复签署。"""
+    order = await db.get(Order, order_id)
+    if order is None:
+        raise RxError("订单不存在")
+    res = await db.execute(select(Doctor).where(Doctor.user_id == doctor_uid))
+    doctor = res.scalar_one_or_none()
+    if not doctor or doctor.id != order.doctor_id:
+        raise RxError("当前账号不是该订单的接诊医生")
+    if OrderStatus(order.status) not in (OrderStatus.CONSULTING, OrderStatus.REJECTED):
+        raise RxError("订单已不处于可完成状态")
+
+    res = await db.execute(select(Prescription).where(Prescription.order_id == order.id))
+    rx = res.scalars().first()
+    if rx is None:
+        rx = Prescription(order_id=order.id, doctor_id=order.doctor_id, patient_id=order.patient_id)
+        db.add(rx)
+    _fill_no_prescription_record(rx, data, doctor_ca_order_no=None)
+    rx.ca_sign_status = "manual_review"
     await db.flush()
     return rx
 
@@ -244,15 +421,15 @@ async def mark_signing_manual_review(
 async def clear_signing_manual_review(
     db: AsyncSession, rx_id: int
 ) -> Prescription:
-    """管理员取得供应商“未签署”确认后解除锁定，允许药师重新发起。"""
+    """管理员取得供应商“未签署”确认后解除处方或病历的重复签署锁。"""
     res = await db.execute(
         select(Prescription).where(Prescription.id == rx_id).with_for_update()
     )
     rx = res.scalar_one_or_none()
     if rx is None:
-        raise RxError("处方不存在")
-    if rx.audit_status != "pending" or rx.ca_sign_status != "manual_review":
-        raise RxError("该处方不处于 CA 结果待人工确认状态")
+        raise RxError("诊疗文档不存在")
+    if rx.audit_status not in {"pending", "not_required"} or rx.ca_sign_status != "manual_review":
+        raise RxError("该诊疗文档不处于 CA 结果待人工确认状态")
     rx.ca_sign_status = "failed"
     await db.flush()
     return rx

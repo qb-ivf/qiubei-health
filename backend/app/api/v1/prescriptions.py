@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from ...core.security import mask_name
 from ...core.database import get_db
@@ -19,7 +19,7 @@ from ...models.user import Doctor, Patient
 from ...schemas.prescription import PrescriptionCreate, PrescriptionOut, RejectIn
 from ...services import audit_service, compliance_service
 from ...services import prescription_service as rx_service
-from ..deps import get_current_user, get_current_user_id, require_approved_doctor, require_role
+from ..deps import get_current_user, require_approved_doctor, require_role
 
 router = APIRouter(prefix="/prescriptions", tags=["prescriptions"])
 logger = logging.getLogger(__name__)
@@ -32,6 +32,37 @@ async def _decorate(db: AsyncSession, rx) -> PrescriptionOut:
     out.doctor_name = doctor.name if doctor else None
     out.patient_name = mask_name(patient.name) if patient else None
     return out
+
+
+async def _medical_record_out(db: AsyncSession, rx: Prescription) -> dict:
+    doctor = await db.get(Doctor, rx.doctor_id)
+    return {
+        "id": rx.id,
+        "order_id": rx.order_id,
+        "doctor_name": doctor.name if doctor else None,
+        "dept": doctor.dept if doctor else None,
+        "chief": rx.chief,
+        "present_illness": rx.present_illness,
+        "diagnosis": rx.diagnosis,
+        "icd_code": rx.icd_code,
+        "icd_name": rx.icd_name,
+        "advice": rx.advice,
+        "has_prescription": bool(rx.audit_status != "not_required" and rx.items),
+        "signed": rx.ca_sign_status == "verified",
+        "created_at": rx.created_at,
+        "updated_at": rx.updated_at,
+    }
+
+
+async def _can_view_order_record(db: AsyncSession, user: dict, order: Order) -> bool:
+    role, uid = user.get("role"), int(user["sub"])
+    if role == "patient":
+        return order.user_id == uid
+    if role == "doctor":
+        res = await db.execute(select(Doctor).where(Doctor.user_id == uid))
+        doctor = res.scalar_one_or_none()
+        return bool(doctor and doctor.id == order.doctor_id)
+    return role in {"pharmacist", "admin"}
 
 
 @router.post("", response_model=PrescriptionOut)
@@ -97,22 +128,122 @@ async def reject(rx_id: int, body: RejectIn, request: Request, user=Depends(requ
 
 
 @router.get("/mine", response_model=list[PrescriptionOut])
-async def my_prescriptions(uid: int = Depends(get_current_user_id), db: AsyncSession = Depends(get_db)):
+async def my_prescriptions(
+    user=Depends(require_role("patient")),
+    db: AsyncSession = Depends(get_db),
+):
     """患者本人处方列表（我的处方）。"""
+    uid = int(user["sub"])
     res = await db.execute(
         select(Prescription)
         .join(Order, Order.id == Prescription.order_id)
-        .where(Order.user_id == uid)
+        .where(
+            Order.user_id == uid,
+            Prescription.audit_status != "not_required",
+        )
         .order_by(Prescription.id.desc())
     )
     return [await _decorate(db, rx) for rx in res.scalars().all()]
 
 
+@router.get("/records/mine")
+async def my_medical_records(
+    user=Depends(require_role("patient")),
+    db: AsyncSession = Depends(get_db),
+):
+    """患者本人的电子病历列表；包含有处方和无处方两类问诊。"""
+    uid = int(user["sub"])
+    res = await db.execute(
+        select(Prescription)
+        .join(Order, Order.id == Prescription.order_id)
+        .where(
+            Order.user_id == uid,
+            or_(
+                Prescription.ca_sign_status.is_(None),
+                Prescription.ca_sign_status != "manual_review",
+            ),
+        )
+        .order_by(Prescription.id.desc())
+    )
+    return [await _medical_record_out(db, rx) for rx in res.scalars().all()]
+
+
+@router.get("/record/by-order/{order_id}")
+async def medical_record_by_order(
+    order_id: int,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    rx = await rx_service.get_by_order(db, order_id)
+    order = await db.get(Order, order_id)
+    if not rx or not order:
+        raise HTTPException(status_code=404, detail="暂无电子病历")
+    if not await _can_view_order_record(db, user, order):
+        raise HTTPException(status_code=403, detail="无权查看该电子病历")
+    if rx.ca_sign_status == "manual_review":
+        raise HTTPException(status_code=409, detail="电子病历签署结果待人工确认，暂不可查看")
+    return await _medical_record_out(db, rx)
+
+
+@router.get("/record/{order_id}/pdf")
+async def medical_record_pdf(
+    order_id: int,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """无药问诊电子病历 PDF；生产 CA 模式只允许下载医师+医院两方验签原件。"""
+    rx = await rx_service.get_by_order(db, order_id)
+    order = await db.get(Order, order_id)
+    if not rx or not order or rx.audit_status != "not_required":
+        raise HTTPException(status_code=404, detail="本次问诊没有独立的无药电子病历 PDF")
+    if not await _can_view_order_record(db, user, order):
+        raise HTTPException(status_code=403, detail="无权查看该电子病历")
+
+    if rx.ca_sign_status == "verified" and rx.pdf_url:
+        from ...services import fxq_document_service
+
+        try:
+            data = fxq_document_service.load_signed_pdf(rx.pdf_url)
+        except fxq_document_service.FxqDocumentError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        if rx.ca_file_digest and hashlib.sha256(data).hexdigest() != rx.ca_file_digest:
+            raise HTTPException(status_code=503, detail="签后电子病历归档摘要校验失败，已拒绝下载")
+        return StreamingResponse(
+            io.BytesIO(data),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'inline; filename="medical-record-{order_id}-signed.pdf"'
+            },
+        )
+
+    if settings.FXQ_CA_REQUIRED or settings.FXQ_DOCUMENT_SIGN_ENABLED:
+        raise HTTPException(status_code=409, detail="电子病历尚未完成医师及医院数字签名")
+    doctor = await db.get(Doctor, rx.doctor_id)
+    patient = await db.get(Patient, rx.patient_id)
+    data = compliance_service.generate_medical_record_pdf(
+        rx,
+        patient.name if patient else "患者",
+        doctor.name if doctor else "医生",
+    )
+    return StreamingResponse(
+        io.BytesIO(data),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'inline; filename="medical-record-{order_id}-preview.pdf"'
+        },
+    )
+
+
 @router.get("/by-order/{order_id}", response_model=PrescriptionOut)
 async def by_order(order_id: int, user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     rx = await rx_service.get_by_order(db, order_id)
-    if not rx:
-        raise HTTPException(status_code=404, detail="暂无处方")
+    if not rx or rx.audit_status == "not_required" or not rx.items:
+        raise HTTPException(status_code=404, detail="本次问诊未开具处方")
+    order = await db.get(Order, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="订单不存在")
+    if not await _can_view_order_record(db, user, order):
+        raise HTTPException(status_code=403, detail="无权查看该处方")
     return await _decorate(db, rx)
 
 
@@ -120,8 +251,8 @@ async def by_order(order_id: int, user=Depends(get_current_user), db: AsyncSessi
 async def pdf(order_id: int, user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """处方 PDF；生产要求 CA 时，未签名文件禁止下载。"""
     rx = await rx_service.get_by_order(db, order_id)
-    if not rx:
-        raise HTTPException(status_code=404, detail="暂无处方")
+    if not rx or rx.audit_status == "not_required" or not rx.items:
+        raise HTTPException(status_code=404, detail="本次问诊未开具处方")
     order = await db.get(Order, order_id)
     if not order:
         raise HTTPException(status_code=404, detail="订单不存在")

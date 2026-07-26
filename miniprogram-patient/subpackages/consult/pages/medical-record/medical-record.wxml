@@ -1,0 +1,42 @@
+<view class="mr" wx:if="{{loaded}}">
+  <view class="mr-head">
+    <text class="mr-head__title">问诊电子病历</text>
+    <text class="mr-head__tag">{{record.has_prescription ? '已开具处方' : '本次未开药'}}</text>
+    <text class="mr-head__meta">{{record.doctor_name || '医生'}} {{record.dept || ''}} · {{record.timeText}}</text>
+  </view>
+
+  <view class="mr-card">
+    <view class="mr-row">
+      <text class="mr-label">诊断</text>
+      <text class="mr-value mr-value--strong">{{record.diagnosis || record.icd_name || '—'}}</text>
+    </view>
+    <view class="mr-row">
+      <text class="mr-label">ICD-10</text>
+      <text class="mr-value">{{record.icd_code || '—'}} {{record.icd_name || ''}}</text>
+    </view>
+    <view wx:if="{{record.chief}}" class="mr-row">
+      <text class="mr-label">主诉</text>
+      <text class="mr-value">{{record.chief}}</text>
+    </view>
+    <view class="mr-row">
+      <text class="mr-label">现病史</text>
+      <text class="mr-value">{{record.present_illness || '未记录'}}</text>
+    </view>
+    <view class="mr-row">
+      <text class="mr-label">医嘱</text>
+      <text class="mr-value">{{record.advice || '请遵医嘱并注意观察症状变化'}}</text>
+    </view>
+  </view>
+
+  <view wx:if="{{record.has_prescription}}" class="mr-rx" bindtap="openPrescription">
+    <text>查看本次电子处方</text>
+    <text>›</text>
+  </view>
+  <block wx:else>
+    <view class="mr-rx" bindtap="viewPdf">
+      <text>{{record.signed ? '查看已签名电子病历原件' : '查看电子病历 PDF 预览'}}</text>
+      <text>›</text>
+    </view>
+    <view class="mr-tip">本次问诊未开具药品，因此没有电子处方，也无需药师审方。正式 CA 模式下，病历由接诊医师和医院签署。</view>
+  </block>
+</view>
