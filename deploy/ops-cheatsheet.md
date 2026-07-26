@@ -305,23 +305,90 @@ dc exec mysql mysql -uqiubei -pqiubei qiubei \
 
 ## 10. 数据库与文件备份（生产必备）
 
-每日备份 MySQL + uploads（含聊天图片/首诊材料）+ `.env`。首次配置：
+MySQL 与 uploads 保留每日短周期备份；签后处方 PDF 使用独立密钥做 AES-256-GCM
+流式加密归档，并在每次创建后立即回读校验。**归档密钥不得放进归档目录或备份包。**
+
+### 10.1 MySQL 与 uploads
+
 ```bash
-mkdir -p /opt/backups
-crontab -e     # 加入下面两行（每日 02:30 备份，保留 14 天）
+install -d -m 700 /opt/backups
+crontab -e
 ```
+
 ```cron
 30 2 * * * docker compose -f /opt/qiubei-health/backend/docker-compose.yml -f /opt/qiubei-health/backend/docker-compose.prod.yml exec -T mysql mysqldump -uqiubei -pqiubei --single-transaction qiubei | gzip > /opt/backups/qiubei-$(date +\%F).sql.gz && tar czf /opt/backups/uploads-$(date +\%F).tgz -C /opt/qiubei-health/backend uploads 2>/dev/null
-40 2 * * * find /opt/backups -type f -mtime +14 -delete
+40 2 * * * find /opt/backups -maxdepth 1 -type f \( -name 'qiubei-*.sql.gz' -o -name 'uploads-*.tgz' \) -mtime +14 -delete
 ```
-验证与恢复：
+
+上面的清理规则只处理数据库和 uploads，不得删除 `prescriptions/` 中需要长期保存的签后处方归档。
+`.env` 含生产密钥，不可直接打入普通压缩包；应使用组织批准的密码库/KMS 做独立备份。
+
+### 10.2 签后处方加密归档首次配置
+
+先在服务器终端生成专用密钥。命令会在当前终端显示一次密钥，禁止截图、粘贴到聊天或写入 Git：
+
 ```bash
-ls -lh /opt/backups | tail -5                       # 每天该有新文件且体积正常
-# 恢复（谨慎！先 dc stop api 停写入）：
+cd /opt/qiubei-health/backend
+dc exec -T api python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'
+```
+
+将结果写入受保护的 `backend/.env`：
+
+```dotenv
+FXQ_ARCHIVE_KEY=<刚生成的密钥>
+```
+
+把同一密钥另存到组织批准的密码库/KMS，且与备份文件分开。然后部署代码并执行：
+
+```bash
+install -d -m 700 /opt/backups/prescriptions
+dc exec -T api python -m scripts.fxq_storage fix-permissions
+dc exec -T api python -m scripts.fxq_storage check --write-test
+
+dc run --rm --no-deps \
+  -v /opt/backups/prescriptions:/backup:rw \
+  api python -m scripts.fxq_storage backup /backup/prescriptions-first.qba
+
+dc run --rm --no-deps \
+  -v /opt/backups/prescriptions:/backup:ro \
+  api python -m scripts.fxq_storage verify /backup/prescriptions-first.qba
+```
+
+命令只输出文件数量和总字节数，不输出处方内容、患者信息或密钥。归档拒绝覆盖已有文件。
+
+### 10.3 空目录恢复演练
+
+恢复工具不会写入生产持久卷，也不会覆盖目标目录；目标必须是已存在的空目录：
+
+```bash
+install -d -m 700 /opt/restore-tests/prescriptions-first
+dc run --rm --no-deps \
+  -v /opt/backups/prescriptions:/backup:ro \
+  -v /opt/restore-tests/prescriptions-first:/restore:rw \
+  api python -m scripts.fxq_storage restore-test /backup/prescriptions-first.qba /restore
+```
+
+成功后由授权人员抽查文件数量和 PDF 可读性，记录演练日期、归档文件名、数量和结果；
+演练副本按院内敏感数据清理流程及时销毁。归档密钥错误、文件被篡改、清单摘要不一致时必须失败。
+
+### 10.4 每日处方归档
+
+首次备份和恢复演练通过后，再加入每日任务：
+
+```cron
+50 2 * * * cd /opt/qiubei-health/backend && docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm --no-deps -v /opt/backups/prescriptions:/backup:rw api python -m scripts.fxq_storage backup /backup/prescriptions-$(date +\%F-\%H\%M\%S).qba >> /var/log/qiubei-prescription-backup.log 2>&1
+```
+
+本地加密归档只解决单机误读和短期恢复，不等同于合规长期存证。仍须将 `.qba` 同步到异地
+OSS/对象锁存储，设置与院方法务确认的保留期，并定期从异地副本做恢复演练；密钥丢失将无法恢复。
+
+### 10.5 数据库恢复
+
+```bash
+ls -lh /opt/backups | tail -5
+# 谨慎：先 dc stop api 停止写入，再恢复到经确认的目标库
 gunzip < /opt/backups/qiubei-2026-07-02.sql.gz | dc exec -T mysql mysql -uqiubei -pqiubei qiubei
 ```
-> 有条件建议再把 /opt/backups rsync/OSS 同步到异地——单机备份挡不住磁盘故障。
-> 处方 PDF/音视频 15 年归档（M9 OSS Lifecycle）落地后，本节升级为 OSS 方案。
 
 ---
 

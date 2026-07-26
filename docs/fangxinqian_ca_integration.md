@@ -15,7 +15,7 @@
 | 双录后端及前端实现 | ✅ 已完成 | 医师小程序、药师后台、回调、轮询、数据库迁移和预检脚本均已实现 |
 | PDF 签署/验签接口与代码 | ✅ 已完成 | 已按官方标准 API 实现个人/企业签章生成、三方 PDF 区域签署、合同验签、摘要复核和受保护下载 |
 | 官方沙箱端到端 | ✅ 已通过 | 使用官方公开沙箱凭据和虚构主体完成 3 个签章生成 → 三方 PDF 签署 → 合同验签 → 下载，接口均返回 10000，摘要一致 |
-| 自动化验证 | ✅ 已完成 | 后端 39 项测试通过，含稳定原文、签章地址白名单、三方验签、摘要不一致拒绝及受保护存储测试 |
+| 自动化验证 | ✅ 已完成 | 后端 56 项测试通过，覆盖稳定原文、签章地址白名单、三方验签、摘要不一致拒绝、私有存储及加密备份/恢复 |
 | 服务器配置与真实 token 验证 | ✅ 已完成 | 生产 `backend/.env` 配置项齐全；迁移完成；正式 AppKey/AppSecret 换取 token 成功且未输出 token；公网 `/health` 返回 200 |
 | 医师/药师真实双录 | ⬜ 待执行 | 先各选 1 人试点，再完成 6 名医师和 4 名药师 |
 | 首份真实处方签署 | 🟡 待联调 | 代码、正式密钥和持久卷已部署；仍需确认企业 CA/处方专用章并用 1 名医师 + 1 名药师完成真实签署验收 |
@@ -47,6 +47,7 @@
 - `backend/app/services/fxq_ca.py`：token、请求签名、接口调用；
 - `backend/app/services/ca_service.py`：人员映射、双录状态机、隐私留存；
 - `backend/app/services/fxq_document_service.py`：三方签章、验签、摘要复核和签后文件存储；
+- `backend/app/services/fxq_archive_service.py`：签后文件预检、AES-256-GCM 加密归档、完整性校验和恢复演练；
 - `backend/app/services/prescription_service.py`：审方通过前执行真实签署，失败不改变处方状态；
 - `backend/app/api/v1/ca.py`：医生/药师接口及 H5 回调；
 - `backend/app/models/ca_enrollment.py`：双录记录；
@@ -89,6 +90,7 @@ FXQ_CA_REDIRECT_URL=https://api.example.com/api/v1/ca/callback
 FXQ_COMPANY_NAME=天津逑贝互联网医院有限公司
 FXQ_COMPANY_IDNO=<统一社会信用代码>
 FXQ_SIGNED_PDF_DIR=/app/storage/prescriptions
+FXQ_ARCHIVE_KEY=<独立生成的 32 字节 urlsafe-base64 归档密钥>
 ```
 
 供应商 URL 已在代码中使用官方默认值，通常不需要覆盖。
@@ -101,6 +103,8 @@ FXQ_SIGNED_PDF_DIR=/app/storage/prescriptions
   此时未完成双录的医师不能开方，未完成双录的药师不能审方，未通过验签的 PDF 不能下载。
 - AppSecret 只允许服务端读取，前端接口和日志均不得返回。
 - `FXQ_SIGNED_PDF_DIR` 必须放在持久卷并纳入加密备份；默认本地目录仅适用于开发联调。
+- `FXQ_ARCHIVE_KEY` 仅用于本系统签后 PDF 归档，不得复用 AppSecret、JWT 或数据库密码；
+  密钥副本必须与归档文件分开保管。密钥丢失后已有归档无法恢复。
 
 ## 4. 部署与联调
 
@@ -116,6 +120,10 @@ python -m scripts.fxq_ca_preflight --live
 `backend/docker-compose.yml` 已把 `prescription_data` 持久卷挂到 `/app/storage/prescriptions`；
 非容器部署可改为 `/data/qiubei/prescriptions`。目录仅允许 API 运行账号读写，不得通过 Nginx 静态暴露。
 处方下载必须经过 `/api/v1/prescriptions/{order_id}/pdf` 的登录和归属校验。
+
+签后 PDF 落盘时目录权限强制为 `0700`、文件权限强制为 `0600`（POSIX）。
+`python -m scripts.fxq_storage` 提供存储预检、权限修复、加密备份、回读校验和只恢复到空目录的演练；
+生产命令见 [后端运维速查表第 10 节](../deploy/ops-cheatsheet.md)。
 
 上线前还需要：
 
@@ -163,9 +171,10 @@ python -m scripts.fxq_ca_preflight --live
 - [x] A7. 已执行 `python -m scripts.fxq_ca_preflight --live`，正式
       AppKey/AppSecret 换取 token 成功，输出中未出现 token；
 - [ ] A8. 调用 `GET /api/v1/ca/config`，确认 `enabled=true`、`ready=true`、`errors=[]`。
-- [ ] A9. Compose `prescription_data` 持久卷已于 2026-07-25 创建；仍需
-      限制为 API 账号读写并验证备份/恢复，
-      禁止静态公开访问。
+- [ ] A9. Compose `prescription_data` 持久卷已于 2026-07-25 创建，代码已强制目录/文件
+      `0700/0600` 且 Nginx 未静态公开；加密备份及恢复演练工具已完成。
+      仍需在生产执行权限预检、创建首份归档并完成异地空目录恢复演练；
+      API 容器迁移为非 root 账号须在维护窗口核对现有卷属主后单独执行。
 
 ### B. 小程序与回调域名
 
@@ -230,8 +239,9 @@ python -m scripts.fxq_ca_preflight --live
       超时状态查询/人工补偿（标准签署接口为同步响应，无签署回调）；
 - [x] F4. 已实现签后 PDF 下载、三方证书/时间戳验签及下载文件摘要复核，
       只有全部通过才标记 `verified`；
-- [ ] F5. 已实现受保护本地持久目录和登录归属校验下载；生产仍需挂载持久卷，
-      接入 OSS/对象锁与长期备份策略；
+- [ ] F5. 已实现受保护持久目录、登录归属校验下载、AES-256-GCM 流式加密备份、
+      归档回读校验及空目录恢复演练；生产仍需执行首次备份/恢复，
+      并接入异地 OSS/对象锁长期归档策略；
 - [ ] F6. 已完成摘要不一致、非官方地址、签名缺失和路径越界自动化测试；
       真实环境还需补证书过期、供应商超时和余额不足演练；
 - [ ] F7. 医务、药事、法务共同验收一份完整样例处方；

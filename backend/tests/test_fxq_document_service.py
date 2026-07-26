@@ -1,5 +1,7 @@
 """放心签处方签后验签与受保护存储测试。"""
 import hashlib
+import os
+import stat
 
 import pytest
 
@@ -93,5 +95,8 @@ def test_signed_pdf_storage_is_private_and_digest_named(tmp_path, monkeypatch):
 
     assert reference == f"rx-12-{digest[:20]}.pdf"
     assert load_signed_pdf(reference) == pdf
+    if os.name == "posix":
+        assert stat.S_IMODE(tmp_path.stat().st_mode) == 0o700
+        assert stat.S_IMODE((tmp_path / reference).stat().st_mode) == 0o600
     with pytest.raises(FxqDocumentError):
         load_signed_pdf("../outside.pdf")

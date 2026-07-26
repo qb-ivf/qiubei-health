@@ -225,7 +225,9 @@ def store_signed_pdf(rx_id: int, data: bytes, digest: str) -> str:
     if not data.startswith(b"%PDF-"):
         raise FxqDocumentError("拒绝保存非 PDF 签后文件")
     root = _storage_root()
-    root.mkdir(parents=True, exist_ok=True)
+    root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if os.name == "posix":
+        root.chmod(0o700)
     filename = f"rx-{int(rx_id)}-{digest[:20]}.pdf"
     target = (root / filename).resolve()
     try:
@@ -240,6 +242,8 @@ def store_signed_pdf(rx_id: int, data: bytes, digest: str) -> str:
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temp_name, target)
+        if os.name == "posix":
+            target.chmod(0o600)
     except Exception:
         try:
             os.unlink(temp_name)
