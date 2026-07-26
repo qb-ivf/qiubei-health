@@ -21,6 +21,19 @@ from .fxq_ca import FxqCaError, fxq_ca_client
 class FxqDocumentError(Exception):
     """签署或验签不满足处方生效条件。"""
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        retryable: bool = False,
+        manual_review: bool = False,
+        provider_code: int | None = None,
+    ):
+        super().__init__(message)
+        self.retryable = retryable
+        self.manual_review = manual_review
+        self.provider_code = provider_code
+
 
 @dataclass(frozen=True)
 class DocumentSignResult:
@@ -193,7 +206,14 @@ async def sign_prescription_pdf(
         verify_result = await fxq_ca_client.verify_pdf(file_url=sign_result.data)
         signed_pdf = await fxq_ca_client.download_pdf(file_url=sign_result.data)
     except FxqCaError as exc:
-        raise FxqDocumentError(str(exc)) from exc
+        # 任何可重试网络/服务端错误都可能发生在供应商已完成签署、但我方未收到
+        # 响应之后；在缺少供应商幂等键/状态查询前必须转人工确认，禁止直接重签。
+        raise FxqDocumentError(
+            str(exc),
+            retryable=exc.retryable,
+            manual_review=exc.retryable,
+            provider_code=exc.code,
+        ) from exc
 
     file_digest, signature_count, signed_at, report = _validate_verification(
         verify_result.data,

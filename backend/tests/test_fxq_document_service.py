@@ -118,7 +118,7 @@ async def test_provider_timeout_stops_document_signing(monkeypatch):
         timeout,
     )
 
-    with pytest.raises(FxqDocumentError, match="放心签网络暂时不可用"):
+    with pytest.raises(FxqDocumentError, match="放心签网络暂时不可用") as captured:
         await fxq_document_service.sign_prescription_pdf(
             b"%PDF-1.7\nsynthetic prescription",
             doctor_name="医师甲",
@@ -126,3 +126,6 @@ async def test_provider_timeout_stops_document_signing(monkeypatch):
             pharmacist_name="药师乙",
             pharmacist_id_no="120101199001015678",
         )
+
+    assert captured.value.retryable is True
+    assert captured.value.manual_review is True

@@ -20,12 +20,13 @@ from ...models.withdrawal import Withdrawal
 from ...schemas.doctor import SlotQuotaIn, SlotsCreate
 from ...services import (
     audit_service, compliance_service, demographics, doctor_service, finance_service,
-    staff_service, tj_collector, tj_mappers,
+    prescription_service, staff_service, tj_collector, tj_mappers,
 )
 from ..deps import require_role
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 _admin = require_role("admin")
+_prescription_reviewer = require_role("admin", "pharmacist")
 
 # 订单状态文案（与 constants.OrderStatus 对齐）
 ORDER_STATUS_TEXT = {
@@ -266,7 +267,11 @@ async def delete_drug(drug_id: int, request: Request, user=Depends(_admin), db: 
 
 # —— 审方历史（待审/已通过/已驳回，解决“已审核看不见”）——
 @router.get("/prescriptions")
-async def list_prescriptions(status: str | None = None, user=Depends(_admin), db: AsyncSession = Depends(get_db)):
+async def list_prescriptions(
+    status: str | None = None,
+    user=Depends(_prescription_reviewer),
+    db: AsyncSession = Depends(get_db),
+):
     q = select(Prescription).order_by(Prescription.id.desc()).limit(300)
     if status in ("pending", "approved", "rejected"):
         q = q.where(Prescription.audit_status == status)
@@ -283,9 +288,42 @@ async def list_prescriptions(status: str | None = None, user=Depends(_admin), db
             "diagnosis": rx.diagnosis, "items": rx.items or [],
             "chief": rx.chief, "present_illness": rx.present_illness, "advice": rx.advice,
             "audit_status": rx.audit_status, "reject_reason": rx.reject_reason,
+            "ca_sign_status": rx.ca_sign_status,
             "created_at": _fmt(rx.created_at),
         })
     return out
+
+
+@router.post("/prescriptions/{rx_id}/ca-manual-review")
+async def clear_ca_manual_review(
+    rx_id: int,
+    request: Request,
+    body: dict = Body(...),
+    user=Depends(_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """仅在供应商确认本次未签署后解除锁定；不能用此接口直接标记签署成功。"""
+    if body.get("confirmed_not_signed") is not True:
+        raise HTTPException(status_code=422, detail="必须明确确认放心签本次未生成签署结果")
+    note = str(body.get("note") or "").strip()
+    if len(note) < 5 or len(note) > 240:
+        raise HTTPException(status_code=422, detail="确认说明应为 5–240 个字符")
+    try:
+        rx = await prescription_service.clear_signing_manual_review(db, rx_id)
+        await audit_service.record(
+            db,
+            user,
+            request,
+            "解除CA签署锁定",
+            "prescription",
+            rx_id,
+            f"已确认供应商未签署；{note}",
+        )
+        await db.commit()
+    except prescription_service.RxError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"id": rx.id, "ca_sign_status": rx.ca_sign_status}
 
 
 # —— 订单管理（全部问诊订单可查）——

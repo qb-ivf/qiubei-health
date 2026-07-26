@@ -19,6 +19,17 @@ SPECIAL_DRUG_KEYWORDS = ["哌替啶", "吗啡", "芬太尼", "氯胺酮", "地�
 class RxError(Exception):
     """处方业务异常。"""
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        manual_review: bool = False,
+        provider_code: int | None = None,
+    ):
+        super().__init__(message)
+        self.manual_review = manual_review
+        self.provider_code = provider_code
+
 
 def _check_special(items: list) -> None:
     for it in items:
@@ -110,6 +121,8 @@ async def approve(db: AsyncSession, rx_id: int, staff_id: int | None = None) -> 
     rx = res.scalar_one_or_none()
     if rx is None or rx.audit_status != "pending":
         raise RxError("处方不存在或已处理")
+    if rx.ca_sign_status == "manual_review":
+        raise RxError("上次放心签调用结果待人工确认，禁止重复签署")
 
     pharmacist_ca = doctor_ca = None
     enforce_ca = settings.FXQ_CA_REQUIRED or settings.FXQ_DOCUMENT_SIGN_ENABLED
@@ -184,7 +197,11 @@ async def approve(db: AsyncSession, rx_id: int, staff_id: int | None = None) -> 
                 rx.id, signed.signed_pdf, signed.file_digest
             )
         except fxq_document_service.FxqDocumentError as exc:
-            raise RxError(f"放心签处方签署未完成：{exc}") from exc
+            raise RxError(
+                f"放心签处方签署未完成：{exc}",
+                manual_review=exc.manual_review,
+                provider_code=exc.provider_code,
+            ) from exc
         rx.ca_sign = signed.sign_trade_no
         rx.ca_sign_status = "verified"
         rx.ca_verify_trade_no = signed.verify_trade_no
@@ -209,11 +226,45 @@ async def approve(db: AsyncSession, rx_id: int, staff_id: int | None = None) -> 
     return rx
 
 
+async def mark_signing_manual_review(
+    db: AsyncSession, rx_id: int
+) -> Prescription | None:
+    """供应商结果不确定时持久化锁定；必须在原审方事务回滚后调用。"""
+    res = await db.execute(
+        select(Prescription).where(Prescription.id == rx_id).with_for_update()
+    )
+    rx = res.scalar_one_or_none()
+    if rx is None or rx.audit_status != "pending":
+        return rx
+    rx.ca_sign_status = "manual_review"
+    await db.flush()
+    return rx
+
+
+async def clear_signing_manual_review(
+    db: AsyncSession, rx_id: int
+) -> Prescription:
+    """管理员取得供应商“未签署”确认后解除锁定，允许药师重新发起。"""
+    res = await db.execute(
+        select(Prescription).where(Prescription.id == rx_id).with_for_update()
+    )
+    rx = res.scalar_one_or_none()
+    if rx is None:
+        raise RxError("处方不存在")
+    if rx.audit_status != "pending" or rx.ca_sign_status != "manual_review":
+        raise RxError("该处方不处于 CA 结果待人工确认状态")
+    rx.ca_sign_status = "failed"
+    await db.flush()
+    return rx
+
+
 async def reject(db: AsyncSession, rx_id: int, reason: str) -> Prescription:
     """药师驳回：订单 3→4 + 驳回理由。"""
     rx = await db.get(Prescription, rx_id)
     if rx is None or rx.audit_status != "pending":
         raise RxError("处方不存在或已处理")
+    if rx.ca_sign_status == "manual_review":
+        raise RxError("上次放心签调用结果待人工确认，禁止驳回或重复签署")
     if not reason.strip():
         raise RxError("驳回原因不能为空")
     await order_service.transition(db, rx.order_id, OrderStatus.REJECTED, expect_from=OrderStatus.AUDITING)

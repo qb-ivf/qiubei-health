@@ -9,6 +9,7 @@ const list = ref([])
 const loading = ref(false)
 const drawer = ref(false)
 const current = ref({})
+const isAdmin = localStorage.getItem('role') === 'admin'
 
 const TABS = [
   { k: 'pending', t: '待审核' },
@@ -21,6 +22,11 @@ const STATUS = {
   approved: { t: '已通过', type: 'success' },
   rejected: { t: '已驳回', type: 'danger' }
 }
+const CA_STATUS = {
+  manual_review: { t: '结果待人工确认', type: 'danger' },
+  failed: { t: '签署失败，可重试', type: 'warning' },
+  verified: { t: '三方验签通过', type: 'success' }
+}
 
 async function load() {
   loading.value = true
@@ -31,6 +37,7 @@ async function load() {
       id: rx.id, order: rx.order_id, patient: rx.patient_name, doctor: rx.doctor_name, dept: rx.dept,
       diagnosis: rx.diagnosis, chief: rx.chief, present: rx.present_illness, advice: rx.advice,
       items: rx.items || [], status: rx.audit_status, reason: rx.reject_reason, time: rx.created_at,
+      caStatus: rx.ca_sign_status,
       drugs: (rx.items || []).map((it) => `${it.name} x${it.qty}`).join('；')
     }))
   } finally {
@@ -43,6 +50,10 @@ function detail(row) { current.value = row; drawer.value = true }
 
 // 通过审方（AUDITING -> PRESCRIBED）。CA 双录与 PDF 文档签署是两个独立步骤。
 async function approve(row) {
+  if (row.caStatus === 'manual_review') {
+    ElMessage.error('放心签结果待人工确认，当前禁止重复签署')
+    return
+  }
   await request.post(`/prescriptions/${row.id}/approve`)
   ElMessage.success(`处方 ${row.id} 审核通过`)
   drawer.value = false
@@ -51,12 +62,40 @@ async function approve(row) {
 
 // 驳回 → 必填驳回原因（AUDITING -> REJECTED）
 function reject(row) {
+  if (row.caStatus === 'manual_review') {
+    ElMessage.error('放心签结果待人工确认，当前禁止驳回')
+    return
+  }
   ElMessageBox.prompt('请填写驳回原因（如：抗生素用量超标、诊断与用药不符）', '驳回处方', {
     confirmButtonText: '确认驳回', cancelButtonText: '取消',
     inputValidator: (v) => (v && v.trim() ? true : '驳回原因不能为空')
   }).then(async ({ value }) => {
     await request.post(`/prescriptions/${row.id}/reject`, { reason: value })
     ElMessage.warning(`处方 ${row.id} 已驳回：${value}`)
+    drawer.value = false
+    load()
+  }).catch(() => {})
+}
+
+function resolveCa(row) {
+  ElMessageBox.prompt(
+    '必须先向放心签确认本次未生成签署结果。请填写工单号或脱敏后的确认说明；不得填写身份证、密钥或 token。',
+    '解除 CA 签署锁定',
+    {
+      confirmButtonText: '已确认未签署并解锁',
+      cancelButtonText: '取消',
+      inputPlaceholder: '例如：工单 FXQ-123 已确认未生成合同',
+      inputValidator: (v) => {
+        const note = (v || '').trim()
+        return note.length >= 5 && note.length <= 240 ? true : '确认说明应为 5–240 个字符'
+      }
+    }
+  ).then(async ({ value }) => {
+    await request.post(`/admin/prescriptions/${row.id}/ca-manual-review`, {
+      confirmed_not_signed: true,
+      note: value.trim()
+    })
+    ElMessage.success(`处方 ${row.id} 已解除 CA 签署锁定`)
     drawer.value = false
     load()
   }).catch(() => {})
@@ -85,13 +124,27 @@ function reject(row) {
           <el-tag :type="(STATUS[row.status] || {}).type">{{ (STATUS[row.status] || {}).t || row.status }}</el-tag>
         </template>
       </el-table-column>
+      <el-table-column label="CA 签署" width="145">
+        <template #default="{ row }">
+          <el-tag v-if="row.caStatus" :type="(CA_STATUS[row.caStatus] || {}).type || 'info'">
+            {{ (CA_STATUS[row.caStatus] || {}).t || row.caStatus }}
+          </el-tag>
+          <span v-else class="muted">未发起</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="time" label="提交时间" width="140" />
-      <el-table-column label="操作" width="230" fixed="right">
+      <el-table-column label="操作" width="300" fixed="right">
         <template #default="{ row }">
           <el-button size="small" @click="detail(row)">病历详情</el-button>
           <template v-if="row.status === 'pending'">
-            <el-button size="small" type="success" @click="approve(row)">通过</el-button>
-            <el-button size="small" type="danger" @click="reject(row)">驳回</el-button>
+            <el-button size="small" type="success" :disabled="row.caStatus === 'manual_review'" @click="approve(row)">通过</el-button>
+            <el-button size="small" type="danger" :disabled="row.caStatus === 'manual_review'" @click="reject(row)">驳回</el-button>
+            <el-button
+              v-if="isAdmin && row.caStatus === 'manual_review'"
+              size="small"
+              type="warning"
+              @click="resolveCa(row)"
+            >人工确认</el-button>
           </template>
         </template>
       </el-table-column>
@@ -109,7 +162,23 @@ function reject(row) {
         <el-tag :type="(STATUS[current.status] || {}).type">{{ (STATUS[current.status] || {}).t || current.status }}</el-tag>
         <span v-if="current.reason" class="reason">驳回原因：{{ current.reason }}</span>
       </el-descriptions-item>
+      <el-descriptions-item label="CA 签署" :span="2">
+        <el-tag v-if="current.caStatus" :type="(CA_STATUS[current.caStatus] || {}).type || 'info'">
+          {{ (CA_STATUS[current.caStatus] || {}).t || current.caStatus }}
+        </el-tag>
+        <span v-else>未发起</span>
+      </el-descriptions-item>
     </el-descriptions>
+
+    <el-alert
+      v-if="current.caStatus === 'manual_review'"
+      type="error"
+      :closable="false"
+      show-icon
+      class="mt"
+      title="供应商返回结果不确定，已禁止重复签署和驳回。"
+      description="请由管理员联系放心签确认本次未生成签署结果，记录工单说明后再解除锁定。"
+    />
 
     <el-descriptions title="电子病历" :column="1" border class="mt">
       <el-descriptions-item label="主诉">{{ current.chief || '—' }}</el-descriptions-item>
@@ -127,8 +196,13 @@ function reject(row) {
     </el-table>
 
     <div v-if="current.status === 'pending'" class="drawer-foot">
-      <el-button type="success" @click="approve(current)">通过审方</el-button>
-      <el-button type="danger" @click="reject(current)">驳回</el-button>
+      <el-button type="success" :disabled="current.caStatus === 'manual_review'" @click="approve(current)">通过审方</el-button>
+      <el-button type="danger" :disabled="current.caStatus === 'manual_review'" @click="reject(current)">驳回</el-button>
+      <el-button
+        v-if="isAdmin && current.caStatus === 'manual_review'"
+        type="warning"
+        @click="resolveCa(current)"
+      >人工确认并解锁</el-button>
     </div>
   </el-drawer>
 </template>

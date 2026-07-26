@@ -1,6 +1,7 @@
 """处方接口（M5）：医生开方 / 药师审方 / 患者查看。"""
 import hashlib
 import io
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -21,6 +22,7 @@ from ...services import prescription_service as rx_service
 from ..deps import get_current_user, get_current_user_id, require_approved_doctor, require_role
 
 router = APIRouter(prefix="/prescriptions", tags=["prescriptions"])
+logger = logging.getLogger(__name__)
 
 
 async def _decorate(db: AsyncSession, rx) -> PrescriptionOut:
@@ -58,7 +60,27 @@ async def approve(rx_id: int, request: Request, user=Depends(require_role("pharm
         await db.commit()
     except rx_service.RxError as e:
         await db.rollback()
-        raise HTTPException(status_code=409, detail=str(e))
+        detail = str(e)
+        if e.manual_review:
+            try:
+                await rx_service.mark_signing_manual_review(db, rx_id)
+                code = f"，供应商代码 {e.provider_code}" if e.provider_code else ""
+                await audit_service.record(
+                    db,
+                    user,
+                    request,
+                    "CA签署待确认",
+                    "prescription",
+                    rx_id,
+                    f"供应商响应不确定{code}；已禁止重复签署",
+                )
+                await db.commit()
+                detail += "；供应商结果待人工确认，系统已禁止重复签署"
+            except Exception:  # noqa: BLE001
+                await db.rollback()
+                logger.exception("处方 %s 的 CA 人工复核锁定保存失败", rx_id)
+                detail += "；人工复核锁定保存失败，请勿重试并立即联系技术人员"
+        raise HTTPException(status_code=409, detail=detail)
     return await _decorate(db, rx)
 
 
