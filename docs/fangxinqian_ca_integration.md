@@ -177,7 +177,8 @@ python -m scripts.fxq_ca_preflight --live
 
 ### C. 首轮真实联调
 
-- [ ] C0. 按[人员资料收集与批量导入指引](personnel_import_guide.md)完成医生、药师资料收集；
+- [ ] C0. 人员模板和安全批量导入程序已完成；待按
+      [人员资料收集与批量导入指引](personnel_import_guide.md)收齐并导入医生、药师资料；
 - [ ] C1. 选择 1 名医师本人完成：发起 → 阅读协议 → 人脸活体 → 意愿回答 → 回跳；
 - [ ] C2. 选择 1 名药师本人在运营后台完成同样流程；
 - [ ] C3. 核对两人的最新记录均为 `succeeded`，`faceCode=0`；

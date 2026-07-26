@@ -44,7 +44,8 @@
 `staff` 表只写入用户名、姓名、身份证密文、角色和启用状态。
 
 初始密码不填入人员表。批量导入时应为每人生成不同的强密码，通过受控渠道逐人分发，不得在日志、
-Git、聊天或普通邮件中出现。
+Git、聊天或普通邮件中出现。当前版本尚未提供药师自助改密，随机初始密码必须按正式账号凭据保管；
+不得把它当作可公开的临时口令。
 
 ## 4. 敏感文件交接
 
@@ -59,7 +60,82 @@ chmod 600 /opt/qiubei-health/secure-import/人员批量导入-YYYYMMDD.xlsx
 不要把文件放进 `/opt/qiubei-health/backend` Git 工作区。导入完成并留存导入审计摘要后，按医院
 个人信息管理制度转入加密档案或安全删除临时副本。
 
-## 5. 后续执行顺序
+## 5. 导入程序的安全规则
+
+导入程序为 `backend/scripts/import_personnel.py`，具有以下约束：
+
+- 默认是只读 `dry-run`，没有 `--apply` 时不会写库或生成密码；
+- 医生按本人首次微信登录时授权的手机号匹配，找不到时只报工作表行号，不创建假 `openid`；
+- 药师按登录用户名幂等新增或更新，已有药师不会重置密码；
+- 身份证、姓名、手机号和密码均不在控制台、错误信息或审计详情中输出；
+- 拒绝超过 10MB、异常压缩结构、公式单元格和被 Excel 转成数字的身份证/证书号；
+- 新药师随机初始密码只写入新建的 `0600` 独立文件，禁止覆盖既有凭据文件；
+- 正式导入要求 `DEBUG=false`、`DOCTOR_AUTO_APPROVE=false`、有效 `ENCRYPTION_KEY`，
+  并使用统一社会信用代码二次确认目标机构；
+- 护士工作表只统计行数，本次不会创建护士账号。
+- 正式写入会在操作审计中保存工作簿 SHA-256 和人数汇总，不保存人员明细。
+
+## 6. 生产执行命令
+
+先把已复核工作簿放到 Git 工作区之外。下面的目录只允许 root 访问：
+
+```bash
+install -d -m 700 /opt/qiubei-health/secure-import
+chmod 600 /opt/qiubei-health/secure-import/人员批量导入-YYYYMMDD.xlsx
+
+cd /opt/qiubei-health/backend
+dc() {
+  docker compose -f docker-compose.yml -f docker-compose.prod.yml "$@"
+}
+```
+
+生产 `.env` 必须先确认：
+
+```dotenv
+DEBUG=false
+DOCTOR_AUTO_APPROVE=false
+ENCRYPTION_KEY=<现有正式 Fernet 密钥；已有加密数据时禁止直接更换>
+```
+
+第一次只读预检。使用临时只读挂载，因此工作簿不会进入 API 常驻容器：
+
+```bash
+dc run --rm --no-deps \
+  -v /opt/qiubei-health/secure-import:/secure-import:ro \
+  api python -m scripts.import_personnel \
+  /secure-import/人员批量导入-YYYYMMDD.xlsx
+```
+
+只有输出 `OK 预检通过` 和 `DRY-RUN 完成`，且没有 `[ERROR]`，才能正式导入。正式导入需要可写挂载，
+用于创建药师随机初始密码文件：
+
+```bash
+dc run --rm --no-deps \
+  -v /opt/qiubei-health/secure-import:/secure-import:rw \
+  api python -m scripts.import_personnel \
+  /secure-import/人员批量导入-YYYYMMDD.xlsx \
+  --apply \
+  --confirm-organ-id 91120116MACJA9PX45 \
+  --credentials-out /secure-import/药师初始密码-YYYYMMDD.csv
+```
+
+默认只补录医生资料，不自动通过医生终审。如果医务已经逐行复核了表中的“医务审核结论”和
+“CA 名单核对”，可在正式命令末尾增加：
+
+```text
+--approve-doctors
+```
+
+导入程序不会回显凭据文件路径或内容。执行后由 root 在服务器核对其权限，再通过单位批准的受控渠道
+逐人分发：
+
+```bash
+stat -c '%a %U:%G %n' /opt/qiubei-health/secure-import/药师初始密码-YYYYMMDD.csv
+```
+
+预期权限为 `600`。分发完成后按医院账号凭据管理制度加密归档或安全删除，不得提交 Git。
+
+## 7. 后续执行顺序
 
 1. 医务、药事分别填写并复核表格；
 2. 6 名医生本人先在医生端完成首次手机号授权登录；
@@ -68,4 +144,3 @@ chmod 600 /opt/qiubei-health/secure-import/人员批量导入-YYYYMMDD.xlsx
 5. 在生产容器运行 `python -m scripts.tj_preflight`，医生和药师检查必须为 `PASS`；
 6. 先选 1 名医生、1 名药师分别完成放心签真实双录；
 7. 双录成功后再开启首张处方三方签章联调。
-
