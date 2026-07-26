@@ -11,7 +11,8 @@ services:
       - "127.0.0.1:3306:3306"
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      # $$ 由 Compose 转义为容器内的 $，避免把 root 密码写死在仓库或进程参数中。
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$${MYSQL_ROOT_PASSWORD}\" mysqladmin ping -h localhost -uroot --silent"]
       interval: 5s
       timeout: 5s
       retries: 20

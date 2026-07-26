@@ -92,6 +92,74 @@ ss -lntp | grep -E ':(3306|6379)\b'
 密码轮换必须在维护窗口内先执行数据库 `ALTER USER`，再同步 `.env` 后 `dc up -d`。
 本次仅收敛监听地址，不自动改现有数据库口令。
 
+### 1.3 已有数据库安全轮换口令
+
+前置条件：已完成数据库备份并通过 `gzip -t`；已确认存在 `qiubei@%`、
+`root@%` 和 `root@localhost`。先部署包含动态健康检查的新 Compose，确认代码已更新后再执行。
+以下命令生成 48 位十六进制随机口令，只保存在当前 shell 内存和权限为 600 的 `.env`，
+不会在终端输出明文。
+
+```bash
+cd /opt/qiubei-health/backend
+
+# ① 停 API，避免轮换瞬间继续产生业务写入；MySQL 保持运行以便使用旧凭据授权 ALTER USER。
+dc stop api
+
+# ② 备份当前 .env，并生成两个互不相同的新口令。
+env_backup="/opt/backups/mysql/backend-env-pre-db-rotate-$(date +%F-%H%M%S)"
+install -m 600 .env "$env_backup"
+new_app_password="$(openssl rand -hex 24)"
+new_root_password="$(openssl rand -hex 24)"
+test "$new_app_password" != "$new_root_password"
+
+# ③ 先把新口令写入 .env；即使 SSH 随后中断，也能由 root 从该文件恢复。
+upsert_env() {
+  key="$1"
+  value="$2"
+  if grep -q "^${key}=" .env; then
+    sed -i "s|^${key}=.*|${key}=${value}|" .env
+  else
+    printf '%s=%s\n' "$key" "$value" >> .env
+  fi
+}
+upsert_env MYSQL_PASSWORD "$new_app_password"
+upsert_env MYSQL_ROOT_PASSWORD "$new_root_password"
+chmod 600 .env
+
+# ④ 使用当前运行中 MySQL 容器的旧 root 凭据，通过标准输入修改三个已确认存在的账号。
+# 新密码不放在 mysql 命令行参数中。
+if {
+  printf "ALTER USER 'qiubei'@'%%' IDENTIFIED BY '%s';\n" "$new_app_password"
+  printf "ALTER USER 'root'@'%%' IDENTIFIED BY '%s';\n" "$new_root_password"
+  printf "ALTER USER 'root'@'localhost' IDENTIFIED BY '%s';\n" "$new_root_password"
+} | dc exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot'; then
+  # ⑤ 仅三个 ALTER USER 全部成功才清变量并按新 .env 重建（数据卷不会删除）。
+  unset new_app_password new_root_password
+  dc up -d mysql api
+  dc ps
+else
+  echo "FAIL 数据库账号修改失败：API 保持停止，不要执行 dc up；保留当前 shell 并排查报错"
+fi
+```
+
+依次验证 root、新应用账号、API 数据库访问和安全总预检：
+
+```bash
+dc exec -T mysql sh -c \
+  'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -Nse "SELECT 1;"'
+
+dc exec -T mysql sh -c \
+  'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u"$MYSQL_USER" "$MYSQL_DATABASE" -Nse "SELECT 1;"'
+
+curl -fsS https://api.qb-medical.cn/api/v1/doctors
+dc exec -T api python -m scripts.production_preflight
+dc logs --tail=30 api
+```
+
+正确结果：两个 SQL 均输出 `1`，医生接口返回 JSON，预检的“数据库”变为 `PASS`，
+汇总只剩短信和尚未开启的天津监管两个 `WARN`。确认稳定后，保留 `.env` 备份但确保其权限为
+600；不要把它复制到 Git 仓库或聊天中。
+
 ## 2. 服务状态 / 日志 / 健康
 
 ```bash

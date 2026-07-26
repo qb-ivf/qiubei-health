@@ -19,7 +19,7 @@
 | 25 | **生产密钥明文落盘**：APIv3 密钥 / 商户私钥 / AppSecret 以明文存于服务器 `backend/.env`、`backend/secrets/` | `backend/.env`、`backend/secrets/apiclient_key.pem` | 上线前 | 改用 KMS / 密钥管理服务或部署平台的环境变量注入；私钥文件限权 600、最小化可读账号；定期轮换 |
 | 26 | ✅ **运营后台真实 RBAC 已实现**：staff 账号表 + bcrypt 密码校验，登录返回真实角色；前端菜单/路由按角色过滤，后端按 admin/pharmacist/finance 守卫；财务角色可查脱敏订单、分账及处理提现，登出/401 会清除全部本地身份状态 | `backend/app/api/v1/auth.py`、`admin.py`、`finance.py`、`models/staff.py`、`services/staff_service.py`、`admin-web` | 完成（账号用脚本建） | 生产建账号：`docker compose ... exec api python -m scripts.create_admin <user> <pwd> [role]`。账号建好、验证可登后，Nginx Basic Auth 门禁可保留作纵深防御 |
 | 27 | 🟡 **短信验证码生产已 fail-closed**：腾讯云短信配置不完整时拒绝发送且绝不回传开发验证码；开发验证码仅 `DEBUG=true` 可用 | `services/sms_service.py`、`core/config.py`、`backend/.env.example` | 生产配置腾讯云短信签名/模板及密钥后真机验证 | 配置项：`TENCENT_SMS_SECRET_ID/SECRET_KEY/SDK_APP_ID/SIGN/TEMPLATE_ID` |
-| 28 | ✅ **MySQL/Redis 宿主机端口已收敛**：Compose 仅绑定 `127.0.0.1:3306/6379`，数据库账号参数改由 `.env` 注入；新增脱敏的生产安全总预检 | `backend/docker-compose.yml`、`services/production_readiness.py`、`scripts/production_preflight.py` | 代码完成；服务器执行 `dc up -d` 使新端口映射生效 | 已有数据库口令不自动轮换，须在维护窗口协调修改库内账号与 `.env` |
+| 28 | 🟡 **MySQL/Redis 宿主机端口已收敛**：仅绑定 `127.0.0.1:3306/6379`；数据库账号参数由 `.env` 注入，MySQL 健康检查已改为读取容器内 root 密码；新增脱敏生产安全总预检 | `backend/docker-compose.yml`、`services/production_readiness.py`、`scripts/production_preflight.py` | 端口收敛已部署；余按 `ops-cheatsheet` 1.3 在维护窗口轮换应用/root 口令 | 备份已完成；轮换会短暂停 API，不删除数据库卷 |
 
 ## 🟠 P1：功能未做实 / 简化，影响体验或多端
 
