@@ -68,6 +68,10 @@ function onCommand(cmd) {
 
 // 缺号源医生数 → 排班管理菜单红点角标（仅 admin；状态由 composables/alerts 共享，排班页改完会刷新）
 function itemBadge(path) { return path === '/doctor-schedule' ? noSlotCount.value : 0 }
+function itemBadgeText(path) {
+  const value = itemBadge(path)
+  return value > 99 ? '99+' : String(value)
+}
 onMounted(refreshAlerts)
 </script>
 
@@ -121,12 +125,21 @@ onMounted(refreshAlerts)
             <!-- 分组：不可点击小标题 + 常驻展开的子项 -->
             <template v-else>
               <div v-show="!isCollapse" class="nav-group">{{ n.title }}</div>
-              <el-menu-item v-for="c in n.children" :key="c.path" :index="c.path">
+              <el-menu-item v-for="c in n.children" :key="c.path" :index="c.path" class="nav-menu-item">
                 <el-icon><component :is="c.icon" /></el-icon>
                 <template #title>
                   <span>{{ c.title }}</span>
-                  <el-badge v-if="itemBadge(c.path)" :value="itemBadge(c.path)" :max="99" class="nav-badge" />
+                  <span
+                    v-if="!isCollapse && itemBadge(c.path)"
+                    class="nav-count-badge"
+                    :title="`${itemBadge(c.path)} 名医生暂无可约号源`"
+                  >{{ itemBadgeText(c.path) }}</span>
                 </template>
+                <span
+                  v-if="isCollapse && itemBadge(c.path)"
+                  class="nav-count-badge nav-count-badge--collapsed"
+                  :title="`${itemBadge(c.path)} 名医生暂无可约号源`"
+                >{{ itemBadgeText(c.path) }}</span>
               </el-menu-item>
             </template>
           </template>
@@ -150,7 +163,15 @@ onMounted(refreshAlerts)
   padding: 14px 20px 6px; font-size: 12px; font-weight: 600; letter-spacing: 1px;
   color: var(--el-text-color-placeholder); user-select: none;
 }
-/* 排班管理项的数字角标 */
-:deep(.nav-badge) { margin-left: 8px; vertical-align: middle; }
-:deep(.nav-badge .el-badge__content) { border: none; }
+/* 菜单告警角标固定在菜单项内部右上角；折叠时靠近图标但不遮挡。 */
+.nav-menu-item { position: relative; }
+.nav-count-badge {
+  position: absolute; top: 5px; right: 9px; z-index: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box;
+  border: 2px solid var(--el-bg-color); border-radius: 999px;
+  color: #fff; background: var(--el-color-danger); font-size: 11px; font-weight: 700;
+  line-height: 1; box-shadow: 0 1px 3px rgba(0, 0, 0, .14);
+}
+.nav-count-badge--collapsed { top: 4px; right: 6px; transform: scale(.9); }
 </style>
