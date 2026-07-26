@@ -86,6 +86,9 @@ class Settings(BaseSettings):
     FXQ_MAX_PDF_BYTES: int = 10 * 1024 * 1024
     FXQ_SIGNED_PDF_DIR: str = ""  # 空时使用 backend/storage/prescriptions（须持久卷/备份）
     FXQ_ARCHIVE_KEY: str = ""     # 签后 PDF 加密备份专用 32B urlsafe-base64 密钥；须与备份分开保管
+    FXQ_SERVICE_EXPIRES_ON: str = ""       # 放心签套餐最早到期日，YYYY-MM-DD
+    FXQ_PERSONAL_CERT_EXPIRES_ON: str = "" # 个人数字证书最早到期日，YYYY-MM-DD
+    FXQ_EXPIRY_WARNING_DAYS: int = 30      # 按上述较早日期提前告警
 
     # —— 天津监管平台（docs/tianjin_supervision_plan.md，密钥见平台"秘钥生成及管理"） ——
     # False：DEBUG=true 时本地模拟；DEBUG=false 时保留 pending 队列、不发送也不吞任务。

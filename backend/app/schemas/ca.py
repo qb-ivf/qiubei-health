@@ -1,5 +1,5 @@
 """放心签高级证书协议/智能双录接口模型。"""
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
@@ -31,3 +31,9 @@ class CaConfigOut(BaseModel):
     required: bool
     ready: bool
     errors: list[str] = Field(default_factory=list)
+    service_expires_on: date | None = None
+    personal_cert_expires_on: date | None = None
+    effective_expires_on: date | None = None
+    days_until_expiry: int | None = None
+    expiry_warning: str | None = None
+    expiry_expired: bool = False

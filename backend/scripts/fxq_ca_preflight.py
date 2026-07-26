@@ -11,11 +11,20 @@ import argparse
 import asyncio
 
 from app.core.config import settings
-from app.services.fxq_ca import FxqCaError, config_errors, fxq_ca_client
+from app.services.fxq_ca import (
+    FxqCaError,
+    config_errors,
+    expiry_status,
+    fxq_ca_client,
+    signing_expiry_errors,
+)
 
 
 async def main(live: bool) -> int:
     errors = config_errors(settings)
+    if settings.FXQ_DOCUMENT_SIGN_ENABLED:
+        errors.extend(signing_expiry_errors(settings))
+    errors = list(dict.fromkeys(errors))
     if not settings.FXQ_CA_ENABLED:
         errors.insert(0, "FXQ_CA_ENABLED 未开启")
     if errors:
@@ -23,6 +32,16 @@ async def main(live: bool) -> int:
             print(f"FAIL {error}")
         return 1
     print("OK 放心签配置字段与官方域名检查通过")
+    expiry = expiry_status(settings)
+    if expiry.effective_expires_on:
+        print(
+            "OK 放心签套餐/个人证书较早到期日 "
+            f"{expiry.effective_expires_on.isoformat()}（剩余 {expiry.days_until_expiry} 天）"
+        )
+    else:
+        print("WARN 尚未配置放心签套餐和个人证书到期日")
+    if expiry.warning:
+        print(f"WARN {expiry.warning}")
     if not live:
         print("SKIP 未请求外网；加 --live 可验证 token")
         return 0

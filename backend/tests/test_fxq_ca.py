@@ -1,11 +1,18 @@
 """放心签高级证书协议/智能双录客户端测试（全程 MockTransport，不访问外网）。"""
 import json
+from datetime import date
 from types import SimpleNamespace
 
 import httpx
 import pytest
 
-from app.services.fxq_ca import FxqCaClient, config_errors
+from app.services.fxq_ca import (
+    FxqCaClient,
+    FxqCaError,
+    config_errors,
+    expiry_status,
+    signing_expiry_errors,
+)
 
 
 def _config(**overrides):
@@ -28,6 +35,9 @@ def _config(**overrides):
         "FXQ_PDF_VERIFY_URL": "https://restapi.fangxinqian.cn/signature/chk/file",
         "FXQ_HTTP_TIMEOUT_SECONDS": 2.0,
         "FXQ_MAX_PDF_BYTES": 1024 * 1024,
+        "FXQ_SERVICE_EXPIRES_ON": "",
+        "FXQ_PERSONAL_CERT_EXPIRES_ON": "",
+        "FXQ_EXPIRY_WARNING_DAYS": 30,
     }
     values.update(overrides)
     return SimpleNamespace(**values)
@@ -175,7 +185,16 @@ async def test_document_endpoints_accept_string_data_and_download_only_pdf():
             )
         raise AssertionError(request.url.path)
 
-    client = FxqCaClient(config=_config(), transport=httpx.MockTransport(handler))
+    client = FxqCaClient(
+        config=_config(
+            FXQ_DOCUMENT_SIGN_ENABLED=True,
+            FXQ_COMPANY_NAME="测试医院有限公司",
+            FXQ_COMPANY_IDNO="91120116MACJA9PX45",
+            FXQ_SERVICE_EXPIRES_ON="2099-01-01",
+            FXQ_PERSONAL_CERT_EXPIRES_ON="2099-01-01",
+        ),
+        transport=httpx.MockTransport(handler),
+    )
     seal = await client.generate_personal_seal(name="测试医生")
     signed = await client.sign_pdf(
         contract_base64="JVBERi0xLjc=",
@@ -199,3 +218,58 @@ def test_document_signing_config_rejects_non_official_business_url():
         )
     )
     assert any("FXQ_PDF_SIGN_URL" in error for error in errors)
+
+
+def test_expiry_status_uses_earlier_date_and_warns_30_days_ahead():
+    status = expiry_status(
+        _config(
+            FXQ_SERVICE_EXPIRES_ON="2027-07-23",
+            FXQ_PERSONAL_CERT_EXPIRES_ON="2031-03-07",
+        ),
+        today=date(2027, 6, 23),
+    )
+
+    assert status.effective_expires_on == date(2027, 7, 23)
+    assert status.days_until_expiry == 30
+    assert "放心签服务套餐" in status.warning
+    assert status.errors == ()
+
+
+def test_expired_date_blocks_new_signing_but_not_enrollment_config():
+    config = _config(FXQ_SERVICE_EXPIRES_ON="2026-01-01")
+    status = expiry_status(config, today=date(2026, 1, 1))
+    enrollment_errors = config_errors(config)
+    signing_errors = signing_expiry_errors(config, today=date(2026, 1, 1))
+
+    assert status.expired is True
+    assert not any("已于" in error for error in enrollment_errors)
+    assert any("已于" in error for error in signing_errors)
+
+
+def test_invalid_expiry_config_is_not_ready():
+    invalid = config_errors(
+        _config(FXQ_PERSONAL_CERT_EXPIRES_ON="2031/03/07")
+    )
+
+    assert any("YYYY-MM-DD" in error for error in invalid)
+
+
+def test_document_signing_requires_both_expiry_dates():
+    errors = config_errors(
+        _config(
+            FXQ_DOCUMENT_SIGN_ENABLED=True,
+            FXQ_COMPANY_NAME="测试医院有限公司",
+            FXQ_COMPANY_IDNO="91120116MACJA9PX45",
+        )
+    )
+
+    assert any("FXQ_SERVICE_EXPIRES_ON" in error for error in errors)
+    assert any("FXQ_PERSONAL_CERT_EXPIRES_ON" in error for error in errors)
+
+
+@pytest.mark.asyncio
+async def test_signing_switch_is_enforced_inside_client():
+    client = FxqCaClient(config=_config())
+
+    with pytest.raises(FxqCaError, match="FXQ_DOCUMENT_SIGN_ENABLED"):
+        await client.generate_personal_seal(name="测试医生")

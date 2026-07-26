@@ -3,7 +3,15 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import request from '@/api/request'
 
-const config = ref({ enabled: false, document_sign_enabled: false, required: false, ready: false, errors: [] })
+const config = ref({
+  enabled: false,
+  document_sign_enabled: false,
+  required: false,
+  ready: false,
+  errors: [],
+  expiry_warning: null,
+  expiry_expired: false
+})
 const enrollment = ref(null)
 const loading = ref(false)
 const polling = ref(false)
@@ -97,6 +105,26 @@ onBeforeUnmount(() => {
       show-icon
     />
 
+    <el-alert
+      v-if="config.expiry_warning"
+      class="expiry"
+      :type="config.expiry_expired ? 'error' : 'warning'"
+      :closable="false"
+      :title="config.expiry_expired ? 'CA 服务已到期' : 'CA 服务即将到期'"
+      :description="config.expiry_warning"
+      show-icon
+    />
+
+    <el-descriptions
+      v-if="config.service_expires_on || config.personal_cert_expires_on"
+      class="expiry"
+      :column="2"
+      border
+    >
+      <el-descriptions-item label="放心签套餐到期">{{ config.service_expires_on || '未配置' }}</el-descriptions-item>
+      <el-descriptions-item label="个人证书到期">{{ config.personal_cert_expires_on || '未配置' }}</el-descriptions-item>
+    </el-descriptions>
+
     <el-result
       :icon="enrollment?.status === 'succeeded' ? 'success' : 'info'"
       :title="state.text"
@@ -139,5 +167,6 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .header { display: flex; align-items: center; justify-content: space-between; }
+.expiry { margin-top: 16px; }
 .privacy { margin-top: 20px; }
 </style>

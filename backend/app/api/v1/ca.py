@@ -11,7 +11,7 @@ from ...core.database import get_db
 from ...models.ca_enrollment import CaEnrollment
 from ...schemas.ca import CaConfigOut, CaEnrollmentOut, CaEnrollmentStartOut
 from ...services import ca_service
-from ...services.fxq_ca import FxqCaError, config_errors
+from ...services.fxq_ca import FxqCaError, config_errors, expiry_status
 from ..deps import get_current_user
 
 router = APIRouter(prefix="/ca", tags=["ca"])
@@ -28,12 +28,19 @@ def _http_error(exc: Exception) -> HTTPException:
 @router.get("/config", response_model=CaConfigOut)
 async def config(user=Depends(get_current_user)):
     errors = config_errors(settings)
+    expiry = expiry_status(settings)
     return CaConfigOut(
         enabled=settings.FXQ_CA_ENABLED,
         document_sign_enabled=settings.FXQ_DOCUMENT_SIGN_ENABLED,
         required=settings.FXQ_CA_REQUIRED,
         ready=not errors and settings.FXQ_CA_ENABLED,
         errors=errors,
+        service_expires_on=expiry.service_expires_on,
+        personal_cert_expires_on=expiry.personal_cert_expires_on,
+        effective_expires_on=expiry.effective_expires_on,
+        days_until_expiry=expiry.days_until_expiry,
+        expiry_warning=expiry.warning,
+        expiry_expired=expiry.expired,
     )
 
 

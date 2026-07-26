@@ -13,6 +13,7 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlparse
 
@@ -42,6 +43,85 @@ class FxqResponse:
     data: Any
     msg: str
     trade_no: str | None = None
+
+
+@dataclass(frozen=True)
+class FxqExpiryStatus:
+    service_expires_on: date | None
+    personal_cert_expires_on: date | None
+    effective_expires_on: date | None
+    days_until_expiry: int | None
+    warning: str | None
+    expired: bool
+    errors: tuple[str, ...]
+
+
+def expiry_status(config=settings, *, today: date | None = None) -> FxqExpiryStatus:
+    """计算套餐与个人证书的较早到期日，不接触任何证件或密钥内容。"""
+    current = today or datetime.now(timezone(timedelta(hours=8))).date()
+    errors: list[str] = []
+
+    def parse(field: str, label: str) -> date | None:
+        value = str(getattr(config, field, "") or "").strip()
+        if not value:
+            return None
+        try:
+            return date.fromisoformat(value)
+        except ValueError:
+            errors.append(f"{field} 必须是 YYYY-MM-DD（{label}）")
+            return None
+
+    service = parse("FXQ_SERVICE_EXPIRES_ON", "放心签服务套餐到期日")
+    personal = parse("FXQ_PERSONAL_CERT_EXPIRES_ON", "个人数字证书到期日")
+    try:
+        warning_days = int(getattr(config, "FXQ_EXPIRY_WARNING_DAYS", 30))
+    except (TypeError, ValueError):
+        warning_days = 30
+        errors.append("FXQ_EXPIRY_WARNING_DAYS 必须是 1～365 的整数")
+    if not 1 <= warning_days <= 365:
+        errors.append("FXQ_EXPIRY_WARNING_DAYS 必须是 1～365 的整数")
+        warning_days = 30
+
+    candidates = [item for item in (service, personal) if item is not None]
+    effective = min(candidates) if candidates else None
+    days = (effective - current).days if effective is not None else None
+    warning = None
+    expired = False
+    if effective is not None:
+        labels = []
+        if service == effective:
+            labels.append("放心签服务套餐")
+        if personal == effective:
+            labels.append("个人数字证书")
+        subject = "、".join(labels)
+        if days is not None and days <= 0:
+            expired = True
+            warning = f"{subject}已于 {effective.isoformat()} 到期，请先续期再签署新处方"
+        elif days is not None and days <= warning_days:
+            warning = f"{subject}将于 {effective.isoformat()} 到期，剩余 {days} 天，请尽快续期"
+
+    return FxqExpiryStatus(
+        service_expires_on=service,
+        personal_cert_expires_on=personal,
+        effective_expires_on=effective,
+        days_until_expiry=days,
+        warning=warning,
+        expired=expired,
+        errors=tuple(errors),
+    )
+
+
+def signing_expiry_errors(config=settings, *, today: date | None = None) -> list[str]:
+    """签发新文件的到期门禁；不阻断查询旧记录或发起续期双录。"""
+    status = expiry_status(config, today=today)
+    errors = list(status.errors)
+    if not str(getattr(config, "FXQ_SERVICE_EXPIRES_ON", "") or "").strip():
+        errors.append("正式签署必须配置 FXQ_SERVICE_EXPIRES_ON")
+    if not str(getattr(config, "FXQ_PERSONAL_CERT_EXPIRES_ON", "") or "").strip():
+        errors.append("正式签署必须配置 FXQ_PERSONAL_CERT_EXPIRES_ON")
+    if status.expired and status.warning:
+        errors.append(status.warning)
+    return errors
 
 
 def _is_official_https(url: str) -> bool:
@@ -85,12 +165,17 @@ def config_errors(config=settings) -> list[str]:
             errors.append("FXQ_COMPANY_NAME 未配置")
         if not getattr(config, "FXQ_COMPANY_IDNO", ""):
             errors.append("FXQ_COMPANY_IDNO 未配置")
+        if not str(getattr(config, "FXQ_SERVICE_EXPIRES_ON", "") or "").strip():
+            errors.append("启用正式签署前必须配置 FXQ_SERVICE_EXPIRES_ON")
+        if not str(getattr(config, "FXQ_PERSONAL_CERT_EXPIRES_ON", "") or "").strip():
+            errors.append("启用正式签署前必须配置 FXQ_PERSONAL_CERT_EXPIRES_ON")
         url_fields.extend(
             ["FXQ_PERSONAL_SEAL_URL", "FXQ_COMPANY_SEAL_URL", "FXQ_PDF_SIGN_URL", "FXQ_PDF_VERIFY_URL"]
         )
     for field in url_fields:
         if not _is_official_https(getattr(config, field, "")):
             errors.append(f"{field} 必须是放心签官方 HTTPS 地址")
+    errors.extend(expiry_status(config).errors)
     return errors
 
 
@@ -108,6 +193,14 @@ class FxqCaClient:
         if not self.config.FXQ_CA_ENABLED:
             raise FxqCaError("FXQ_CA_ENABLED 未开启")
         errors = config_errors(self.config)
+        if errors:
+            raise FxqCaError("；".join(errors))
+
+    def ensure_signing_ready(self) -> None:
+        self.ensure_ready()
+        if not getattr(self.config, "FXQ_DOCUMENT_SIGN_ENABLED", False):
+            raise FxqCaError("FXQ_DOCUMENT_SIGN_ENABLED 未开启")
+        errors = signing_expiry_errors(self.config)
         if errors:
             raise FxqCaError("；".join(errors))
 
@@ -240,6 +333,7 @@ class FxqCaClient:
         return result
 
     async def generate_personal_seal(self, *, name: str) -> FxqResponse:
+        self.ensure_signing_ready()
         result = await self._signed_post(
             self.config.FXQ_PERSONAL_SEAL_URL,
             {
@@ -257,6 +351,7 @@ class FxqCaClient:
         return result
 
     async def generate_company_seal(self, *, name: str) -> FxqResponse:
+        self.ensure_signing_ready()
         result = await self._signed_post(
             self.config.FXQ_COMPANY_SEAL_URL,
             {
@@ -274,6 +369,7 @@ class FxqCaClient:
         return result
 
     async def sign_pdf(self, *, contract_base64: str, signers: list[dict[str, Any]]) -> FxqResponse:
+        self.ensure_signing_ready()
         result = await self._signed_post(
             self.config.FXQ_PDF_SIGN_URL,
             {

@@ -10,6 +10,9 @@
 .ca-status--success { color: #006c46; }
 .ca-status--failed { color: #ba1a1a; }
 .ca-desc { display: block; margin-top: 28rpx; color: var(--on-surface-variant); font-size: 27rpx; line-height: 1.7; text-align: left; }
+.ca-warning { display: flex; gap: 14rpx; margin-top: 24rpx; padding: 20rpx; border-radius: 16rpx; color: #6d5100; background: #fff1c2; font-size: 24rpx; line-height: 1.55; text-align: left; }
+.ca-warning--expired { color: #93000a; background: #ffdad6; }
+.ca-warning .material-symbols-outlined { flex: none; font-size: 34rpx; }
 .ca-meta { margin-top: 32rpx; padding: 20rpx 24rpx; border-radius: 18rpx; background: var(--surface-container-low); text-align: left; }
 .ca-meta view { display: flex; justify-content: space-between; gap: 20rpx; padding: 10rpx 0; font-size: 25rpx; color: var(--on-surface-variant); }
 .ca-meta view text:last-child { max-width: 430rpx; text-align: right; word-break: break-all; color: var(--on-surface); }

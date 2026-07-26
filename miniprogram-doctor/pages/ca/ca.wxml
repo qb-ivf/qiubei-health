@@ -8,6 +8,13 @@
     <text class="ca-desc">
       本流程由放心签提供。请本人阅读 CA 协议，并按页面提示完成人脸活体检测和意愿回答。
     </text>
+    <view
+      wx:if="{{config.expiry_warning}}"
+      class="ca-warning {{config.expiry_expired ? 'ca-warning--expired' : ''}}"
+    >
+      <text class="material-symbols-outlined">event_busy</text>
+      <text>{{config.expiry_warning}}</text>
+    </view>
 
     <view wx:if="{{enrollment}}" class="ca-meta">
       <view><text>业务流水</text><text>{{enrollment.order_no}}</text></view>
