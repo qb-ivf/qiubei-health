@@ -16,7 +16,7 @@
 | 双录后端及前端实现 | ✅ 已完成 | 医师小程序、药师后台、回调、轮询、数据库迁移和预检脚本均已实现 |
 | PDF 签署/验签接口与代码 | ✅ 已完成 | 已按官方标准 API 实现个人/企业签章生成、三方 PDF 区域签署、合同验签、摘要复核和受保护下载 |
 | 官方沙箱端到端 | ✅ 已通过 | 使用官方公开沙箱凭据和虚构主体完成 3 个签章生成 → 三方 PDF 签署 → 合同验签 → 下载，接口均返回 10000，摘要一致 |
-| 自动化验证 | ✅ 已完成 | 后端 61 项测试通过，覆盖稳定原文、签章地址白名单、三方验签、到期门禁、摘要不一致拒绝、私有存储及加密备份/恢复 |
+| 自动化验证 | ✅ 已完成 | 后端 63 项测试通过，覆盖稳定原文、签章地址白名单、管理员进度脱敏、三方验签、到期门禁、摘要不一致拒绝、私有存储及加密备份/恢复 |
 | 服务器配置与真实 token 验证 | ✅ 已完成 | 生产 `backend/.env` 配置项齐全；迁移完成；正式 AppKey/AppSecret 换取 token 成功且未输出 token；公网 `/health` 返回 200 |
 | 医师/药师真实双录 | ⬜ 待执行 | 先各选 1 人试点，再完成 6 名医师和 4 名药师 |
 | 首份真实处方签署 | 🟡 待联调 | 代码、正式密钥和持久卷已部署；仍需确认企业 CA/处方专用章并用 1 名医师 + 1 名药师完成真实签署验收 |
@@ -53,7 +53,8 @@
 - `backend/app/api/v1/ca.py`：医生/药师接口及 H5 回调；
 - `backend/app/models/ca_enrollment.py`：双录记录；
 - `miniprogram-doctor/pages/ca/`：医师操作入口；
-- `admin-web/src/views/CaCertificate.vue`：药师操作入口。
+- `admin-web/src/views/CaCertificate.vue`：药师本人操作入口；
+- `admin-web/src/views/CaOverview.vue`：管理员只读查看医师/药师备案及双录进度。
 
 ## 2. 个人证书材料与文档签署边界
 
@@ -151,6 +152,7 @@ python -m scripts.fxq_ca_preflight --live
 | GET | `/api/v1/ca/enrollments/latest` | 查看本人最近一次双录 |
 | POST | `/api/v1/ca/enrollments` | 发起或复用两分钟内的双录链接 |
 | POST | `/api/v1/ca/enrollments/{orderNo}/refresh` | 服务端查询核验结果 |
+| GET | `/api/v1/ca/admin/overview` | 管理员只读查看人员备案及双录进度，不查询供应商 |
 | GET | `/api/v1/ca/callback` | 放心签 H5 回跳；公开但不信任回跳成功码 |
 
 只有医师和药师本人可以发起、查看自己的双录记录。管理员不能代替药师完成双录；生产强制模式下，
@@ -202,6 +204,7 @@ python -m scripts.fxq_ca_preflight --live
 
 - [ ] C0. 人员模板和安全批量导入程序已完成；待按
       [人员资料收集与批量导入指引](personnel_import_guide.md)收齐并导入医生、药师资料；
+      管理员可在运营后台“监管合规 → CA人员进度”只读核对资料就绪和双录状态；
 - [ ] C1. 选择 1 名医师本人完成：发起 → 阅读协议 → 人脸活体 → 意愿回答 → 回跳；
 - [ ] C2. 选择 1 名药师本人在运营后台完成同样流程；
 - [ ] C3. 核对两人的最新记录均为 `succeeded`，`faceCode=0`；

@@ -19,6 +19,7 @@ const routes = [
       { path: 'drugs', name: '药品字典', meta: { roles: ['admin', 'pharmacist'] }, component: () => import('@/views/Drugs.vue') },
       { path: 'finance', name: '财务对账提现', meta: { roles: ['admin', 'finance'] }, component: () => import('@/views/Finance.vue') },
       { path: 'dashboard', name: '监管上报面板', meta: { roles: ['admin'] }, component: () => import('@/views/Dashboard.vue') },
+      { path: 'ca-overview', name: 'CA人员进度', meta: { roles: ['admin'] }, component: () => import('@/views/CaOverview.vue') },
       { path: 'disputes', name: '不良事件登记', meta: { roles: ['admin'] }, component: () => import('@/views/Disputes.vue') },
       { path: 'evaluations', name: '患者评价', meta: { roles: ['admin'] }, component: () => import('@/views/Evaluations.vue') },
       { path: 'audit-logs', name: '操作审计', meta: { roles: ['admin'] }, component: () => import('@/views/AuditLogs.vue') },

@@ -37,3 +37,35 @@ class CaConfigOut(BaseModel):
     days_until_expiry: int | None = None
     expiry_warning: str | None = None
     expiry_expired: bool = False
+
+
+class CaAdminProgressOut(BaseModel):
+    total: int = 0
+    record_ready: int = 0
+    succeeded: int = 0
+    pending: int = 0
+    failed: int = 0
+    expired: int = 0
+    not_started: int = 0
+
+
+class CaAdminSubjectOut(BaseModel):
+    subject_type: str
+    subject_id: int
+    name: str
+    account_status: str
+    record_ready: bool
+    ca_status: str
+    face_code: str | None = None
+    completed_at: datetime | None = None
+    last_checked_at: datetime | None = None
+
+
+class CaAdminOverviewOut(BaseModel):
+    doctors: CaAdminProgressOut
+    pharmacists: CaAdminProgressOut
+    subjects: list[CaAdminSubjectOut] = Field(default_factory=list)
+    effective_expires_on: date | None = None
+    expiry_warning: str | None = None
+    expiry_expired: bool = False
+    generated_at: datetime

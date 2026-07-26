@@ -4,7 +4,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.config import settings
@@ -92,6 +92,96 @@ async def latest_success(db: AsyncSession, subject_type: str, subject_id: int) -
         .limit(1)
     )
     return res.scalars().first()
+
+
+def _subject_snapshot(
+    *,
+    subject_type: str,
+    subject_id: int,
+    name: str | None,
+    account_status: str,
+    record_ready: bool,
+    enrollment: CaEnrollment | None,
+) -> dict:
+    """生成管理员只读进度行；显式白名单避免证件密文、核验 ID 或业务链接外泄。"""
+    return {
+        "subject_type": subject_type,
+        "subject_id": subject_id,
+        "name": (name or "").strip() or "未补录姓名",
+        "account_status": account_status,
+        "record_ready": bool(record_ready),
+        "ca_status": enrollment.status if enrollment else "not_started",
+        "face_code": enrollment.face_code if enrollment else None,
+        "completed_at": enrollment.completed_at if enrollment else None,
+        "last_checked_at": enrollment.last_checked_at if enrollment else None,
+    }
+
+
+def _progress_counts(rows: list[dict]) -> dict[str, int]:
+    counts = {
+        "total": len(rows),
+        "record_ready": sum(1 for row in rows if row["record_ready"]),
+        "succeeded": 0,
+        "pending": 0,
+        "failed": 0,
+        "expired": 0,
+        "not_started": 0,
+    }
+    for row in rows:
+        status = row["ca_status"]
+        if status in counts:
+            counts[status] += 1
+    return counts
+
+
+async def admin_overview(db: AsyncSession) -> dict:
+    """本地数据库聚合 CA 人员进度，不查询供应商、不消耗核验次数。"""
+    doctors_result = await db.execute(select(Doctor).order_by(Doctor.id.asc()))
+    pharmacists_result = await db.execute(
+        select(Staff).where(Staff.role == "pharmacist").order_by(Staff.id.asc())
+    )
+    latest_ids = (
+        select(func.max(CaEnrollment.id).label("id"))
+        .group_by(CaEnrollment.subject_type, CaEnrollment.subject_id)
+        .subquery()
+    )
+    enrollments_result = await db.execute(
+        select(CaEnrollment).join(latest_ids, CaEnrollment.id == latest_ids.c.id)
+    )
+    latest = {
+        (item.subject_type, item.subject_id): item
+        for item in enrollments_result.scalars().all()
+    }
+
+    doctor_rows = [
+        _subject_snapshot(
+            subject_type="doctor",
+            subject_id=doctor.id,
+            name=doctor.name,
+            account_status=doctor.audit_status,
+            record_ready=bool(
+                doctor.audit_status == "approved" and doctor.name and doctor.id_card_enc
+            ),
+            enrollment=latest.get(("doctor", doctor.id)),
+        )
+        for doctor in doctors_result.scalars().all()
+    ]
+    pharmacist_rows = [
+        _subject_snapshot(
+            subject_type="pharmacist",
+            subject_id=staff.id,
+            name=staff.name,
+            account_status="active" if staff.active else "disabled",
+            record_ready=bool(staff.active and staff.name and staff.id_card_enc),
+            enrollment=latest.get(("staff", staff.id)),
+        )
+        for staff in pharmacists_result.scalars().all()
+    ]
+    return {
+        "doctors": _progress_counts(doctor_rows),
+        "pharmacists": _progress_counts(pharmacist_rows),
+        "subjects": doctor_rows + pharmacist_rows,
+    }
 
 
 async def require_user_verified(db: AsyncSession, user: dict) -> CaEnrollment | None:

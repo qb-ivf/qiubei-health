@@ -9,10 +9,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ...core.config import settings
 from ...core.database import get_db
 from ...models.ca_enrollment import CaEnrollment
-from ...schemas.ca import CaConfigOut, CaEnrollmentOut, CaEnrollmentStartOut
+from ...schemas.ca import (
+    CaAdminOverviewOut,
+    CaConfigOut,
+    CaEnrollmentOut,
+    CaEnrollmentStartOut,
+)
 from ...services import ca_service
 from ...services.fxq_ca import FxqCaError, config_errors, expiry_status
-from ..deps import get_current_user
+from ..deps import get_current_user, require_role
 
 router = APIRouter(prefix="/ca", tags=["ca"])
 
@@ -41,6 +46,23 @@ async def config(user=Depends(get_current_user)):
         days_until_expiry=expiry.days_until_expiry,
         expiry_warning=expiry.warning,
         expiry_expired=expiry.expired,
+    )
+
+
+@router.get("/admin/overview", response_model=CaAdminOverviewOut)
+async def admin_overview(
+    user=Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """管理员只读查看人员备案/双录进度；不返回身份证、核验 ID、照片或视频。"""
+    data = await ca_service.admin_overview(db)
+    expiry = expiry_status(settings)
+    return CaAdminOverviewOut(
+        **data,
+        effective_expires_on=expiry.effective_expires_on,
+        expiry_warning=expiry.warning,
+        expiry_expired=expiry.expired,
+        generated_at=ca_service._utcnow(),
     )
 
 
