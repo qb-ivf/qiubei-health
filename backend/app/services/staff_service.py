@@ -22,6 +22,23 @@ class StaffError(Exception):
 
 
 VALID_ROLES = {"admin", "pharmacist", "finance"}
+MIN_PASSWORD_LENGTH = 12
+MAX_PASSWORD_BYTES = 72
+
+
+def validate_password_strength(password: str) -> None:
+    if len(password or "") < MIN_PASSWORD_LENGTH:
+        raise StaffError("密码至少 12 位")
+    if len(password.encode("utf-8")) > MAX_PASSWORD_BYTES:
+        raise StaffError("密码 UTF-8 编码不得超过 72 字节")
+    categories = sum((
+        any("a" <= c <= "z" for c in password),
+        any("A" <= c <= "Z" for c in password),
+        any("0" <= c <= "9" for c in password),
+        any(not (c.isascii() and c.isalnum()) for c in password),
+    ))
+    if categories < 3:
+        raise StaffError("密码须包含大写字母、小写字母、数字、特殊字符中的至少 3 类")
 
 
 async def list_staff(db: AsyncSession) -> list[Staff]:
@@ -32,6 +49,7 @@ async def list_staff(db: AsyncSession) -> list[Staff]:
 async def create_staff(db: AsyncSession, username: str, password: str, role: str, name: str | None) -> Staff:
     if not username or not password:
         raise StaffError("用户名和密码不能为空")
+    validate_password_strength(password)
     if role not in VALID_ROLES:
         raise StaffError("角色不合法")
     res = await db.execute(select(Staff).where(Staff.username == username))
@@ -65,6 +83,7 @@ async def reset_password(db: AsyncSession, staff_id: int, password: str) -> Staf
         raise StaffError("账号不存在")
     if not password:
         raise StaffError("新密码不能为空")
+    validate_password_strength(password)
     staff.password_hash = hash_password(password)
     await db.flush()
     return staff
@@ -87,6 +106,9 @@ async def count_active_admins(db: AsyncSession) -> int:
 
 async def upsert(db: AsyncSession, username: str, password: str, role: str, name: str | None = None) -> Staff:
     """创建或重置一个员工账号（脚本用）。"""
+    if not username or not password:
+        raise StaffError("用户名和密码不能为空")
+    validate_password_strength(password)
     res = await db.execute(select(Staff).where(Staff.username == username))
     staff = res.scalar_one_or_none()
     if staff:

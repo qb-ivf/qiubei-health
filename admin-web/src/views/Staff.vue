@@ -14,6 +14,15 @@ const ROLES = [
 const ROLE_TEXT = { admin: '管理员', pharmacist: '审方药师', finance: '财务' }
 const form = reactive({ username: '', password: '', name: '', role: 'pharmacist', id_card: '' })
 
+function passwordError(value) {
+  if (!value || value.length < 12) return '密码至少 12 位'
+  if (new TextEncoder().encode(value).length > 72) return '密码 UTF-8 编码不得超过 72 字节'
+  const categories = [
+    /[a-z]/.test(value), /[A-Z]/.test(value), /\d/.test(value), /[^A-Za-z0-9]/.test(value)
+  ].filter(Boolean).length
+  return categories >= 3 ? '' : '须包含大小写字母、数字、特殊字符中的至少 3 类'
+}
+
 async function load() {
   loading.value = true
   try {
@@ -37,6 +46,10 @@ function openEdit(row) {
 
 async function save() {
   if (!editing.value && (!form.username || !form.password)) { ElMessage.warning('请输入用户名和密码'); return }
+  if (!editing.value) {
+    const error = passwordError(form.password)
+    if (error) { ElMessage.warning(error); return }
+  }
   if (editing.value) {
     const payload = { name: form.name, role: form.role }
     if (form.id_card) payload.id_card = form.id_card
@@ -56,7 +69,7 @@ async function save() {
 function resetPwd(row) {
   ElMessageBox.prompt(`为账号「${row.username}」设置新密码`, '重置密码', {
     confirmButtonText: '确认', cancelButtonText: '取消', inputType: 'password',
-    inputValidator: (v) => (v && v.length >= 6 ? true : '密码至少 6 位')
+    inputValidator: (v) => passwordError(v) || true
   }).then(async ({ value }) => {
     await request.post(`/admin/staff/${row.id}/reset-password`, { password: value })
     ElMessage.success('密码已重置')
@@ -119,7 +132,7 @@ function remove(row) {
   <el-dialog v-model="dialog" :title="editing ? '编辑账号' : '新增账号'" width="440px">
     <el-form :model="form" label-width="80px">
       <el-form-item label="用户名"><el-input v-model="form.username" :disabled="!!editing" placeholder="登录用户名" /></el-form-item>
-      <el-form-item v-if="!editing" label="密码"><el-input v-model="form.password" type="password" placeholder="至少 6 位" /></el-form-item>
+      <el-form-item v-if="!editing" label="密码"><el-input v-model="form.password" type="password" placeholder="至少 12 位，包含至少 3 类字符" /></el-form-item>
       <el-form-item label="姓名"><el-input v-model="form.name" placeholder="真实姓名（可选）" /></el-form-item>
       <el-form-item v-if="form.role === 'pharmacist'" label="身份证号">
         <el-input v-model="form.id_card" maxlength="18" placeholder="加密存储不回显；留空表示不修改" />

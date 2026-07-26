@@ -36,7 +36,7 @@ services:
       # Windows 卷挂载下让 uvicorn --reload 生效（用轮询代替 inotify）
       WATCHFILES_FORCE_POLLING: "true"
     ports:
-      - "8000:8000"
+      - "${API_BIND_HOST:-127.0.0.1}:8000:8000"
     volumes:
       - .:/app
       - prescription_data:/app/storage/prescriptions

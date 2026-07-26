@@ -30,7 +30,9 @@ docker compose down -v ; docker compose up -d     # 约 30s 重新建表+seed
 > 不勾 → HTTP 请求和 **WebSocket 都连不上**，表现为"网络异常"或收不到呼叫。这是最高频的坑。
 
 - **模拟器**：后端地址用 `http://127.0.0.1:8000`（已是默认），无需改。
-- **真机预览**：改两端 `app.js` 的 `baseUrl`/`wsUrl` 为电脑局域网 IP（`ipconfig` 看 IPv4）。
+- **真机预览**：仅本地开发 `.env` 临时设置 `API_BIND_HOST=0.0.0.0` 并重建 API 容器，
+  再把两端 `app.js` 的 `baseUrl`/`wsUrl` 改为电脑局域网 IP（`ipconfig` 看 IPv4）。
+  生产必须保持默认 `127.0.0.1`，真机联调结束后也建议恢复。
 
 登录：微信**开发版**会显示「开发者快捷登录（仅开发版）」，且只有本地后端
 `DEBUG=true` 才接受；发布版隐藏，生产后端会拒绝任何 `dev_phone`。

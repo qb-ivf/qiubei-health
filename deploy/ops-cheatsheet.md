@@ -66,7 +66,7 @@ dc exec mysql mysql -uqiubei -pqiubei qiubei -e "SHOW TABLES LIKE 'medical_dispu
 **回滚**：`git log --oneline` 找上一版本 → `git checkout <hash>` → `dc up -d --build`。
 迁移只加表/加列不删改，旧代码跑在新表结构上无影响，**无需回滚数据库**。
 
-### 1.2 生产安全总预检与数据库/Redis 端口收敛
+### 1.2 生产安全总预检与 API/数据库/Redis 端口收敛
 
 每次正式发布后执行只读预检。它不写数据库、不访问外网，也不会输出任何密钥；`FAIL` 必须处理，
 `WARN` 是尚未开通或仍需人工验收的能力：
@@ -76,15 +76,16 @@ dc exec -T api python -m scripts.production_preflight
 echo $?   # 0=无 FAIL；1=仍有阻断项
 ```
 
-当前 Compose 已把宿主机 MySQL `3306`、Redis `6379` 绑定到 `127.0.0.1`，避免直接暴露到公网。
+当前 Compose 已把宿主机 API `8000`、MySQL `3306`、Redis `6379` 全部绑定到 `127.0.0.1`，
+公网只能经 Nginx 的 80/443 访问，避免绕过 HTTPS 和反向代理安全策略。
 这一变更涉及容器端口映射，首次部署本版本不能只执行 `dc restart api`，必须：
 
 ```bash
 git pull --ff-only
 dc up -d
 dc ps
-ss -lntp | grep -E ':(3306|6379)\b'
-# 正确结果只能看到 127.0.0.1:3306 和 127.0.0.1:6379，不应是 0.0.0.0 或 [::]
+ss -lntp | grep -E ':(8000|3306|6379)\b'
+# 正确结果只能看到 127.0.0.1:8000/3306/6379，不应是 0.0.0.0 或 [::]
 ```
 
 `MYSQL_ROOT_PASSWORD/MYSQL_USER/MYSQL_PASSWORD/MYSQL_DATABASE` 现可由服务器 `.env` 注入。
@@ -159,6 +160,29 @@ dc logs --tail=30 api
 正确结果：两个 SQL 均输出 `1`，医生接口返回 JSON，预检的“数据库”变为 `PASS`，
 汇总只剩短信和尚未开启的天津监管两个 `WARN`。确认稳定后，保留 `.env` 备份但确保其权限为
 600；不要把它复制到 Git 仓库或聊天中。
+
+### 1.4 运营后台登录安全更新
+
+本版本将 API 宿主机端口收敛到环回地址，并增加后台登录限流和新密码策略：
+
+- 同一“账号 + IP”失败 5 次，或单 IP 失败 30 次，锁定 15 分钟并返回 `429 + Retry-After`；
+- 登录成功自动清除该账号/IP 的失败次数；
+- 新建、重置运营账号密码须至少 12 位、最多 72 UTF-8 字节，并包含大小写字母、数字、
+  特殊字符中的至少 3 类；已有账号仍可登录，待下次重置时应用新规则。
+
+部署后端必须重建 API 容器以更新端口映射；前端账号管理页也有提示更新，按第 8 节重新发布：
+
+```bash
+git pull --ff-only
+dc up -d api
+dc ps
+ss -lntp | grep -E ':8000\b'
+curl -fsS https://api.qb-medical.cn/health
+dc exec -T api python -m scripts.production_preflight
+```
+
+`ss` 应只显示 `127.0.0.1:8000`。不要故意用生产管理员账号连续输错密码测试限流；
+自动化测试已覆盖阈值、解锁、脱敏键和 `Retry-After`。
 
 ## 2. 服务状态 / 日志 / 健康
 
