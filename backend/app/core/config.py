@@ -56,8 +56,14 @@ class Settings(BaseSettings):
     TENCENT_SMS_SECRET_KEY: str = ""
     TENCENT_SMS_SDK_APP_ID: str = ""
     TENCENT_SMS_SIGN: str = ""          # 短信签名内容
-    TENCENT_SMS_TEMPLATE_ID: str = ""   # 验证码模板 ID
+    TENCENT_SMS_TEMPLATE_REGISTER_PHONE_ID: str = ""
+    TENCENT_SMS_TEMPLATE_CHANGE_PHONE_ID: str = ""
     TENCENT_SMS_REGION: str = "ap-guangzhou"
+    TENCENT_SMS_CODE_TTL_SECONDS: int = 300
+    TENCENT_SMS_SEND_INTERVAL_SECONDS: int = 60
+    TENCENT_SMS_PHONE_DAILY_LIMIT: int = 2
+    TENCENT_SMS_USER_HOURLY_LIMIT: int = 5
+    TENCENT_SMS_IP_HOURLY_LIMIT: int = 30
 
     # —— 放心签：高级证书协议、智能双录与处方 PDF 签署 ——
     # ENABLED 控制是否调用放心签；DOCUMENT_SIGN_ENABLED 控制审方通过时是否真实签署 PDF；

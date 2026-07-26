@@ -149,9 +149,13 @@ async def test_production_unverified_payment_callback_is_rejected(monkeypatch):
 @pytest.mark.asyncio
 async def test_production_unconfigured_sms_never_returns_dev_code(monkeypatch):
     monkeypatch.setattr(settings, "DEBUG", False)
-    monkeypatch.setattr(sms_service, "_tencent_configured", lambda: False)
+    monkeypatch.setattr(sms_service, "_tencent_configured", lambda _purpose: False)
 
-    ok, message, dev_code = await sms_service.send_code("13800000000")
+    ok, message, dev_code = await sms_service.send_code(
+        "13800000000",
+        sms_service.SMS_PURPOSE_REGISTER_PHONE,
+        user_id=1,
+    )
 
     assert ok is False
     assert "暂不可用" in message

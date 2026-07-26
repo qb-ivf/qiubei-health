@@ -36,7 +36,13 @@ Page({
     const phone = (this.data.phone || '').trim();
     if (!/^1\d{10}$/.test(phone)) { wx.showToast({ title: '请输入正确手机号', icon: 'none' }); return; }
     if (this.data.counter > 0) return;
-    request('/sms/send-code', { method: 'POST', data: { phone } }).then((r) => {
+    request('/sms/send-code', {
+      method: 'POST',
+      data: {
+        phone,
+        purpose: this.data.isEdit ? 'change_phone' : 'register_phone'
+      }
+    }).then((r) => {
       this.setData({ counter: 60 });
       this._timer = setInterval(() => {
         const c = this.data.counter - 1;

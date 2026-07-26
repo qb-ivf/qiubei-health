@@ -39,7 +39,10 @@ def _config(tmp_path, **overrides):
         "TENCENT_SMS_SECRET_KEY": "sms-key",
         "TENCENT_SMS_SDK_APP_ID": "sms-app",
         "TENCENT_SMS_SIGN": "短信签名",
-        "TENCENT_SMS_TEMPLATE_ID": "template",
+        "TENCENT_SMS_TEMPLATE_REGISTER_PHONE_ID": "2695131",
+        "TENCENT_SMS_TEMPLATE_CHANGE_PHONE_ID": "2695133",
+        "TENCENT_SMS_CODE_TTL_SECONDS": 300,
+        "TENCENT_SMS_SEND_INTERVAL_SECONDS": 60,
         "TRTC_SDKAPPID": 123,
         "TRTC_SECRETKEY": "trtc-secret",
         "DOCTOR_AUTO_APPROVE": False,
@@ -84,7 +87,7 @@ def test_preflight_rejects_invalid_payment_and_partial_sms(tmp_path):
         WX_APPID="wrong-appid",
         WX_API_V3_KEY="too-short",
         WX_PAY_NOTIFY_URL="https://[",
-        TENCENT_SMS_TEMPLATE_ID="",
+        TENCENT_SMS_TEMPLATE_CHANGE_PHONE_ID="",
     )
 
     checks = configuration_checks(config, backend_dir=tmp_path)

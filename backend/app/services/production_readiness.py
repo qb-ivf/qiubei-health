@@ -126,7 +126,8 @@ def configuration_checks(config=settings, *, backend_dir: Path | None = None) ->
 
     sms_fields = (
         "TENCENT_SMS_SECRET_ID", "TENCENT_SMS_SECRET_KEY", "TENCENT_SMS_SDK_APP_ID",
-        "TENCENT_SMS_SIGN", "TENCENT_SMS_TEMPLATE_ID",
+        "TENCENT_SMS_SIGN", "TENCENT_SMS_TEMPLATE_REGISTER_PHONE_ID",
+        "TENCENT_SMS_TEMPLATE_CHANGE_PHONE_ID",
     )
     missing_sms = _missing(config, sms_fields)
     if len(missing_sms) == len(sms_fields):
@@ -134,7 +135,18 @@ def configuration_checks(config=settings, *, backend_dir: Path | None = None) ->
     elif missing_sms:
         checks.append(ReadinessCheck("FAIL", "短信", f"腾讯云短信配置不完整，缺少：{', '.join(missing_sms)}"))
     else:
-        checks.append(ReadinessCheck("PASS", "短信", "腾讯云短信字段齐全（尚需真机收码验证）"))
+        register_template = str(_get(config, "TENCENT_SMS_TEMPLATE_REGISTER_PHONE_ID"))
+        change_template = str(_get(config, "TENCENT_SMS_TEMPLATE_CHANGE_PHONE_ID"))
+        if not register_template.isdigit() or not change_template.isdigit():
+            checks.append(ReadinessCheck("FAIL", "短信", "腾讯云短信模板 ID 必须为纯数字"))
+        elif register_template == change_template:
+            checks.append(ReadinessCheck("FAIL", "短信", "注册手机号与修改手机号必须配置各自对应的模板 ID"))
+        elif int(_get(config, "TENCENT_SMS_CODE_TTL_SECONDS") or 300) != 300:
+            checks.append(ReadinessCheck("FAIL", "短信", "当前短信模板要求验证码有效期为 300 秒"))
+        elif int(_get(config, "TENCENT_SMS_SEND_INTERVAL_SECONDS") or 60) < 30:
+            checks.append(ReadinessCheck("FAIL", "短信", "短信发送间隔不得低于 30 秒"))
+        else:
+            checks.append(ReadinessCheck("PASS", "短信", "腾讯云短信字段、业务模板与本地限频配置有效（尚需真机收码验证）"))
 
     if not _get(config, "TRTC_SDKAPPID") or not _get(config, "TRTC_SECRETKEY"):
         checks.append(ReadinessCheck("WARN", "音视频", "TRTC 配置不完整，视频问诊不可用"))

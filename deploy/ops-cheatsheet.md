@@ -195,6 +195,45 @@ dc exec -T api python -m scripts.production_preflight
 `ss` 应只显示 `127.0.0.1:8000`。不要故意用生产管理员账号连续输错密码测试限流；
 自动化测试已覆盖阈值、解锁、脱敏键和 `Retry-After`。
 
+### 1.5 腾讯云短信首次配置 / 更新
+
+短信签名已固定为 `天津逑贝互联网医院`。患者新增就诊人使用模板 `2695131`，修改手机号使用
+模板 `2695133`；两个模板已于 2026-07-26 在腾讯云控制台确认“已生效”。详细字段和验收项见
+`docs/tencent_sms_integration.md`。
+
+```bash
+cd /opt/qiubei-health/backend
+nano .env
+```
+
+在 `.env` 配置 `TENCENT_SMS_SECRET_ID`、`TENCENT_SMS_SECRET_KEY`、
+`TENCENT_SMS_SDK_APP_ID`、`TENCENT_SMS_SIGN`、
+`TENCENT_SMS_TEMPLATE_REGISTER_PHONE_ID` 和
+`TENCENT_SMS_TEMPLATE_CHANGE_PHONE_ID`。密钥不要直接写进终端命令或聊天记录。
+
+```bash
+chmod 600 .env
+cd /opt/qiubei-health
+git pull --ff-only
+cd backend
+dc up -d --build --wait --wait-timeout 120 api
+dc exec -T api python -m scripts.tencent_sms_preflight
+dc exec -T api python -m scripts.production_preflight
+curl -ffS https://api.qb-medical.cn/health
+```
+
+模板生效后只做受控真机发送（同手机号间隔至少 60 秒，当天最多两次）：
+
+```bash
+dc exec -T api python -m scripts.tencent_sms_preflight \
+  --live --phone <内部测试手机号> --purpose register_phone
+
+sleep 65
+
+dc exec -T api python -m scripts.tencent_sms_preflight \
+  --live --phone <内部测试手机号> --purpose change_phone
+```
+
 ## 2. 服务状态 / 日志 / 健康
 
 API 容器内置 `/health` 探针。`dc ps` 应显示 `api ... (healthy)`；发布脚本须等待 healthy 后再做
