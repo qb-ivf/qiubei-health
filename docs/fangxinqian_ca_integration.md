@@ -183,7 +183,9 @@ python -m scripts.fxq_ca_preflight --live
 
 - [ ] B1. 在医生端微信小程序后台配置 `https://identity.fangxinqian.cn` 为业务域名；
 - [ ] B2. 把我方 API HTTPS 域名配置为业务域名，保证 H5 可以回跳；
-- [ ] B3. 若微信要求校验文件，按公众平台提示部署校验文件并完成验证；
+- [ ] B3. 医生端微信校验文件 `CZ3aMrCowH.txt` 已于 2026-07-26 取得，
+      `api.qb-medical.cn` 的 Nginx 精确返回规则已加入仓库；仍需部署后确认公网正文一致，
+      并由放心签将同一文件部署到 `identity.fangxinqian.cn`；
 - [ ] B4. 真机打开“工作台 → CA数字证书”，确认放心签 H5 可正常加载；
 - [ ] B5. 验证 H5 完成后能回到我方回调页，并能返回医生端查询结果。
 
